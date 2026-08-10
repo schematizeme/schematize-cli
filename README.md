@@ -5,18 +5,40 @@ do catálogo e roda o modo **overdev** — desenvolvimento contínuo à prova de
 prematura, **sem travar pra perguntar**. É o "app no PC" que instala as skills e as tools
 da casa; skills e futuras ferramentas entram pelo mesmo binário.
 
-## Instalar (bootstrap)
+## Instalar
 
+**Distros suportadas primariamente:** Debian 13, Linux Mint (base Debian/Ubuntu) e
+openSUSE Leap. Outras: cai no binário estático.
+
+**Um comando** (detecta a distro; usa `.deb` no apt, `.rpm` no zypper, ou binário; instala
+deps e liga o agente):
 ```bash
 curl -fsSL https://github.com/schematizeme/schematize-cli/releases/latest/download/install.sh | bash
 ```
 
-Baixa o binário `schematize` (Linux x86_64) pra `~/.local/bin`. Ou compile do fonte:
+**Compilar do fonte na máquina** (instala Rust via rustup + deps e compila):
+```bash
+curl -fsSL https://github.com/schematizeme/schematize-cli/releases/latest/download/install.sh | bash -s -- --from-source
+```
 
+**Baixar o pacote direto:**
+```bash
+# Debian / Mint / Ubuntu
+curl -fLO https://github.com/schematizeme/schematize-cli/releases/latest/download/schematize_amd64.deb
+sudo apt install ./schematize_amd64.deb
+# openSUSE Leap
+curl -fLO https://github.com/schematizeme/schematize-cli/releases/latest/download/schematize.x86_64.rpm
+sudo zypper install --allow-unsigned-rpm ./schematize.x86_64.rpm
+```
+
+**Do fonte manualmente:**
 ```bash
 git clone https://github.com/schematizeme/schematize-cli.git
 cd schematize-cli && cargo install --path .
 ```
+
+O pacote instala `/usr/bin/schematize` + o autostart do agente em `/etc/xdg/autostart/`
+(inicia com a sessão, checa atualizações e notifica com botão **Atualizar**).
 
 ## Skills (instalação e versão)
 
