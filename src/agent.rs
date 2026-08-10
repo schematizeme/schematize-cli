@@ -24,23 +24,18 @@ pub struct Upd {
 /// Resolve a última versão do CLI seguindo o redirect de um asset do release.
 fn cli_latest() -> Option<String> {
     let url = format!("https://github.com/{}/{}/releases/latest/download/install.sh", registry::ORG, CLI_REPO);
-    let eff = util::run("curl", &["-sIL", "-o", "/dev/null", "-w", "%{url_effective}", &url]).ok()?;
-    let m = "/download/v";
-    let s = eff.find(m)? + m.len();
-    let rest = &eff[s..];
-    Some(rest[..rest.find('/')?].to_string())
+    skills::version_from_redirect(&url)
 }
 
 /// Lista o que tem atualização: skills instaladas desatualizadas + o próprio CLI.
 pub fn check() -> Vec<Upd> {
-    let st = skills::load_state();
     let mut out = Vec::new();
     for it in registry::ITEMS {
-        let installed = st.skills.get(it.slug).map(|e| e.version.clone());
-        if let Some(inst) = &installed {
+        // fonte de verdade = VERSION no disco (funciona mesmo instalada por install.sh).
+        if let Some(inst) = skills::installed_version(it) {
             if let Ok(latest) = skills::resolve_latest(it) {
-                if *inst != latest {
-                    out.push(Upd { name: it.slug.into(), installed: inst.clone(), latest, item: Some(it) });
+                if inst != latest {
+                    out.push(Upd { name: it.slug.into(), installed: inst, latest, item: Some(it) });
                 }
             }
         }

@@ -39,12 +39,35 @@ pub fn save_state(st: &State) -> Result<(), String> {
     fs::write(&p, body).map_err(|e| e.to_string())
 }
 
+/// Versão instalada lida do disco (`~/.claude/skills/<dir>/VERSION`) — fonte de verdade,
+/// independente de como a skill foi instalada (CLI, install.sh, unzip). None se ausente.
+pub fn installed_version(it: &Item) -> Option<String> {
+    fs::read_to_string(skills_dir().join(it.skill_dir).join("VERSION"))
+        .ok()
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+}
+
 /// Resolve a última versão publicada seguindo o redirect do release "latest".
 /// Fluxo: HEAD em .../latest/download/... → url efetiva contém /download/vX.Y.Z/.
 pub fn resolve_latest(it: &Item) -> Result<String, String> {
     let url = registry::latest_zip_url(it);
-    let eff = util::run("curl", &["-sIL", "-o", "/dev/null", "-w", "%{url_effective}", &url])?;
-    parse_version(&eff).ok_or_else(|| format!("não consegui resolver a última versão de {}", it.slug))
+    version_from_redirect(&url).ok_or_else(|| format!("não consegui resolver a última versão de {}", it.slug))
+}
+
+/// Lê a versão do header `location` do PRIMEIRO redirect (sem -L, que cairia no CDN
+/// sem a versão). `.../releases/download/vX.Y.Z/asset` → "X.Y.Z".
+pub fn version_from_redirect(url: &str) -> Option<String> {
+    let headers = util::run("curl", &["-sI", url]).ok()?;
+    for line in headers.lines() {
+        let l = line.trim();
+        if l.len() > 9 && l[..9].eq_ignore_ascii_case("location:") {
+            if let Some(v) = parse_version(l[9..].trim()) {
+                return Some(v);
+            }
+        }
+    }
+    None
 }
 
 /// Extrai "0.9.1" de uma url .../releases/download/v0.9.1/arquivo.zip.
@@ -113,8 +136,8 @@ pub fn remove(it: &Item) -> Result<(), String> {
 }
 
 /// Linha de status por skill: instalada? versão? última disponível?
-pub fn status_line(it: &Item, st: &State, check_remote: bool) -> String {
-    let inst = st.skills.get(it.slug).map(|e| e.version.clone());
+pub fn status_line(it: &Item, _st: &State, check_remote: bool) -> String {
+    let inst = installed_version(it);
     let latest = if check_remote { resolve_latest(it).ok() } else { None };
     let inst_s = inst.clone().unwrap_or_else(|| "—".into());
     let up = match (&inst, &latest) {
