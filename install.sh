@@ -13,6 +13,7 @@ set -euo pipefail
 
 REPO="schematizeme/schematize-cli"
 BASE="https://github.com/$REPO/releases/latest/download"
+API="https://api.github.com/repos/$REPO/releases/latest"
 MODE="auto"
 for a in "$@"; do case "$a" in
   --from-source) MODE=source;; --binary) MODE=binary;; --auto) MODE=auto;;
@@ -44,6 +45,14 @@ pkg_install() {
 ensure_runtime_deps() {
   local miss=(); for b in curl unzip git; do command -v "$b" >/dev/null || miss+=("$b"); done
   [ ${#miss[@]} -gt 0 ] && pkg_install "${miss[@]}" || true
+}
+# URL base de download da ÚLTIMA versão, via tag real da API (imune ao cache do
+# CDN no asset de nome fixo em /latest/download/). Fallback: /latest/download.
+resolve_dl() {
+  local tag
+  tag="$(curl -sfL -H 'Accept: application/vnd.github+json' -H 'User-Agent: schematize-install' "$API" 2>/dev/null \
+        | grep -m1 '"tag_name"' | sed -E 's/.*"tag_name": *"([^"]+)".*/\1/')"
+  if [ -n "$tag" ]; then echo "https://github.com/$REPO/releases/download/$tag"; else echo "$BASE"; fi
 }
 # libs de runtime da GUI — só para o modo binário (o pacote resolve sozinho).
 gui_runtime_deps() {
@@ -88,6 +97,14 @@ EOF
 post_config() {
   hash -r 2>/dev/null || true
   local BIN; BIN="$(command -v schematize || true)"
+  # Um schematize antigo em ~/.cargo/bin sombreia o do pacote e confunde a versão.
+  # Como a distribuição agora é o pacote, removemos o cargo shadow (reversível).
+  if [ "$BIN" = "$HOME/.cargo/bin/schematize" ] && [ -x /usr/bin/schematize ] && command -v cargo >/dev/null; then
+    log "removendo schematize antigo do ~/.cargo/bin (sombreava o pacote)"
+    cargo uninstall schematize >/dev/null 2>&1 || rm -f "$HOME/.cargo/bin/schematize" "$HOME/.cargo/bin/schematize-gui"
+    hash -r 2>/dev/null || true
+    BIN="$(command -v schematize || true)"
+  fi
   [ -n "$BIN" ] || { log "reabra o shell (PATH) e rode: schematize --help"; return; }
   ok "schematize $($BIN --version 2>/dev/null | awk '{print $2}') em $BIN"
   if [ "$BIN" != "/usr/bin/schematize" ] && [ -x /usr/bin/schematize ]; then
@@ -97,19 +114,20 @@ post_config() {
   echo; ok "pronto. Próximos passos:"
   echo "    schematize install --all      # instala as skills"
   echo "    schematize overdev enable     # liga o modo overdev"
-  echo "    schematize-gui                # abre a janela (também no menu de apps)"
+  echo "    schematize-gui &              # abre a janela (o & libera o terminal; ou use o menu de apps)"
   echo "    schematize list               # versões instaladas vs latest"
 }
 
 install_binary() {
   ensure_runtime_deps; gui_runtime_deps
+  local DL; DL="$(resolve_dl)"
   local dst; if [ -n "$SUDO" ] || [ -w /usr/local/bin ]; then dst="/usr/local/bin"; else dst="$HOME/.local/bin"; fi
   mkdir -p "$dst" 2>/dev/null || $SUDO mkdir -p "$dst"
   local mv_="mv"; [ -w "$dst" ] || mv_="$SUDO mv"
   for pair in "schematize-linux-x86_64:schematize" "schematize-gui-linux-x86_64:schematize-gui"; do
     local src="${pair%%:*}" name="${pair##*:}" t
     log "baixando $name → $dst/$name"; t="$(mktemp)"
-    curl -fSL -o "$t" "$BASE/$src"; chmod 755 "$t"; $mv_ "$t" "$dst/$name"
+    curl -fSL -o "$t" "$DL/$src"; chmod 755 "$t"; $mv_ "$t" "$dst/$name"
   done
   install_gui_launcher
   case ":$PATH:" in *":$dst:"*) : ;; *) echo "  ⚠ adicione ao PATH: export PATH=\"$dst:\$PATH\"" ;; esac
@@ -117,13 +135,15 @@ install_binary() {
 }
 install_deb() {
   ensure_runtime_deps
-  local t; t="$(mktemp --suffix=.deb)"; log "baixando .deb (CLI + GUI)"; curl -fSL -o "$t" "$BASE/schematize_amd64.deb"
+  local DL; DL="$(resolve_dl)"
+  local t; t="$(mktemp --suffix=.deb)"; log "baixando .deb (CLI + GUI)"; curl -fSL -o "$t" "$DL/schematize_amd64.deb"
   chmod 644 "$t"   # deixa o _apt (sandbox de download) ler o arquivo — sem o aviso de permissão
   log "instalando via apt (resolve libs da GUI)"; $SUDO apt-get install -y "$t" || { $SUDO dpkg -i "$t"; $SUDO apt-get -f install -y; }
   rm -f "$t"; post_config
 }
 install_rpm() {
-  local t; t="$(mktemp --suffix=.rpm)"; log "baixando .rpm (CLI + GUI)"; curl -fSL -o "$t" "$BASE/schematize.x86_64.rpm"; chmod 644 "$t"
+  local DL; DL="$(resolve_dl)"
+  local t; t="$(mktemp --suffix=.rpm)"; log "baixando .rpm (CLI + GUI)"; curl -fSL -o "$t" "$DL/schematize.x86_64.rpm"; chmod 644 "$t"
   if command -v zypper >/dev/null; then $SUDO zypper --non-interactive install -y --allow-unsigned-rpm "$t"; else $SUDO dnf install -y "$t"; fi
   rm -f "$t"; post_config
 }
