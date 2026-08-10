@@ -1,6 +1,6 @@
 [package]
 name = "schematize"
-version = "0.5.1"
+version = "0.5.2"
 edition = "2021"
 description = "Gerenciador do ecossistema schematize: instala/versiona as skills e roda o modo overdev (dev contínuo à prova de parada). Linux-first."
 license = "MIT"
@@ -42,10 +42,11 @@ license-file = ["LICENSE", "0"]
 extended-description = "Instala e versiona as skills do catálogo schematize e roda o modo overdev (dev contínuo à prova de parada). Um agente opcional inicia com a sessão, checa atualizações e notifica com opção de atualizar."
 section = "utils"
 priority = "optional"
-# $auto = dpkg-shlibdeps resolve as libs de runtime da GUI (libX11/libGL/…) a
-# partir do ELF; num desktop KDE/Cinnamon já estão presentes. curl/unzip/git são
-# do CLI (baixar skills). A GUI vai pré-compilada no pacote — sem libs -dev.
-depends = "$auto, curl, unzip, git"
+# A GUI (winit/wgpu) carrega as libs de janela por dlopen em runtime — o ELF só
+# linka libc, então o $auto (dpkg-shlibdeps) não as enxerga. Declaradas à mão pra
+# o apt garantir tudo mesmo num sistema enxuto (num desktop KDE/Cinnamon já há).
+# curl/unzip/git são do CLI (baixar skills). GUI vai pré-compilada — sem libs -dev.
+depends = "$auto, curl, unzip, git, libx11-6, libxcursor1, libxrandr2, libxi6, libxkbcommon0, libwayland-client0, libgl1"
 assets = [
     ["target/release/schematize", "usr/bin/", "755"],
     ["target/release/schematize-gui", "usr/bin/", "755"],
@@ -73,3 +74,12 @@ assets = [
 curl = "*"
 unzip = "*"
 git = "*"
+# libs da GUI (dlopen em runtime) — via capabilities de soname, que openSUSE/Fedora
+# proveem independente do nome do pacote. O zypper resolve pro pacote certo.
+"libX11.so.6()(64bit)" = "*"
+"libxkbcommon.so.0()(64bit)" = "*"
+"libwayland-client.so.0()(64bit)" = "*"
+"libXcursor.so.1()(64bit)" = "*"
+"libXrandr.so.2()(64bit)" = "*"
+"libXi.so.6()(64bit)" = "*"
+"libGL.so.1()(64bit)" = "*"
