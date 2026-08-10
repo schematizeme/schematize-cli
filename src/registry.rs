@@ -23,6 +23,7 @@ pub const ITEMS: &[Item] = &[
     Item { slug: "go",          skill_dir: "schematize-go",          repo: "skill-go",          zip: "skill-go.zip" },
     Item { slug: "rust",        skill_dir: "schematize-rust",        repo: "skill-rust",        zip: "skill-rust.zip" },
     Item { slug: "web",         skill_dir: "schematize-web",         repo: "skill-web",         zip: "skill-web.zip" },
+    Item { slug: "seo",         skill_dir: "schematize-seo",         repo: "skill-seo",         zip: "skill-seo.zip" },
     Item { slug: "node",        skill_dir: "schematize-node",        repo: "skill-node",        zip: "skill-node.zip" },
     Item { slug: "pentest",     skill_dir: "schematize-pentest",     repo: "skill-pentest",     zip: "skill-pentest.zip" },
 ];
