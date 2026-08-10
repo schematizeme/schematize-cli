@@ -3,6 +3,8 @@
 //! (dev contínuo à prova de parada, sem travar pra perguntar).
 //! Onde: ponto de entrada; despacha pros módulos skills/overdev.
 
+mod agent;
+mod autostart;
 mod overdev;
 mod registry;
 mod settings;
@@ -41,6 +43,26 @@ enum Cmd {
         #[command(subcommand)]
         sub: Over,
     },
+    /// Checa atualizações uma vez (com --notify, dispara notificação do desktop).
+    Check {
+        #[arg(long)]
+        notify: bool,
+    },
+    /// Agente residente: checa periodicamente e notifica (usado pelo autostart).
+    Agent,
+    /// Vincula o agente ao sistema (inicia no login).
+    Autostart {
+        #[command(subcommand)]
+        sub: Auto,
+    },
+}
+
+#[derive(Subcommand)]
+enum Auto {
+    /// Habilita e inicia o agente (systemd --user + XDG autostart).
+    Enable,
+    /// Desabilita e remove o autostart.
+    Disable,
 }
 
 #[derive(Subcommand)]
@@ -129,6 +151,18 @@ fn main() {
             Over::Hold { texto } => overdev::hold(&texto.join(" ")),
             Over::Park { item, pergunta } => overdev::park(&item, &pergunta.join(" ")),
             Over::Stop => overdev::stop(),
+        },
+        Cmd::Check { notify } => {
+            agent::run_once(notify);
+            Ok(())
+        }
+        Cmd::Agent => {
+            agent::run_loop();
+            Ok(())
+        }
+        Cmd::Autostart { sub } => match sub {
+            Auto::Enable => autostart::enable(&util::self_exe()),
+            Auto::Disable => autostart::disable(),
         },
     };
     if let Err(e) = r {
