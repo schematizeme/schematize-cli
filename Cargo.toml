@@ -1,6 +1,6 @@
 [package]
 name = "schematize"
-version = "0.2.3"
+version = "0.3.0"
 edition = "2021"
 description = "Gerenciador do ecossistema schematize: instala/versiona as skills e roda o modo overdev (dev contínuo à prova de parada). Linux-first."
 license = "MIT"
@@ -19,3 +19,33 @@ notify-rust = "4"
 strip = true
 opt-level = "z"
 lto = true
+
+# ---- Empacotamento .deb (Debian/Mint/Ubuntu) — cargo-deb ----
+[package.metadata.deb]
+maintainer = "schematize <tech@volucer.me>"
+copyright = "2026, schematize"
+license-file = ["LICENSE", "0"]
+extended-description = "Instala e versiona as skills do catálogo schematize e roda o modo overdev (dev contínuo à prova de parada). Um agente opcional inicia com a sessão, checa atualizações e notifica com opção de atualizar."
+section = "utils"
+priority = "optional"
+depends = "curl, unzip, git"
+assets = [
+    ["target/release/schematize", "usr/bin/", "755"],
+    ["packaging/schematize-agent.desktop", "etc/xdg/autostart/schematize-agent.desktop", "644"],
+    ["README.md", "usr/share/doc/schematize/README.md", "644"],
+]
+
+# ---- Empacotamento .rpm (openSUSE Leap / Fedora) — cargo-generate-rpm ----
+[package.metadata.generate-rpm]
+summary = "Gerenciador do ecossistema schematize (skills + overdev), Linux-first."
+license = "MIT"
+assets = [
+    { source = "target/release/schematize", dest = "/usr/bin/schematize", mode = "755" },
+    { source = "packaging/schematize-agent.desktop", dest = "/etc/xdg/autostart/schematize-agent.desktop", mode = "644" },
+    { source = "README.md", dest = "/usr/share/doc/schematize/README.md", mode = "644" },
+]
+
+[package.metadata.generate-rpm.requires]
+curl = "*"
+unzip = "*"
+git = "*"

@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=schematize agent
+Comment=Checa atualizações das skills e do CLI schematize e notifica
+Exec=schematize agent
+Terminal=false
+X-GNOME-Autostart-enabled=true
+NoDisplay=true
