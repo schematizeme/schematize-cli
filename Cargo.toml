@@ -1,6 +1,6 @@
 [package]
 name = "schematize"
-version = "0.4.0"
+version = "0.5.0"
 edition = "2021"
 description = "Gerenciador do ecossistema schematize: instala/versiona as skills e roda o modo overdev (dev contínuo à prova de parada). Linux-first."
 license = "MIT"
@@ -42,10 +42,15 @@ license-file = ["LICENSE", "0"]
 extended-description = "Instala e versiona as skills do catálogo schematize e roda o modo overdev (dev contínuo à prova de parada). Um agente opcional inicia com a sessão, checa atualizações e notifica com opção de atualizar."
 section = "utils"
 priority = "optional"
-depends = "curl, unzip, git"
+# $auto = dpkg-shlibdeps resolve as libs de runtime da GUI (libX11/libGL/…) a
+# partir do ELF; num desktop KDE/Cinnamon já estão presentes. curl/unzip/git são
+# do CLI (baixar skills). A GUI vai pré-compilada no pacote — sem libs -dev.
+depends = "$auto, curl, unzip, git"
 assets = [
     ["target/release/schematize", "usr/bin/", "755"],
+    ["target/release/schematize-gui", "usr/bin/", "755"],
     ["packaging/schematize-agent.desktop", "etc/xdg/autostart/schematize-agent.desktop", "644"],
+    ["packaging/schematize-gui.desktop", "usr/share/applications/schematize-gui.desktop", "644"],
     ["README.md", "usr/share/doc/schematize/README.md", "644"],
 ]
 
@@ -53,9 +58,14 @@ assets = [
 [package.metadata.generate-rpm]
 summary = "Gerenciador do ecossistema schematize (skills + overdev), Linux-first."
 license = "MIT"
+# builtin = analisa o ELF e gera os Requires de soname (libX11.so.6()(64bit)…)
+# sem depender do rpm no host de build; o zypper resolve pro pacote da distro.
+auto-req = "builtin"
 assets = [
     { source = "target/release/schematize", dest = "/usr/bin/schematize", mode = "755" },
+    { source = "target/release/schematize-gui", dest = "/usr/bin/schematize-gui", mode = "755" },
     { source = "packaging/schematize-agent.desktop", dest = "/etc/xdg/autostart/schematize-agent.desktop", mode = "644" },
+    { source = "packaging/schematize-gui.desktop", dest = "/usr/share/applications/schematize-gui.desktop", mode = "644" },
     { source = "README.md", dest = "/usr/share/doc/schematize/README.md", mode = "644" },
 ]
 
