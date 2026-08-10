@@ -119,15 +119,18 @@ fn shell(cmd: &str) -> String {
 }
 
 impl eframe::App for App {
-    fn update(&mut self, ctx: &egui::Context, _f: &mut eframe::Frame) {
+    // eframe 0.36: o ponto de entrada é `ui` (recebe um Ui raiz), não mais `update`.
+    // Os panels agora recebem `&mut Ui` (Panel::top/bottom, CentralPanel).
+    fn ui(&mut self, ui: &mut egui::Ui, _f: &mut eframe::Frame) {
         while let Ok((rows, st)) = self.rx.try_recv() {
             self.rows = rows;
             self.status = st;
             self.busy.store(false, Ordering::SeqCst);
         }
         let busy = self.busy.load(Ordering::SeqCst);
+        let ctx = ui.ctx().clone(); // p/ threads/repaint (request_repaint fora do frame)
 
-        egui::TopBottomPanel::top("top").show(ctx, |ui| {
+        egui::Panel::top("top").resizable(false).show(ui, |ui| {
             ui.add_space(6.0);
             ui.horizontal(|ui| {
                 ui.heading("schematize");
@@ -146,7 +149,7 @@ impl eframe::App for App {
             ui.add_space(6.0);
         });
 
-        egui::CentralPanel::default().show(ctx, |ui| {
+        egui::CentralPanel::default().show(ui, |ui| {
             egui::ScrollArea::vertical().show(ui, |ui| {
                 egui::Grid::new("skills").num_columns(4).striped(true).spacing([16.0, 8.0]).show(ui, |ui| {
                     ui.strong("skill");
@@ -175,7 +178,7 @@ impl eframe::App for App {
             });
         });
 
-        egui::TopBottomPanel::bottom("bottom").show(ctx, |ui| {
+        egui::Panel::bottom("bottom").resizable(false).show(ui, |ui| {
             ui.add_space(6.0);
             ui.horizontal(|ui| {
                 if ui.button("Ligar agente (autostart)").clicked() {
