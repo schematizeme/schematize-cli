@@ -19,7 +19,7 @@ struct Row {
     name: String,
     installed: Option<String>,
     latest: Option<String>,
-    slug: Option<&'static str>, // None = CLI
+    slug: Option<String>, // None = CLI
 }
 
 impl Row {
@@ -32,13 +32,14 @@ impl Row {
 }
 
 /// Coleta o estado atual de todas as linhas (skills + CLI). Roda em thread.
+/// As skills vêm do ÍNDICE REMOTO (registry::catalog) — skills novas aparecem sozinhas.
 fn collect_rows() -> Vec<Row> {
-    let mut rows: Vec<Row> = registry::ITEMS
-        .iter()
+    let mut rows: Vec<Row> = registry::catalog()
+        .into_iter()
         .map(|it| Row {
-            name: it.slug.to_string(),
-            installed: skills::installed_version(it),
-            latest: skills::resolve_latest(it).ok(),
+            name: it.slug.clone(),
+            installed: skills::installed_version(&it),
+            latest: skills::resolve_latest(&it).ok(),
             slug: Some(it.slug),
         })
         .collect();
@@ -107,9 +108,9 @@ impl App {
         }
         let tx = self.tx.clone();
         std::thread::spawn(move || {
-            match row.slug.and_then(registry::find) {
+            match row.slug.as_deref().and_then(|sl| registry::find(&registry::catalog(), sl)) {
                 Some(it) => {
-                    let _ = skills::install(it);
+                    let _ = skills::install(&it);
                 }
                 None => {
                     let _ = util::run("bash", &["-c", CLI_INSTALL]);

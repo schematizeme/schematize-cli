@@ -43,7 +43,7 @@ pub fn save_state(st: &State) -> Result<(), String> {
 /// Versão instalada lida do disco (`~/.claude/skills/<dir>/VERSION`) — fonte de verdade,
 /// independente de como a skill foi instalada (CLI, install.sh, unzip). None se ausente.
 pub fn installed_version(it: &Item) -> Option<String> {
-    fs::read_to_string(skills_dir().join(it.skill_dir).join("VERSION"))
+    fs::read_to_string(skills_dir().join(&it.skill_dir).join("VERSION"))
         .ok()
         .map(|s| s.trim().to_string())
         .filter(|s| !s.is_empty())
@@ -52,7 +52,7 @@ pub fn installed_version(it: &Item) -> Option<String> {
 /// Resolve a última versão publicada seguindo o redirect do release "latest".
 /// Fluxo: HEAD em .../latest/download/... → url efetiva contém /download/vX.Y.Z/.
 pub fn resolve_latest(it: &Item) -> Result<String, String> {
-    latest_release_tag(it.repo).ok_or_else(|| format!("não consegui resolver a última versão de {}", it.slug))
+    latest_release_tag(&it.repo).ok_or_else(|| format!("não consegui resolver a última versão de {}", it.slug))
 }
 
 /// Última versão publicada via API do GitHub (`releases/latest` → `tag_name`), sem "v".
@@ -78,7 +78,7 @@ pub fn install(it: &Item) -> Result<String, String> {
     util::run("curl", &["-fSL", "-o", &zip, &url])?;
     util::run("unzip", &["-q", "-o", &zip, "-d", &ex])?;
 
-    let extracted = Path::new(&ex).join(it.skill_dir);
+    let extracted = Path::new(&ex).join(&it.skill_dir);
     if !extracted.is_dir() {
         let _ = fs::remove_dir_all(&tmp);
         return Err(format!("zip de {} não contém {}/", it.slug, it.skill_dir));
@@ -88,7 +88,7 @@ pub fn install(it: &Item) -> Result<String, String> {
         .unwrap_or_else(|_| "0.0.0".into());
 
     // Copia limpa: remove a versão anterior e recria (sem drift de arquivo).
-    let dest = skills_dir().join(it.skill_dir);
+    let dest = skills_dir().join(&it.skill_dir);
     fs::create_dir_all(skills_dir()).map_err(|e| e.to_string())?;
     let _ = fs::remove_dir_all(&dest);
     util::run("cp", &["-r", extracted.to_str().unwrap(), dest.to_str().unwrap()])?;
@@ -116,10 +116,10 @@ pub fn install(it: &Item) -> Result<String, String> {
 
 /// Remove uma skill instalada (pasta + registro). Comandos ficam (podem ser de outra origem).
 pub fn remove(it: &Item) -> Result<(), String> {
-    let dest = skills_dir().join(it.skill_dir);
+    let dest = skills_dir().join(&it.skill_dir);
     let _ = fs::remove_dir_all(&dest);
     let mut st = load_state();
-    st.skills.remove(it.slug);
+    st.skills.remove(&it.slug);
     save_state(&st)?;
     Ok(())
 }

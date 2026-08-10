@@ -109,11 +109,11 @@ enum Over {
     Stop,
 }
 
-fn resolve(names: &[String], all: bool) -> Vec<&'static registry::Item> {
+fn resolve(cat: &[registry::Item], names: &[String], all: bool) -> Vec<registry::Item> {
     if all || names.is_empty() {
-        registry::ITEMS.iter().collect()
+        cat.to_vec()
     } else {
-        names.iter().filter_map(|n| registry::find(n)).collect()
+        names.iter().filter_map(|n| registry::find(cat, n)).collect()
     }
 }
 
@@ -150,18 +150,20 @@ fn main() {
     let cli = Cli::parse();
     let r: Result<(), String> = match cli.cmd {
         Cmd::Install { names, all } => {
-            for it in resolve(&names, all) {
-                match skills::install(it) {
-                    Ok(v) => println!("✓ {}", tf("skills.installed_ok", &[("name", it.slug), ("v", &v)])),
+            let cat = registry::catalog();
+            for it in resolve(&cat, &names, all) {
+                match skills::install(&it) {
+                    Ok(v) => println!("✓ {}", tf("skills.installed_ok", &[("name", &it.slug), ("v", &v)])),
                     Err(e) => eprintln!("✗ {}: {e}", it.slug),
                 }
             }
             Ok(())
         }
         Cmd::Update { names, all } => {
-            for it in resolve(&names, all) {
-                match skills::install(it) {
-                    Ok(v) => println!("✓ {}", tf("skills.updated", &[("name", it.slug), ("v", &v)])),
+            let cat = registry::catalog();
+            for it in resolve(&cat, &names, all) {
+                match skills::install(&it) {
+                    Ok(v) => println!("✓ {}", tf("skills.updated", &[("name", &it.slug), ("v", &v)])),
                     Err(e) => eprintln!("✗ {}: {e}", it.slug),
                 }
             }
@@ -170,15 +172,18 @@ fn main() {
         Cmd::List => {
             let st = skills::load_state();
             println!("{}", t("skills.header"));
-            for it in registry::ITEMS {
+            for it in &registry::catalog() {
                 println!("  {}", skills::status_line(it, &st, true));
             }
             Ok(())
         }
-        Cmd::Remove { name } => match registry::find(&name) {
-            Some(it) => skills::remove(it).map(|_| println!("{}", tf("skills.removed", &[("name", it.slug)]))),
-            None => Err(tf("skills.unknown", &[("name", &name)])),
-        },
+        Cmd::Remove { name } => {
+            let cat = registry::catalog();
+            match registry::find(&cat, &name) {
+                Some(it) => skills::remove(&it).map(|_| println!("{}", tf("skills.removed", &[("name", &it.slug)]))),
+                None => Err(tf("skills.unknown", &[("name", &name)])),
+            }
+        }
         Cmd::Status => {
             status::run();
             Ok(())

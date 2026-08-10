@@ -23,18 +23,19 @@ pub struct Upd {
     pub name: String,
     pub installed: String,
     pub latest: String,
-    pub item: Option<&'static Item>, // None = o próprio CLI
+    pub item: Option<Item>, // None = o próprio CLI
 }
 
 /// Lista o que tem atualização: skills instaladas desatualizadas + o próprio CLI.
+/// O conjunto de skills vem do ÍNDICE REMOTO (registry::catalog) — pega skills novas.
 pub fn check() -> Vec<Upd> {
     let mut out = Vec::new();
-    for it in registry::ITEMS {
+    for it in registry::catalog() {
         // fonte de verdade = VERSION no disco (funciona mesmo instalada por install.sh).
-        if let Some(inst) = skills::installed_version(it) {
-            if let Ok(latest) = skills::resolve_latest(it) {
+        if let Some(inst) = skills::installed_version(&it) {
+            if let Ok(latest) = skills::resolve_latest(&it) {
                 if inst != latest {
-                    out.push(Upd { name: it.slug.into(), installed: inst, latest, item: Some(it) });
+                    out.push(Upd { name: it.slug.clone(), installed: inst, latest, item: Some(it) });
                 }
             }
         }
@@ -51,7 +52,7 @@ pub fn check() -> Vec<Upd> {
 /// Aplica todas as atualizações (skills via install; CLI via bootstrap).
 fn apply(ups: &[Upd]) {
     for u in ups {
-        match u.item {
+        match &u.item {
             Some(it) => {
                 let _ = skills::install(it);
             }

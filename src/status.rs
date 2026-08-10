@@ -16,7 +16,7 @@ pub fn run() {
     // Versões
     header(&t("status.section_versions"));
     let st = skills::load_state();
-    for it in registry::ITEMS {
+    for it in &registry::catalog() {
         println!("  {}", skills::status_line(it, &st, true));
     }
     let cur = env!("CARGO_PKG_VERSION");

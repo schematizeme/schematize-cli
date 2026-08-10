@@ -1,0 +1,12 @@
+{
+  "_comment": "Índice do catálogo de skills do schematize. A CLI lê este arquivo (raw main) pra saber quais skills existem — skill nova = adicionar uma entrada aqui e commitar; NÃO precisa recompilar a CLI.",
+  "skills": [
+    { "slug": "engineering", "skill_dir": "schematize-engineering", "repo": "skill-engineering", "zip": "skill-engineering.zip" },
+    { "slug": "go", "skill_dir": "schematize-go", "repo": "skill-go", "zip": "skill-go.zip" },
+    { "slug": "rust", "skill_dir": "schematize-rust", "repo": "skill-rust", "zip": "skill-rust.zip" },
+    { "slug": "web", "skill_dir": "schematize-web", "repo": "skill-web", "zip": "skill-web.zip" },
+    { "slug": "seo", "skill_dir": "schematize-seo", "repo": "skill-seo", "zip": "skill-seo.zip" },
+    { "slug": "node", "skill_dir": "schematize-node", "repo": "skill-node", "zip": "skill-node.zip" },
+    { "slug": "pentest", "skill_dir": "schematize-pentest", "repo": "skill-pentest", "zip": "skill-pentest.zip" }
+  ]
+}
