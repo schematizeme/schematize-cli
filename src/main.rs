@@ -3,15 +3,8 @@
 //! (dev contínuo à prova de parada, sem travar pra perguntar).
 //! Onde: ponto de entrada; despacha pros módulos skills/overdev.
 
-mod agent;
-mod autostart;
-mod overdev;
-mod registry;
-mod settings;
-mod skills;
-mod util;
-
 use clap::{Parser, Subcommand};
+use schematize::{agent, autostart, overdev, registry, skills, util};
 
 #[derive(Parser)]
 #[command(name = "schematize", version, about = "Instala/versiona as skills schematize e roda o overdev (Linux-first).")]

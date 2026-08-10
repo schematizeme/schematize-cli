@@ -40,6 +40,33 @@ cd schematize-cli && cargo install --path .
 O pacote instala `/usr/bin/schematize` + o autostart do agente em `/etc/xdg/autostart/`
 (inicia com a sessão, checa atualizações e notifica com botão **Atualizar**).
 
+## Interface gráfica (GUI)
+
+Janela de gerenciamento (egui) — lista skills (instalada vs latest) com botões de
+atualizar, liga o agente e o overdev. Roda em **KDE** e **Cinnamon** (X11/Wayland).
+
+**Um comando** (instala as libs gráficas, compila e cria o lançador no menu):
+```bash
+curl -fsSL https://github.com/schematizeme/schematize-cli/releases/latest/download/install.sh | bash -s -- --gui
+```
+
+**Manual** — instale as libs e compile com a feature `gui`:
+```bash
+# Debian/Mint:
+sudo apt install build-essential pkg-config libx11-dev libxcursor-dev libxrandr-dev \
+  libxi-dev libxkbcommon-dev libwayland-dev libgl1-mesa-dev \
+  libxcb1-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev
+# openSUSE Leap:
+sudo zypper install -t pattern devel_basis && sudo zypper install pkg-config \
+  libX11-devel libXcursor-devel libXrandr-devel libXi-devel libxkbcommon-devel \
+  wayland-devel Mesa-libGL-devel libxcb-devel
+
+git clone https://github.com/schematizeme/schematize-cli.git
+cd schematize-cli && cargo install --path . --features gui   # instala schematize + schematize-gui
+```
+Abra com `schematize-gui` ou pelo menu de aplicativos. O CLI (`schematize`) e os pacotes
+`.deb`/`.rpm` **não** exigem essas libs — só a GUI.
+
 ## Skills (instalação e versão)
 
 ```bash

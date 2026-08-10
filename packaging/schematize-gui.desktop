@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=schematize
+GenericName=Gerenciador de skills
+Comment=Gerenciar skills e overdev do schematize
+Exec=schematize-gui
+Terminal=false
+Categories=Development;Utility;
+Keywords=schematize;skills;overdev;claude;
