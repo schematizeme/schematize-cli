@@ -51,32 +51,20 @@ pub fn installed_version(it: &Item) -> Option<String> {
 /// Resolve a última versão publicada seguindo o redirect do release "latest".
 /// Fluxo: HEAD em .../latest/download/... → url efetiva contém /download/vX.Y.Z/.
 pub fn resolve_latest(it: &Item) -> Result<String, String> {
-    let url = registry::latest_zip_url(it);
-    version_from_redirect(&url).ok_or_else(|| format!("não consegui resolver a última versão de {}", it.slug))
+    latest_release_tag(it.repo).ok_or_else(|| format!("não consegui resolver a última versão de {}", it.slug))
 }
 
-/// Lê a versão do header `location` do PRIMEIRO redirect (sem -L, que cairia no CDN
-/// sem a versão). `.../releases/download/vX.Y.Z/asset` → "X.Y.Z".
-pub fn version_from_redirect(url: &str) -> Option<String> {
-    let headers = util::run("curl", &["-sI", url]).ok()?;
-    for line in headers.lines() {
-        let l = line.trim();
-        if l.len() > 9 && l[..9].eq_ignore_ascii_case("location:") {
-            if let Some(v) = parse_version(l[9..].trim()) {
-                return Some(v);
-            }
-        }
-    }
-    None
-}
-
-/// Extrai "0.9.1" de uma url .../releases/download/v0.9.1/arquivo.zip.
-fn parse_version(url: &str) -> Option<String> {
-    let marker = "/download/v";
-    let start = url.find(marker)? + marker.len();
-    let rest = &url[start..];
-    let end = rest.find('/')?;
-    Some(rest[..end].to_string())
+/// Última versão publicada via API do GitHub (`releases/latest` → `tag_name`), sem "v".
+/// Canônico e imune ao cache por-asset do endpoint de download. Não-autenticado (60/h/IP).
+pub fn latest_release_tag(repo: &str) -> Option<String> {
+    let url = format!("https://api.github.com/repos/{}/{}/releases/latest", registry::ORG, repo);
+    let body = util::run("curl", &[
+        "-sfL", "-H", "Accept: application/vnd.github+json",
+        "-H", "User-Agent: schematize-cli", &url,
+    ]).ok()?;
+    let v: serde_json::Value = serde_json::from_str(&body).ok()?;
+    let tag = v.get("tag_name")?.as_str()?;
+    Some(tag.trim_start_matches('v').to_string())
 }
 
 /// Instala (ou reinstala) uma skill a partir do release latest. Retorna a versão.

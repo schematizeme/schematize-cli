@@ -13,18 +13,17 @@ const CLI_REPO: &str = "schematize-cli";
 const CLI_INSTALL_URL: &str =
     "https://github.com/schematizeme/schematize-cli/releases/latest/download/install.sh";
 
+/// Última versão publicada do CLI (via API do GitHub).
+fn cli_latest() -> Option<String> {
+    skills::latest_release_tag(CLI_REPO)
+}
+
 /// Uma atualização disponível.
 pub struct Upd {
     pub name: String,
     pub installed: String,
     pub latest: String,
     pub item: Option<&'static Item>, // None = o próprio CLI
-}
-
-/// Resolve a última versão do CLI seguindo o redirect de um asset do release.
-fn cli_latest() -> Option<String> {
-    let url = format!("https://github.com/{}/{}/releases/latest/download/install.sh", registry::ORG, CLI_REPO);
-    skills::version_from_redirect(&url)
 }
 
 /// Lista o que tem atualização: skills instaladas desatualizadas + o próprio CLI.
