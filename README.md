@@ -1,9 +1,10 @@
 # schematize
 
-Gerenciador do ecossistema **schematize** (Linux-first): instala e **versiona** as skills
-do catálogo e roda o modo **overdev** — desenvolvimento contínuo à prova de parada
-prematura, **sem travar pra perguntar**. É o "app no PC" que instala as skills e as tools
-da casa; skills e futuras ferramentas entram pelo mesmo binário.
+Gerenciador do ecossistema **schematize** (Linux-first, **multi-idioma**): instala e
+**versiona** as skills do catálogo, roda o modo **overdev** (dev contínuo à prova de
+parada, **sem travar pra perguntar**), **diagnostica** o ambiente, **atualiza a si
+mesmo** e traz as **novidades do blog** ([blog.schematize.net](https://blog.schematize.net)).
+É o "app no PC" da casa; skills e futuras ferramentas entram pelo mesmo binário.
 
 ## Instalar
 
@@ -61,6 +62,31 @@ curl -fsSL https://github.com/schematizeme/schematize-cli/releases/latest/downlo
 ```
 O CLI (`schematize`) não depende de nada gráfico; a GUI é um binário separado
 (`schematize-gui`, feature `gui`).
+
+## Mais que skills
+
+```bash
+schematize status              # painel: versões, agente, overdev, idioma, links
+schematize doctor [--fix]      # diagnostica o ambiente e conserta o que dá
+schematize upgrade [--force]   # atualiza o próprio schematize pro latest
+schematize news                # últimos posts de blog.schematize.net
+schematize blog                # abre o blog no navegador
+schematize open site|blog|github
+```
+
+## Idiomas (i18n)
+
+A interface (CLI + GUI) é multi-idioma. Por padrão detecta o idioma do sistema
+(`$LANG`), com fallback pro inglês. 11 idiomas inclusos: **en, es, it, fr, de, pt,
+ja, zh, ru, ar, hi**.
+
+```bash
+schematize lang            # mostra o idioma atual
+schematize lang --list     # lista os idiomas disponíveis
+schematize lang pt         # define o idioma (persistente)
+```
+
+Novo idioma = soltar um `src/i18n/<code>.json` e uma linha em `i18n.rs`.
 
 ## Skills (instalação e versão)
 

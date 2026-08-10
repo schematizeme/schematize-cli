@@ -15,6 +15,16 @@ fn autostart_dir() -> std::path::PathBuf {
     home().join(".config").join("autostart")
 }
 
+/// O agente está vinculado ao sistema? (systemd is-active ou arquivos de autostart presentes.)
+pub fn is_active() -> bool {
+    if let Ok(out) = util::run("systemctl", &["--user", "is-active", UNIT]) {
+        if out.trim() == "active" {
+            return true;
+        }
+    }
+    systemd_dir().join(UNIT).exists() || autostart_dir().join(DESKTOP).exists()
+}
+
 /// Registra e inicia o agente no login (systemd --user) + fallback XDG autostart.
 pub fn enable(exe: &str) -> Result<(), String> {
     // 1) systemd user service (inicia com a sessão, reinicia se cair).

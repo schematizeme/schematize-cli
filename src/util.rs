@@ -36,6 +36,20 @@ pub fn settings_path() -> PathBuf {
     claude_dir().join("settings.json")
 }
 
+/// Config do schematize (idioma etc.) em `~/.claude/schematize/config.json`.
+pub fn config_path() -> PathBuf {
+    claude_dir().join("schematize").join("config.json")
+}
+
+/// Abre uma URL no navegador padrão (xdg-open), sem bloquear. Best-effort.
+pub fn open_url(url: &str) {
+    let _ = Command::new("xdg-open")
+        .arg(url)
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn();
+}
+
 /// Caminho absoluto do próprio binário (pra registrar nos hooks sem depender do PATH).
 pub fn self_exe() -> String {
     std::env::current_exe()

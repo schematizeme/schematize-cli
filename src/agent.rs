@@ -2,9 +2,9 @@
 //! O quê: roda residente (systemd user service) ou one-shot; usa dbus (notify-rust).
 //! Onde: `schematize agent` (loop) e `schematize check [--notify]` (uma vez).
 
+use crate::i18n::{t, tf};
 use crate::registry::{self, Item};
-use crate::skills;
-use crate::util;
+use crate::{news, skills, util};
 use notify_rust::Notification;
 use std::time::Duration;
 
@@ -61,20 +61,20 @@ fn apply(ups: &[Upd]) {
         }
     }
     let _ = Notification::new()
-        .summary("schematize — atualizado")
-        .body(&format!("{} item(ns) atualizado(s).", ups.len()))
+        .summary(&t("agent.updated_title"))
+        .body(&tf("agent.n_updated", &[("n", &ups.len().to_string())]))
         .show();
 }
 
 /// Mostra a notificação com o botão Atualizar e trata o clique (bloqueia até ação/fechar).
 fn notify(ups: &[Upd]) {
     let names: Vec<String> = ups.iter().map(|u| format!("{} {}→{}", u.name, u.installed, u.latest)).collect();
-    let body = format!("{} atualização(ões):\n{}\n\n(ou rode: schematize update --all)", ups.len(), names.join("\n"));
+    let body = format!("{}\n{}\n\n{}", tf("agent.n_updates", &[("n", &ups.len().to_string())]), names.join("\n"), t("agent.hint"));
     let res = Notification::new()
-        .summary("schematize — atualizações disponíveis")
+        .summary(&t("agent.updates_available"))
         .body(&body)
-        .action("update", "Atualizar")
-        .action("later", "Depois")
+        .action("update", &t("agent.btn_update"))
+        .action("later", &t("agent.btn_later"))
         .timeout(0)
         .show();
     match res {
@@ -83,7 +83,24 @@ fn notify(ups: &[Upd]) {
                 apply(ups);
             }
         }),
-        Err(e) => eprintln!("(notificação indisponível: {e}) — rode: schematize update --all"),
+        Err(e) => eprintln!("{}", tf("agent.unavailable", &[("e", &e.to_string())])),
+    }
+}
+
+/// Notifica um post novo do blog com ação de abrir no navegador.
+fn notify_blog(link: &str) {
+    let res = Notification::new()
+        .summary(&tf("news.new_posts", &[("n", "1")]))
+        .body(&tf("agent.new_posts_body", &[("url", link)]))
+        .action("open", &t("gui.blog"))
+        .timeout(0)
+        .show();
+    if let Ok(h) = res {
+        h.wait_for_action(|a| {
+            if a == "open" {
+                util::open_url(link);
+            }
+        });
     }
 }
 
@@ -91,21 +108,30 @@ fn notify(ups: &[Upd]) {
 pub fn run_once(do_notify: bool) {
     let ups = check();
     if ups.is_empty() {
-        println!("tudo atualizado.");
-        return;
-    }
-    println!("{} atualização(ões) disponível(is):", ups.len());
-    for u in &ups {
-        println!("  {} {} → {}", u.name, u.installed, u.latest);
-    }
-    if do_notify {
-        notify(&ups);
+        println!("{}", t("agent.all_uptodate"));
     } else {
-        println!("rode: schematize update --all  (ou schematize check --notify)");
+        println!("{}", tf("agent.n_updates", &[("n", &ups.len().to_string())]));
+        for u in &ups {
+            println!("  {} {} → {}", u.name, u.installed, u.latest);
+        }
+        if do_notify {
+            notify(&ups);
+        } else {
+            println!("{}", t("agent.hint"));
+        }
+    }
+    // Blog: novidade desde a última checagem.
+    if let Some(link) = news::check_new() {
+        if do_notify {
+            notify_blog(&link);
+        } else {
+            println!("{}", tf("news.new_posts", &[("n", "1")]));
+            println!("  {link}");
+        }
     }
 }
 
-/// Loop residente: checa a cada intervalo (default 6h) e notifica.
+/// Loop residente: checa a cada intervalo (default 6h) e notifica (updates + blog).
 pub fn run_loop() {
     let secs: u64 = std::env::var("SCHEMATIZE_CHECK_INTERVAL_SECS")
         .ok()
@@ -115,6 +141,9 @@ pub fn run_loop() {
         let ups = check();
         if !ups.is_empty() {
             notify(&ups);
+        }
+        if let Some(link) = news::check_new() {
+            notify_blog(&link);
         }
         std::thread::sleep(Duration::from_secs(secs));
     }

@@ -43,6 +43,23 @@ fn ensure_group(root: &mut Value, event: &str, needle: &str, group: Value) {
     }
 }
 
+/// Os hooks do overdev estão registrados no settings.json?
+pub fn overdev_enabled() -> bool {
+    load()
+        .get("hooks")
+        .and_then(|h| h.get("Stop"))
+        .and_then(|a| a.as_array())
+        .is_some_and(|arr| arr.iter().any(|g| group_has(g, "overdev check")))
+}
+
+/// O settings.json existe e é JSON válido? (None = não existe; Some(false) = inválido.)
+pub fn settings_valid() -> Option<bool> {
+    match fs::read_to_string(settings_path()) {
+        Ok(s) => Some(serde_json::from_str::<Value>(&s).is_ok()),
+        Err(_) => None,
+    }
+}
+
 /// Liga os dois hooks do overdev, apontando pro binário `exe`.
 pub fn enable(exe: &str) -> Result<(), String> {
     let mut root = load();

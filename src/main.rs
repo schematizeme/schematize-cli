@@ -1,13 +1,14 @@
-//! schematize — gerenciador do ecossistema (skills + overdev). Linux-first.
-//! O quê: CLI que instala/versiona as skills do catálogo e roda o modo overdev
-//! (dev contínuo à prova de parada, sem travar pra perguntar).
-//! Onde: ponto de entrada; despacha pros módulos skills/overdev.
+//! schematize — gerenciador do ecossistema para o Claude (skills, overdev e mais).
+//! O quê: CLI multi-idioma que instala/versiona skills, roda o overdev, diagnostica
+//! o ambiente (doctor), atualiza a si mesmo (upgrade), mostra status e o blog.
+//! Onde: ponto de entrada; despacha pros módulos da lib `schematize`.
 
 use clap::{Parser, Subcommand};
-use schematize::{agent, autostart, overdev, registry, skills, util};
+use schematize::i18n::{t, tf};
+use schematize::{agent, autostart, doctor, i18n, links, news, overdev, registry, skills, status, upgrade, util};
 
 #[derive(Parser)]
-#[command(name = "schematize", version, about = "Instala/versiona as skills schematize e roda o overdev (Linux-first).")]
+#[command(name = "schematize", version, about = "Ecosystem manager for Claude — skills, overdev, and more (Linux-first).")]
 struct Cli {
     #[command(subcommand)]
     cmd: Cmd,
@@ -15,35 +16,59 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Cmd {
-    /// Instala uma ou mais skills (ou todas com --all) a partir do release latest.
+    /// Install one or more skills (or all with --all) from the latest release.
     Install {
         names: Vec<String>,
         #[arg(long)]
         all: bool,
     },
-    /// Atualiza skills instaladas pro latest (todas se nenhum nome/--all).
+    /// Update installed skills to latest (all if no name/--all).
     Update {
         names: Vec<String>,
         #[arg(long)]
         all: bool,
     },
-    /// Lista skills: instalada vs última disponível.
+    /// List skills: installed vs latest available.
     List,
-    /// Remove uma skill instalada.
+    /// Remove an installed skill.
     Remove { name: String },
-    /// Modo overdev — dev contínuo até o checklist fechar.
+    /// Overview dashboard: versions, agent, overdev, language, links.
+    Status,
+    /// Diagnose the environment (add --fix to repair what's safe).
+    Doctor {
+        #[arg(long)]
+        fix: bool,
+    },
+    /// Update schematize itself to the latest version.
+    Upgrade {
+        #[arg(long)]
+        force: bool,
+    },
+    /// Show the latest posts from blog.schematize.net.
+    News,
+    /// Open the blog (blog.schematize.net) in the browser.
+    Blog,
+    /// Open a resource in the browser: site | blog | github.
+    Open { target: String },
+    /// Get/set the interface language (no args = show current; --list = all).
+    Lang {
+        code: Option<String>,
+        #[arg(long)]
+        list: bool,
+    },
+    /// Overdev mode — continuous dev until the checklist is done.
     Overdev {
         #[command(subcommand)]
         sub: Over,
     },
-    /// Checa atualizações uma vez (com --notify, dispara notificação do desktop).
+    /// Check for updates once (with --notify, fire a desktop notification).
     Check {
         #[arg(long)]
         notify: bool,
     },
-    /// Agente residente: checa periodicamente e notifica (usado pelo autostart).
+    /// Resident agent: periodically checks and notifies (used by autostart).
     Agent,
-    /// Vincula o agente ao sistema (inicia no login).
+    /// Bind the agent to the system (starts at login).
     Autostart {
         #[command(subcommand)]
         sub: Auto,
@@ -52,35 +77,35 @@ enum Cmd {
 
 #[derive(Subcommand)]
 enum Auto {
-    /// Habilita e inicia o agente (systemd --user + XDG autostart).
+    /// Enable and start the agent (systemd --user + XDG autostart).
     Enable,
-    /// Desabilita e remove o autostart.
+    /// Disable and remove the autostart.
     Disable,
 }
 
 #[derive(Subcommand)]
 enum Over {
-    /// Registra os hooks (Stop + veto de AskUserQuestion) no settings.json.
+    /// Register the hooks (Stop + AskUserQuestion veto) in settings.json.
     Enable,
-    /// Remove os hooks do overdev do settings.json.
+    /// Remove the overdev hooks from settings.json.
     Disable,
-    /// Inicia um run no diretório atual: `schematize overdev start "<objetivo>"`.
+    /// Start a run in the current directory: `schematize overdev start "<goal>"`.
     Start {
         objetivo: Vec<String>,
         #[arg(long)]
         max: Option<u64>,
     },
-    /// (hook Stop) rejeita a parada enquanto houver item aberto.
+    /// (Stop hook) reject stopping while there is an open item.
     Check,
-    /// (hook PreToolUse) veta AskUserQuestion em overdev.
+    /// (PreToolUse hook) veto AskUserQuestion during overdev.
     Guard,
-    /// Mostra o estado do run.
+    /// Show the run state.
     Status,
-    /// Marca o primeiro item aberto que casa o texto como on-hold.
+    /// Mark the first open item matching the text as on-hold.
     Hold { texto: Vec<String> },
-    /// Parkeia uma pergunta (registra no txt da base) e marca o item on-hold.
+    /// Park a question (log it in the base txt) and mark the item on-hold.
     Park { item: String, pergunta: Vec<String> },
-    /// Encerra o run (hooks voltam a ser inertes).
+    /// End the run (hooks become inert again).
     Stop,
 }
 
@@ -92,13 +117,42 @@ fn resolve(names: &[String], all: bool) -> Vec<&'static registry::Item> {
     }
 }
 
+/// `schematize lang [code] [--list]`.
+fn lang_cmd(code: Option<String>, list: bool) -> Result<(), String> {
+    if list {
+        println!("{}", t("lang.available"));
+        for (c, name, _) in i18n::LANGS {
+            println!("  {c:<4} {name}");
+        }
+        return Ok(());
+    }
+    match code {
+        Some(c) => {
+            if !i18n::is_supported(&c) {
+                return Err(tf("lang.unknown", &[("code", &c)]));
+            }
+            i18n::set_lang(&c)?;
+            let name = i18n::name_of(&c).unwrap_or("");
+            println!("{}", tf("lang.set", &[("code", &c), ("langname", name)]));
+            println!("{}", t("lang.restart_gui"));
+            Ok(())
+        }
+        None => {
+            let c = i18n::current_code();
+            let name = i18n::name_of(&c).unwrap_or("");
+            println!("{}", tf("lang.current", &[("code", &c), ("langname", name)]));
+            Ok(())
+        }
+    }
+}
+
 fn main() {
     let cli = Cli::parse();
     let r: Result<(), String> = match cli.cmd {
         Cmd::Install { names, all } => {
             for it in resolve(&names, all) {
                 match skills::install(it) {
-                    Ok(v) => println!("✓ {} instalada v{v}", it.slug),
+                    Ok(v) => println!("✓ {}", tf("skills.installed_ok", &[("name", it.slug), ("v", &v)])),
                     Err(e) => eprintln!("✗ {}: {e}", it.slug),
                 }
             }
@@ -107,7 +161,7 @@ fn main() {
         Cmd::Update { names, all } => {
             for it in resolve(&names, all) {
                 match skills::install(it) {
-                    Ok(v) => println!("✓ {} → v{v}", it.slug),
+                    Ok(v) => println!("✓ {}", tf("skills.updated", &[("name", it.slug), ("v", &v)])),
                     Err(e) => eprintln!("✗ {}: {e}", it.slug),
                 }
             }
@@ -115,16 +169,32 @@ fn main() {
         }
         Cmd::List => {
             let st = skills::load_state();
-            println!("catálogo schematize (instalada vs latest):");
+            println!("{}", t("skills.header"));
             for it in registry::ITEMS {
                 println!("  {}", skills::status_line(it, &st, true));
             }
             Ok(())
         }
         Cmd::Remove { name } => match registry::find(&name) {
-            Some(it) => skills::remove(it).map(|_| println!("removida: {}", it.slug)),
-            None => Err(format!("skill desconhecida: {name}")),
+            Some(it) => skills::remove(it).map(|_| println!("{}", tf("skills.removed", &[("name", it.slug)]))),
+            None => Err(tf("skills.unknown", &[("name", &name)])),
         },
+        Cmd::Status => {
+            status::run();
+            Ok(())
+        }
+        Cmd::Doctor { fix } => {
+            doctor::run(fix);
+            Ok(())
+        }
+        Cmd::Upgrade { force } => upgrade::run(force),
+        Cmd::News => {
+            news::show();
+            Ok(())
+        }
+        Cmd::Blog => links::open("blog"),
+        Cmd::Open { target } => links::open(&target),
+        Cmd::Lang { code, list } => lang_cmd(code, list),
         Cmd::Overdev { sub } => match sub {
             Over::Enable => overdev::enable(),
             Over::Disable => overdev::disable(),
@@ -159,7 +229,7 @@ fn main() {
         },
     };
     if let Err(e) = r {
-        eprintln!("erro: {e}");
+        eprintln!("{}", tf("err.prefix", &[("e", &e)]));
         std::process::exit(1);
     }
 }

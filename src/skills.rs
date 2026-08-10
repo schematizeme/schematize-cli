@@ -2,6 +2,7 @@
 //! O quê: install/update/list/remove + estado das versões instaladas.
 //! Onde: chamado por main a partir dos subcomandos. Usa curl/unzip (Linux).
 
+use crate::i18n;
 use crate::registry::{self, Item};
 use crate::util::{self, commands_dir, skills_dir, state_path};
 use serde::{Deserialize, Serialize};
@@ -129,11 +130,11 @@ pub fn status_line(it: &Item, _st: &State, check_remote: bool) -> String {
     let latest = if check_remote { resolve_latest(it).ok() } else { None };
     let inst_s = inst.clone().unwrap_or_else(|| "—".into());
     let up = match (&inst, &latest) {
-        (Some(i), Some(l)) if i == l => "atual",
-        (Some(_), Some(_)) => "ATUALIZAR",
-        (None, Some(_)) => "não instalada",
-        _ => "",
+        (Some(i), Some(l)) if i == l => i18n::t("common.current"),
+        (Some(_), Some(_)) => i18n::t("common.update"),
+        (None, Some(_)) => i18n::t("common.not_installed"),
+        _ => String::new(),
     };
     let latest_s = latest.unwrap_or_else(|| "?".into());
-    format!("{:<12} instalada={:<8} latest={:<8} {}", it.slug, inst_s, latest_s, up)
+    format!("{:<12} {:<8} latest={:<8} {}", it.slug, inst_s, latest_s, up)
 }

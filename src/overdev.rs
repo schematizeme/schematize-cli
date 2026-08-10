@@ -37,6 +37,14 @@ fn iters_file() -> PathBuf {
 fn load() -> Option<OverState> {
     fs::read_to_string(state_file()).ok().and_then(|s| serde_json::from_str(&s).ok())
 }
+
+/// Resumo pro status/GUI: (run ativo?, objetivo se ativo).
+pub fn status_brief() -> (bool, Option<String>) {
+    match load() {
+        Some(st) if st.mode == "active" => (true, Some(st.objetivo)),
+        _ => (false, None),
+    }
+}
 fn save(st: &OverState) -> Result<(), String> {
     fs::create_dir_all(dir()).map_err(|e| e.to_string())?;
     fs::write(state_file(), serde_json::to_string_pretty(st).map_err(|e| e.to_string())?)

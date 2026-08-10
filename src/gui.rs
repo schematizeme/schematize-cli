@@ -1,12 +1,13 @@
-//! schematize-gui — janela de gerenciamento (egui/eframe). O quê: lista skills
-//! (instalada vs latest) com botões de atualizar, liga o agente (autostart) e o
-//! overdev. Onde: binário separado (feature `gui`); usa a lib `schematize`.
-//! Precisa de libs X11/Wayland/GL no sistema (ver README).
+//! schematize-gui — janela de gerenciamento (egui/eframe 0.36). O quê: lista skills
+//! (instalada vs latest) com botões de atualizar, troca de idioma, liga o agente
+//! (autostart) e o overdev, e abre site/blog/GitHub. Onde: binário separado
+//! (feature `gui`); usa a lib `schematize`. Precisa de libs X11/Wayland/GL (ver README).
 
 use eframe::egui;
-use schematize::{registry, skills, util};
-use std::sync::mpsc::{channel, Receiver, Sender};
+use schematize::i18n::{self, t, tf};
+use schematize::{links, registry, skills, util};
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::Arc;
 
 const CLI_INSTALL: &str =
@@ -30,9 +31,40 @@ impl Row {
     }
 }
 
+/// Coleta o estado atual de todas as linhas (skills + CLI). Roda em thread.
+fn collect_rows() -> Vec<Row> {
+    let mut rows: Vec<Row> = registry::ITEMS
+        .iter()
+        .map(|it| Row {
+            name: it.slug.to_string(),
+            installed: skills::installed_version(it),
+            latest: skills::resolve_latest(it).ok(),
+            slug: Some(it.slug),
+        })
+        .collect();
+    rows.push(Row {
+        name: "schematize (CLI)".into(),
+        installed: Some(env!("CARGO_PKG_VERSION").to_string()),
+        latest: skills::latest_release_tag("schematize-cli"),
+        slug: None,
+    });
+    rows
+}
+
+/// Texto de status a partir das linhas (localizado).
+fn status_for(rows: &[Row]) -> String {
+    let n = rows.iter().filter(|r| r.outdated() || r.missing()).count();
+    if n == 0 {
+        t("gui.all_uptodate")
+    } else {
+        tf("gui.n_pending", &[("n", &n.to_string())])
+    }
+}
+
 struct App {
     rows: Vec<Row>,
     status: String,
+    lang: String,
     busy: Arc<AtomicBool>,
     tx: Sender<(Vec<Row>, String)>,
     rx: Receiver<(Vec<Row>, String)>,
@@ -42,7 +74,14 @@ impl App {
     fn new(cc: &eframe::CreationContext<'_>) -> Self {
         cc.egui_ctx.set_visuals(egui::Visuals::dark());
         let (tx, rx) = channel();
-        let mut app = Self { rows: vec![], status: "carregando…".into(), busy: Arc::new(AtomicBool::new(false)), tx, rx };
+        let app = Self {
+            rows: vec![],
+            status: t("gui.loading"),
+            lang: i18n::current_code(),
+            busy: Arc::new(AtomicBool::new(false)),
+            tx,
+            rx,
+        };
         app.refresh(cc.egui_ctx.clone());
         app
     }
@@ -54,23 +93,8 @@ impl App {
         }
         let tx = self.tx.clone();
         std::thread::spawn(move || {
-            let mut rows: Vec<Row> = registry::ITEMS
-                .iter()
-                .map(|it| Row {
-                    name: it.slug.to_string(),
-                    installed: skills::installed_version(it),
-                    latest: skills::resolve_latest(it).ok(),
-                    slug: Some(it.slug),
-                })
-                .collect();
-            rows.push(Row {
-                name: "schematize (CLI)".into(),
-                installed: Some(env!("CARGO_PKG_VERSION").to_string()),
-                latest: skills::latest_release_tag("schematize-cli"),
-                slug: None,
-            });
-            let n = rows.iter().filter(|r| r.outdated() || r.missing()).count();
-            let st = if n == 0 { "tudo atualizado.".to_string() } else { format!("{n} com atualização/instalação pendente.") };
+            let rows = collect_rows();
+            let st = status_for(&rows);
             let _ = tx.send((rows, st));
             ctx.request_repaint();
         });
@@ -91,15 +115,9 @@ impl App {
                     let _ = util::run("bash", &["-c", CLI_INSTALL]);
                 }
             }
-            // recarrega o estado após atualizar.
-            let mut rows: Vec<Row> = registry::ITEMS.iter().map(|it| Row {
-                name: it.slug.to_string(),
-                installed: skills::installed_version(it),
-                latest: skills::resolve_latest(it).ok(),
-                slug: Some(it.slug),
-            }).collect();
-            rows.push(Row { name: "schematize (CLI)".into(), installed: Some(env!("CARGO_PKG_VERSION").into()), latest: skills::latest_release_tag("schematize-cli"), slug: None });
-            let _ = tx.send((rows, "atualizado.".into()));
+            let rows = collect_rows();
+            let st = status_for(&rows);
+            let _ = tx.send((rows, st));
             ctx.request_repaint();
         });
     }
@@ -120,7 +138,6 @@ fn shell(cmd: &str) -> String {
 
 impl eframe::App for App {
     // eframe 0.36: o ponto de entrada é `ui` (recebe um Ui raiz), não mais `update`.
-    // Os panels agora recebem `&mut Ui` (Panel::top/bottom, CentralPanel).
     fn ui(&mut self, ui: &mut egui::Ui, _f: &mut eframe::Frame) {
         while let Ok((rows, st)) = self.rx.try_recv() {
             self.rows = rows;
@@ -128,33 +145,49 @@ impl eframe::App for App {
             self.busy.store(false, Ordering::SeqCst);
         }
         let busy = self.busy.load(Ordering::SeqCst);
-        let ctx = ui.ctx().clone(); // p/ threads/repaint (request_repaint fora do frame)
+        let ctx = ui.ctx().clone();
 
         egui::Panel::top("top").resizable(false).show(ui, |ui| {
             ui.add_space(6.0);
             ui.horizontal(|ui| {
                 ui.heading("schematize");
                 ui.label(egui::RichText::new(format!("v{}", env!("CARGO_PKG_VERSION"))).weak());
+
+                // seletor de idioma
+                let mut sel = self.lang.clone();
+                egui::ComboBox::from_id_salt("lang")
+                    .selected_text(i18n::name_of(&sel).unwrap_or("English"))
+                    .show_ui(ui, |ui| {
+                        for (c, name, _) in i18n::LANGS {
+                            ui.selectable_value(&mut sel, (*c).to_string(), *name);
+                        }
+                    });
+                if sel != self.lang {
+                    let _ = i18n::set_lang(&sel);
+                    self.lang = sel;
+                    self.status = status_for(&self.rows);
+                }
+
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if ui.add_enabled(!busy, egui::Button::new("Verificar")).clicked() {
+                    if ui.add_enabled(!busy, egui::Button::new(t("gui.check"))).clicked() {
                         self.refresh(ctx.clone());
                     }
-                    if ui.add_enabled(!busy, egui::Button::new("Atualizar tudo")).clicked() {
+                    if ui.add_enabled(!busy, egui::Button::new(t("gui.update_all"))).clicked() {
                         self.update_all(ctx.clone());
                     }
                 });
             });
             ui.add_space(4.0);
-            ui.label(if busy { "trabalhando…".to_string() } else { self.status.clone() });
+            ui.label(if busy { t("gui.working") } else { self.status.clone() });
             ui.add_space(6.0);
         });
 
         egui::CentralPanel::default().show(ui, |ui| {
             egui::ScrollArea::vertical().show(ui, |ui| {
                 egui::Grid::new("skills").num_columns(4).striped(true).spacing([16.0, 8.0]).show(ui, |ui| {
-                    ui.strong("skill");
-                    ui.strong("instalada");
-                    ui.strong("latest");
+                    ui.strong(t("gui.col_skill"));
+                    ui.strong(t("gui.col_installed"));
+                    ui.strong(t("gui.col_latest"));
                     ui.strong("");
                     ui.end_row();
                     for r in self.rows.clone() {
@@ -162,15 +195,15 @@ impl eframe::App for App {
                         ui.label(r.installed.clone().unwrap_or_else(|| "—".into()));
                         ui.label(r.latest.clone().unwrap_or_else(|| "?".into()));
                         if r.missing() {
-                            if ui.add_enabled(!busy, egui::Button::new("Instalar")).clicked() {
+                            if ui.add_enabled(!busy, egui::Button::new(t("gui.install"))).clicked() {
                                 self.update_row(r.clone(), ctx.clone());
                             }
                         } else if r.outdated() {
-                            if ui.add_enabled(!busy, egui::Button::new("Atualizar")).clicked() {
+                            if ui.add_enabled(!busy, egui::Button::new(t("gui.update"))).clicked() {
                                 self.update_row(r.clone(), ctx.clone());
                             }
                         } else {
-                            ui.label(egui::RichText::new("atual").weak());
+                            ui.label(egui::RichText::new(t("gui.current")).weak());
                         }
                         ui.end_row();
                     }
@@ -181,15 +214,26 @@ impl eframe::App for App {
         egui::Panel::bottom("bottom").resizable(false).show(ui, |ui| {
             ui.add_space(6.0);
             ui.horizontal(|ui| {
-                if ui.button("Ligar agente (autostart)").clicked() {
+                if ui.button(t("gui.agent_on")).clicked() {
                     self.status = shell("schematize autostart enable");
                 }
-                if ui.button("Desligar agente").clicked() {
+                if ui.button(t("gui.agent_off")).clicked() {
                     self.status = shell("schematize autostart disable");
                 }
-                if ui.button("Ligar overdev (hooks)").clicked() {
+                if ui.button(t("gui.overdev_on")).clicked() {
                     self.status = shell("schematize overdev enable");
                 }
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    if ui.button(t("gui.github")).clicked() {
+                        util::open_url(links::GITHUB);
+                    }
+                    if ui.button(t("gui.blog")).clicked() {
+                        util::open_url(links::BLOG);
+                    }
+                    if ui.button(t("gui.site")).clicked() {
+                        util::open_url(links::SITE);
+                    }
+                });
             });
             ui.add_space(6.0);
         });
@@ -199,8 +243,8 @@ impl eframe::App for App {
 fn main() -> eframe::Result<()> {
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
-            .with_inner_size([760.0, 520.0])
-            .with_min_inner_size([560.0, 360.0])
+            .with_inner_size([780.0, 540.0])
+            .with_min_inner_size([560.0, 380.0])
             .with_title("schematize"),
         ..Default::default()
     };
