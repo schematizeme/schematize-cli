@@ -1,6 +1,6 @@
 [package]
 name = "schematize"
-version = "0.7.0"
+version = "0.8.0"
 edition = "2021"
 description = "Gerenciador do ecossistema schematize: instala/versiona as skills e roda o modo overdev (dev contínuo à prova de parada). Linux-first."
 license = "MIT"
@@ -52,6 +52,7 @@ assets = [
     ["target/release/schematize-gui", "usr/bin/", "755"],
     ["packaging/schematize-agent.desktop", "etc/xdg/autostart/schematize-agent.desktop", "644"],
     ["packaging/schematize-gui.desktop", "usr/share/applications/schematize-gui.desktop", "644"],
+    ["packaging/schematize.png", "usr/share/icons/hicolor/256x256/apps/schematize.png", "644"],
     ["README.md", "usr/share/doc/schematize/README.md", "644"],
 ]
 
@@ -67,6 +68,7 @@ assets = [
     { source = "target/release/schematize-gui", dest = "/usr/bin/schematize-gui", mode = "755" },
     { source = "packaging/schematize-agent.desktop", dest = "/etc/xdg/autostart/schematize-agent.desktop", mode = "644" },
     { source = "packaging/schematize-gui.desktop", dest = "/usr/share/applications/schematize-gui.desktop", mode = "644" },
+    { source = "packaging/schematize.png", dest = "/usr/share/icons/hicolor/256x256/apps/schematize.png", mode = "644" },
     { source = "README.md", dest = "/usr/share/doc/schematize/README.md", mode = "644" },
 ]
 

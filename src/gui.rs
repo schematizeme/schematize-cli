@@ -2,16 +2,16 @@
 //! (instalada vs latest) com botões de atualizar, troca de idioma, liga o agente
 //! (autostart) e o overdev, e abre site/blog/GitHub. Onde: binário separado
 //! (feature `gui`); usa a lib `schematize`. Precisa de libs X11/Wayland/GL (ver README).
+// No Windows (release), roda como app gráfico — sem janela de console atrás.
+#![cfg_attr(all(target_os = "windows", not(debug_assertions)), windows_subsystem = "windows")]
 
 use eframe::egui;
+use eframe::egui::IconData;
 use schematize::i18n::{self, t, tf};
-use schematize::{links, registry, skills, util};
+use schematize::{links, registry, selfupdate, skills, util};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::Arc;
-
-const CLI_INSTALL: &str =
-    "curl -fsSL https://github.com/schematizeme/schematize-cli/releases/latest/download/install.sh | bash";
 
 /// Uma linha da tabela: uma skill (com slug) ou o próprio CLI (slug None).
 #[derive(Clone)]
@@ -109,11 +109,13 @@ impl App {
         let tx = self.tx.clone();
         std::thread::spawn(move || {
             match row.slug.as_deref().and_then(|sl| registry::find(&registry::catalog(), sl)) {
+                // Skill: instalação in-process (user-space).
                 Some(it) => {
                     let _ = skills::install(&it);
                 }
+                // CLI/GUI: self-update SEM sudo (corrige o "Atualizar não faz nada").
                 None => {
-                    let _ = util::run("bash", &["-c", CLI_INSTALL]);
+                    let _ = selfupdate::run();
                 }
             }
             let rows = collect_rows();
@@ -242,11 +244,13 @@ impl eframe::App for App {
 }
 
 fn main() -> eframe::Result<()> {
+    let (rgba, w, h) = schematize::appicon::rgba(256);
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_inner_size([780.0, 540.0])
             .with_min_inner_size([560.0, 380.0])
-            .with_title("schematize"),
+            .with_title("schematize")
+            .with_icon(IconData { rgba, width: w, height: h }),
         ..Default::default()
     };
     eframe::run_native("schematize", options, Box::new(|cc| Ok(Box::new(App::new(cc)))))

@@ -94,6 +94,6 @@
   "gui.language": "Idioma",
   "gui.all_uptodate": "tudo atualizado.",
   "gui.n_pending": "{n} item(ns) com atualizações/instalações pendentes.",
-
-  "open.unknown": "alvo desconhecido: {name} (tente: site, blog, github)"
+  "open.unknown": "alvo desconhecido: {name} (tente: site, blog, github)",
+  "agent.update_failed": "Falha na atualização"
 }

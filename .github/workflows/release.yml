@@ -1,30 +1,44 @@
 name: release
 
-# Compila os DOIS binários (schematize + schematize-gui) com a feature `gui`,
-# empacota .deb/.rpm com a GUI JÁ COMPILADA dentro e as deps de runtime
-# resolvidas automaticamente, e anexa tudo no release da tag.
+# Compila schematize + schematize-gui (feature `gui`) para Linux, macOS e Windows.
+# Linux: .deb/.rpm com a GUI já embutida + binários. macOS: binários arm64 e x86_64.
+# Windows: .exe do CLI e da GUI. Os NOMES dos assets batem com selfupdate.rs
+# (schematize-<os>-<arch>[.exe]) para o auto-update funcionar em cada plataforma.
 on:
   push:
     tags: ["v*"]
   workflow_dispatch:
     inputs:
       tag:
-        description: "tag pra publicar (ex: v0.5.0)"
+        description: "tag pra publicar (ex: v0.8.0)"
         required: true
 
 permissions:
   contents: write
 
 jobs:
-  build:
+  # 1) Cria (ou reaproveita) o release primeiro, pra todos os jobs subirem assets nele.
+  create_release:
     runs-on: ubuntu-latest
     env:
       TAG: ${{ github.event.inputs.tag || github.ref_name }}
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v4
+      - name: cria release
+        run: |
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" \
+            || gh release create "$TAG" --title "$TAG" --generate-notes
 
-      # libs de BUILD da GUI (headers/pkg-config) + dpkg-shlibdeps p/ o $auto do .deb
+  # 2) Linux — .deb/.rpm (GUI incluída) + binários + install.sh.
+  linux:
+    needs: create_release
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ github.event.inputs.tag || github.ref_name }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
       - name: deps de build (GUI + empacotamento)
         run: |
           sudo apt-get update -qq
@@ -33,9 +47,7 @@ jobs:
             libx11-dev libxcursor-dev libxrandr-dev libxi-dev \
             libxkbcommon-dev libwayland-dev libgl1-mesa-dev \
             libxcb1-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev
-
       - uses: dtolnay/rust-toolchain@stable
-
       - name: cache cargo
         uses: actions/cache@v4
         with:
@@ -44,38 +56,141 @@ jobs:
             ~/.cargo/git
             target
           key: ${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock', 'Cargo.toml') }}
-
       - name: instala empacotadores
         run: |
           cargo install cargo-deb --locked || cargo install cargo-deb
           cargo install cargo-generate-rpm --locked || cargo install cargo-generate-rpm
-
       - name: build release (com GUI)
         run: cargo build --release --features gui --bins
-
-      - name: empacota .deb (GUI incluída, deps via $auto)
-        run: cargo deb --no-build
-
-      - name: empacota .rpm (GUI incluída, Requires via ELF)
-        run: cargo generate-rpm
-
+      - name: empacota .deb / .rpm
+        run: |
+          cargo deb --no-build
+          cargo generate-rpm
       - name: renomeia p/ nomes estáveis
         run: |
           mkdir -p dist
-          cp target/release/schematize            dist/schematize-linux-x86_64
-          cp target/release/schematize-gui        dist/schematize-gui-linux-x86_64
-          cp target/debian/*.deb                  dist/schematize_amd64.deb
-          cp target/generate-rpm/*.rpm            dist/schematize.x86_64.rpm
-          cp install.sh                           dist/install.sh
-          ls -l dist
-
-      - name: publica no release
+          cp target/release/schematize     dist/schematize-linux-x86_64
+          cp target/release/schematize-gui dist/schematize-gui-linux-x86_64
+          cp target/debian/*.deb           dist/schematize_amd64.deb
+          cp target/generate-rpm/*.rpm     dist/schematize.x86_64.rpm
+          cp install.sh                    dist/install.sh
+      - name: publica
         run: |
-          gh release create "$TAG" --title "$TAG" --generate-notes || true
           gh release upload "$TAG" \
             dist/schematize_amd64.deb \
             dist/schematize.x86_64.rpm \
             dist/schematize-linux-x86_64 \
             dist/schematize-gui-linux-x86_64 \
             dist/install.sh \
+            --clobber
+
+  # 3) macOS — binários nativos (Apple Silicon e Intel). Sem libs extras (Metal é do sistema).
+  macos:
+    needs: create_release
+    strategy:
+      matrix:
+        include:
+          - runner: macos-14   # Apple Silicon
+            arch: arm64
+            target: aarch64-apple-darwin
+          - runner: macos-13   # Intel
+            arch: x86_64
+            target: x86_64-apple-darwin
+    runs-on: ${{ matrix.runner }}
+    env:
+      TAG: ${{ github.event.inputs.tag || github.ref_name }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - name: cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ matrix.runner }}-cargo-${{ hashFiles('Cargo.lock', 'Cargo.toml') }}
+      - name: build release (com GUI)
+        run: cargo build --release --features gui --bins --target ${{ matrix.target }}
+      - name: empacota (binários + .app zipado)
+        run: |
+          mkdir -p dist
+          B=target/${{ matrix.target }}/release
+          cp "$B/schematize"     "dist/schematize-macos-${{ matrix.arch }}"
+          cp "$B/schematize-gui" "dist/schematize-gui-macos-${{ matrix.arch }}"
+          # .app double-clicável (não assinado — no 1º uso: botão direito → Abrir).
+          APP="dist/schematize.app"
+          mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
+          cp "$B/schematize-gui" "$APP/Contents/MacOS/schematize"
+          cp packaging/schematize.png "$APP/Contents/Resources/schematize.png"
+          # gera .icns a partir do PNG (ferramentas nativas do runner).
+          ICON=dist/schematize.iconset
+          mkdir -p "$ICON"
+          for s in 16 32 64 128 256 512; do
+            sips -z $s $s packaging/schematize.png --out "$ICON/icon_${s}x${s}.png" >/dev/null
+            sips -z $((s*2)) $((s*2)) packaging/schematize.png --out "$ICON/icon_${s}x${s}@2x.png" >/dev/null
+          done
+          iconutil -c icns "$ICON" -o "$APP/Contents/Resources/schematize.icns" || true
+          cat > "$APP/Contents/Info.plist" <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>CFBundleName</key><string>schematize</string>
+            <key>CFBundleDisplayName</key><string>schematize</string>
+            <key>CFBundleIdentifier</key><string>me.schematize.app</string>
+            <key>CFBundleVersion</key><string>${TAG#v}</string>
+            <key>CFBundleShortVersionString</key><string>${TAG#v}</string>
+            <key>CFBundleExecutable</key><string>schematize</string>
+            <key>CFBundleIconFile</key><string>schematize</string>
+            <key>CFBundlePackageType</key><string>APPL</string>
+            <key>LSMinimumSystemVersion</key><string>11.0</string>
+          </dict></plist>
+          PLIST
+          ( cd dist && zip -qr "schematize-macos-${{ matrix.arch }}-app.zip" schematize.app )
+          chmod +x "dist/schematize-macos-${{ matrix.arch }}" "dist/schematize-gui-macos-${{ matrix.arch }}"
+      - name: publica
+        run: |
+          gh release upload "$TAG" \
+            "dist/schematize-macos-${{ matrix.arch }}" \
+            "dist/schematize-gui-macos-${{ matrix.arch }}" \
+            "dist/schematize-macos-${{ matrix.arch }}-app.zip" \
+            --clobber
+
+  # 4) Windows — .exe do CLI e da GUI + zip (Direct3D é do sistema, sem libs extras).
+  windows:
+    needs: create_release
+    runs-on: windows-latest
+    env:
+      TAG: ${{ github.event.inputs.tag || github.ref_name }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: windows-cargo-${{ hashFiles('Cargo.lock', 'Cargo.toml') }}
+      - name: build release (com GUI)
+        run: cargo build --release --features gui --bins
+      - name: empacota
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist | Out-Null
+          Copy-Item target/release/schematize.exe     dist/schematize-windows-x86_64.exe
+          Copy-Item target/release/schematize-gui.exe  dist/schematize-gui-windows-x86_64.exe
+          Compress-Archive -Path dist/schematize-windows-x86_64.exe,dist/schematize-gui-windows-x86_64.exe -DestinationPath dist/schematize-windows-x86_64.zip -Force
+      - name: publica
+        shell: bash
+        run: |
+          gh release upload "$TAG" \
+            dist/schematize-windows-x86_64.exe \
+            dist/schematize-gui-windows-x86_64.exe \
+            dist/schematize-windows-x86_64.zip \
             --clobber

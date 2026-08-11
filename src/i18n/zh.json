@@ -93,5 +93,6 @@
   "gui.github": "GitHub",
   "gui.language": "语言",
   "gui.all_uptodate": "一切已是最新。",
-  "gui.n_pending": "{n} 项待更新/安装。"
+  "gui.n_pending": "{n} 项待更新/安装。",
+  "agent.update_failed": "更新失败"
 }

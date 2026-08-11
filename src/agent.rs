@@ -10,8 +10,6 @@ use std::time::Duration;
 
 /// Repo do próprio CLI (pra checar auto-atualização).
 const CLI_REPO: &str = "schematize-cli";
-const CLI_INSTALL_URL: &str =
-    "https://github.com/schematizeme/schematize-cli/releases/latest/download/install.sh";
 
 /// Última versão publicada do CLI (via API do GitHub).
 fn cli_latest() -> Option<String> {
@@ -51,20 +49,37 @@ pub fn check() -> Vec<Upd> {
 
 /// Aplica todas as atualizações (skills via install; CLI via bootstrap).
 fn apply(ups: &[Upd]) {
+    let mut ok = 0usize;
+    let mut errs: Vec<String> = Vec::new();
     for u in ups {
         match &u.item {
-            Some(it) => {
-                let _ = skills::install(it);
-            }
-            None => {
-                let _ = util::run("bash", &["-c", &format!("curl -fsSL {CLI_INSTALL_URL} | bash")]);
-            }
+            // Skill: instalação in-process (user-space, sem root) — já funcionava.
+            Some(it) => match skills::install(it) {
+                Ok(_) => ok += 1,
+                Err(e) => errs.push(format!("{}: {e}", u.name)),
+            },
+            // CLI/GUI: self-update SEM sudo (a correção do "não atualiza") + resultado real.
+            None => match crate::selfupdate::run() {
+                Ok(_) => ok += 1,
+                Err(e) => errs.push(format!("schematize CLI: {e}")),
+            },
         }
     }
-    let _ = Notification::new()
-        .summary(&t("agent.updated_title"))
-        .body(&tf("agent.n_updated", &[("n", &ups.len().to_string())]))
-        .show();
+    // Notificação de RESULTADO honesta: sucesso e/ou falha (com motivo), nunca só "pronto".
+    let mut n = Notification::new();
+    n.icon("schematize");
+    if errs.is_empty() {
+        n.summary(&t("agent.updated_title"))
+            .body(&tf("agent.n_updated", &[("n", &ok.to_string())]));
+    } else {
+        let body = format!(
+            "{}\n{}",
+            tf("agent.n_updated", &[("n", &ok.to_string())]),
+            errs.join("\n"),
+        );
+        n.summary(&t("agent.update_failed")).body(&body);
+    }
+    let _ = n.timeout(0).show();
 }
 
 /// Mostra a notificação com o botão Atualizar e trata o clique (bloqueia até ação/fechar).
@@ -74,6 +89,7 @@ fn notify(ups: &[Upd]) {
     let res = Notification::new()
         .summary(&t("agent.updates_available"))
         .body(&body)
+        .icon("schematize")
         .action("update", &t("agent.btn_update"))
         .action("later", &t("agent.btn_later"))
         .timeout(0)
@@ -93,6 +109,7 @@ fn notify_blog(link: &str) {
     let res = Notification::new()
         .summary(&tf("news.new_posts", &[("n", "1")]))
         .body(&tf("agent.new_posts_body", &[("url", link)]))
+        .icon("schematize")
         .action("open", &t("gui.blog"))
         .timeout(0)
         .show();

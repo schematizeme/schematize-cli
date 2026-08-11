@@ -93,5 +93,6 @@
   "gui.github": "GitHub",
   "gui.language": "اللغة",
   "gui.all_uptodate": "كل شيء محدَّث.",
-  "gui.n_pending": "{n} عنصر بانتظار تحديثات/تثبيتات."
+  "gui.n_pending": "{n} عنصر بانتظار تحديثات/تثبيتات.",
+  "agent.update_failed": "فشل التحديث"
 }

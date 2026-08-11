@@ -1,6 +1,5 @@
 {
   "app.tagline": "Ecosystem manager for Claude — skills, overdev, and more.",
-
   "common.updated": "up to date",
   "common.update": "UPDATE",
   "common.not_installed": "not installed",
@@ -9,13 +8,11 @@
   "common.off": "off",
   "common.none": "none",
   "err.prefix": "error: {e}",
-
   "skills.header": "schematize catalog (installed vs latest):",
   "skills.installed_ok": "{name} installed v{v}",
   "skills.updated": "{name} → v{v}",
   "skills.removed": "removed: {name}",
   "skills.unknown": "unknown skill: {name}",
-
   "status.title": "schematize status",
   "status.section_versions": "Versions",
   "status.section_agent": "Update agent",
@@ -29,7 +26,6 @@
   "status.overdev_hooks_off": "hooks not installed",
   "status.overdev_run_active": "run active: {obj}",
   "status.overdev_run_none": "no run active",
-
   "doctor.title": "schematize doctor",
   "doctor.ok": "OK",
   "doctor.warn": "WARN",
@@ -47,7 +43,6 @@
   "doctor.summary_issues": "{n} issue(s) found — run with --fix to repair what's possible.",
   "doctor.fixing": "applying fixes…",
   "doctor.path_shadow": "another schematize ({path}) is ahead of the package one in PATH",
-
   "upgrade.checking": "checking for a newer schematize…",
   "upgrade.current": "current: {v}",
   "upgrade.latest": "latest: {v}",
@@ -56,22 +51,18 @@
   "upgrade.running": "running the installer…",
   "upgrade.done": "schematize updated.",
   "upgrade.failed": "upgrade failed: {e}",
-
   "news.title": "schematize blog",
   "news.fetching": "fetching latest posts…",
   "news.none": "no posts found (or no feed yet).",
   "news.error": "could not read the blog feed: {e}",
   "news.more": "read more at {url}",
   "news.new_posts": "{n} new post(s) on the blog",
-
   "blog.opening": "opening {url}",
-
   "lang.current": "current language: {code} ({langname})",
   "lang.set": "language set to {code} ({langname}).",
   "lang.available": "available languages:",
   "lang.unknown": "unknown language: {code}",
   "lang.restart_gui": "reopen the GUI to apply the language everywhere.",
-
   "agent.updates_available": "schematize — updates available",
   "agent.updated_title": "schematize — updated",
   "agent.n_updates": "{n} update(s):",
@@ -82,7 +73,6 @@
   "agent.unavailable": "(notification unavailable: {e}) — run: schematize update --all",
   "agent.all_uptodate": "up to date.",
   "agent.new_posts_body": "open the blog to read: {url}",
-
   "gui.check": "Check",
   "gui.update_all": "Update all",
   "gui.working": "working…",
@@ -104,6 +94,6 @@
   "gui.language": "Language",
   "gui.all_uptodate": "everything up to date.",
   "gui.n_pending": "{n} item(s) with updates/installs pending.",
-
-  "open.unknown": "unknown target: {name} (try: site, blog, github)"
+  "open.unknown": "unknown target: {name} (try: site, blog, github)",
+  "agent.update_failed": "Update failed"
 }

@@ -93,5 +93,6 @@
   "gui.github": "GitHub",
   "gui.language": "भाषा",
   "gui.all_uptodate": "सब कुछ अद्यतित।",
-  "gui.n_pending": "{n} आइटम पर अपडेट/इंस्टॉल लंबित।"
+  "gui.n_pending": "{n} आइटम पर अपडेट/इंस्टॉल लंबित।",
+  "agent.update_failed": "अपडेट विफल"
 }

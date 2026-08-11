@@ -93,5 +93,6 @@
   "gui.github": "GitHub",
   "gui.language": "Язык",
   "gui.all_uptodate": "всё актуально.",
-  "gui.n_pending": "элементов с обновлениями/установкой: {n}."
+  "gui.n_pending": "элементов с обновлениями/установкой: {n}.",
+  "agent.update_failed": "Ошибка обновления"
 }

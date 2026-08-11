@@ -93,5 +93,6 @@
   "gui.github": "GitHub",
   "gui.language": "言語",
   "gui.all_uptodate": "すべて最新です。",
-  "gui.n_pending": "更新／インストール保留中の項目が {n} 件。"
+  "gui.n_pending": "更新／インストール保留中の項目が {n} 件。",
+  "agent.update_failed": "更新に失敗しました"
 }

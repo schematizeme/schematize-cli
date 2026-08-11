@@ -1,5 +1,6 @@
 [Desktop Entry]
 Type=Application
+Icon=schematize
 Name=schematize agent
 Comment=Checa atualizações das skills e do CLI schematize e notifica
 Exec=schematize agent

@@ -1,15 +1,12 @@
 //! `schematize upgrade` — atualiza o próprio CLI/GUI pro latest.
-//! O quê: compara versão atual vs release latest e roda o install.sh oficial.
-//! Onde: chamado por main. Reusa o instalador (detecta distro, .deb/.rpm/binário).
+//! O quê: compara versão atual vs release latest e troca os binários SEM sudo
+//! (via selfupdate: dir do exe se gravável, senão pkexec, senão ~/.local/bin).
+//! Onde: chamado por main. O install.sh (com sudo) fica só como caminho manual.
 
 use crate::i18n::{t, tf};
-use crate::skills;
-use crate::util;
+use crate::{selfupdate, skills};
 
-const INSTALL_URL: &str =
-    "https://github.com/schematizeme/schematize-cli/releases/latest/download/install.sh";
-
-/// Checa e, se houver versão nova (ou `force`), roda o instalador.
+/// Checa e, se houver versão nova (ou `force`), troca os binários.
 pub fn run(force: bool) -> Result<(), String> {
     println!("{}", t("upgrade.checking"));
     let cur = env!("CARGO_PKG_VERSION");
@@ -28,9 +25,9 @@ pub fn run(force: bool) -> Result<(), String> {
 
     println!("{}", t("upgrade.available"));
     println!("{}", t("upgrade.running"));
-    match util::run("bash", &["-c", &format!("curl -fsSL {INSTALL_URL} | bash")]) {
-        Ok(out) => {
-            print!("{out}");
+    match selfupdate::run() {
+        Ok(msg) => {
+            println!("{msg}");
             println!("{}", t("upgrade.done"));
             Ok(())
         }

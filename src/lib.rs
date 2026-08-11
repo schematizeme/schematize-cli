@@ -3,6 +3,7 @@
 //! além de i18n (multi-idioma), config, doctor, upgrade, news, status e links.
 
 pub mod agent;
+pub mod appicon;
 pub mod autostart;
 pub mod config;
 pub mod doctor;
@@ -11,6 +12,7 @@ pub mod links;
 pub mod news;
 pub mod overdev;
 pub mod registry;
+pub mod selfupdate;
 pub mod settings;
 pub mod skills;
 pub mod status;

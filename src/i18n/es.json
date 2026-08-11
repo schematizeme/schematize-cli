@@ -93,5 +93,6 @@
   "gui.github": "GitHub",
   "gui.language": "Idioma",
   "gui.all_uptodate": "todo actualizado.",
-  "gui.n_pending": "{n} elemento(s) con actualizaciones/instalaciones pendientes."
+  "gui.n_pending": "{n} elemento(s) con actualizaciones/instalaciones pendientes.",
+  "agent.update_failed": "Error al actualizar"
 }
