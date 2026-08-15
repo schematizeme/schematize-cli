@@ -236,7 +236,8 @@ impl App {
                 }
             });
             let selfupdate = if ops.iter().any(|o| matches!(o, Op::SelfUpdate)) {
-                let res = selfupdate::run();
+                // binário+pkexec (gráfico) → fallback terminal do fonte. Nunca no-op.
+                let res = update_cli();
                 let r2 = res.clone();
                 // notificação de desktop numa thread própria (wait_for_action bloqueia).
                 std::thread::spawn(move || notify_selfupdate(&r2));
@@ -378,6 +379,51 @@ fn shell(cmd: &str) -> String {
     match util::run("bash", &["-lc", cmd]) {
         Ok(o) => o.trim().to_string(),
         Err(e) => format!("erro: {e}"),
+    }
+}
+
+fn which(cmd: &str) -> bool {
+    util::run("sh", &["-c", &format!("command -v {cmd}")]).is_ok()
+}
+
+/// Abre um terminal gráfico rodando o upgrade do fonte — fallback quando não há binário do
+/// release (CI falho) ou o swap falha. Assim o leigo nunca fica com botão que "não faz nada".
+fn launch_terminal_upgrade() -> bool {
+    let inner = "echo '── Atualizando o schematize ──'; echo 'Pode pedir sua senha; leva alguns minutos.'; echo; \
+                 curl -fsSL https://raw.githubusercontent.com/schematizeme/schematize-cli/main/install.sh | bash -s -- --from-source; \
+                 echo; echo 'Pronto! Feche esta janela e reabra o schematize.'; \
+                 read -n1 -s -r -p 'Pressione uma tecla para fechar...'";
+    // (emulador, prefixo antes de `bash -c`) — cobre os terminais comuns de KDE/GNOME/XFCE/etc.
+    let cands: &[(&str, &[&str])] = &[
+        ("x-terminal-emulator", &["-e"]),
+        ("konsole", &["-e"]),
+        ("gnome-terminal", &["--"]),
+        ("xfce4-terminal", &["-x"]),
+        ("tilix", &["-e"]),
+        ("kitty", &[]),
+        ("alacritty", &["-e"]),
+        ("xterm", &["-e"]),
+    ];
+    for (term, pre) in cands {
+        if which(term) && std::process::Command::new(term).args(*pre).arg("bash").arg("-c").arg(inner).spawn().is_ok() {
+            return true;
+        }
+    }
+    false
+}
+
+/// Atualiza o CLI/GUI: binário + pkexec (gráfico, sem terminal) primeiro; se falhar (sem
+/// binário no release / erro), abre um TERMINAL fazendo o rebuild do fonte. Nunca no-op.
+fn update_cli() -> Result<String, String> {
+    match selfupdate::run() {
+        Ok(m) => Ok(m),
+        Err(e) => {
+            if launch_terminal_upgrade() {
+                Ok("Abri um terminal pra atualizar — siga ali (pode pedir a senha). Depois reabra a janela.".into())
+            } else {
+                Err(format!("{e} — e não achei um terminal pra abrir. No terminal, rode: schematize upgrade"))
+            }
+        }
     }
 }
 
