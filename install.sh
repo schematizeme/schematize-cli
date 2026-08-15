@@ -1,23 +1,25 @@
 #!/usr/bin/env bash
 # install.sh — instalador do schematize (Linux-first: Debian/Mint/Ubuntu + openSUSE).
 #
-# A GUI (schematize-gui) já vem PRONTA no .deb/.rpm e no binário — sem compilar,
-# sem libs -dev. As libs de runtime (X11/GL/Wayland) o apt/zypper resolvem, e num
-# desktop KDE/Cinnamon já estão presentes.
+# PADRÃO: COMPILA NA MÁQUINA (do fonte). É open source e quem instala é dev — build
+# local é o caminho de verdade: sem depender de CI/binário publicado, sempre casando
+# com a arquitetura do host. O instalador cuida do Rust (rustup) e das libs de build
+# da GUI (X11/Wayland/GL -dev, via apt/zypper/dnf — pede sudo).
 #
 # Uso:
-#   curl -fsSL .../install.sh | bash                 # CLI + GUI conforme a distro (.deb/.rpm/binário)
-#   curl -fsSL .../install.sh | bash -s -- --binary  # binários pré-compilados (CLI + GUI), sem pacote
-#   curl -fsSL .../install.sh | bash -s -- --from-source   # compila na máquina (instala libs de build)
+#   curl -fsSL .../install.sh | bash                 # compila CLI + GUI na máquina (PADRÃO)
+#   curl -fsSL .../install.sh | bash -s -- --binary  # atalho: binários pré-compilados do release (se houver)
+#   curl -fsSL .../install.sh | bash -s -- --package # atalho: pacote .deb/.rpm da distro (se houver)
 set -euo pipefail
 
 REPO="schematizeme/schematize-cli"
 BASE="https://github.com/$REPO/releases/latest/download"
 API="https://api.github.com/repos/$REPO/releases/latest"
-MODE="auto"
+MODE="source"   # padrão: compilar do fonte
 for a in "$@"; do case "$a" in
-  --from-source) MODE=source;; --binary) MODE=binary;; --auto) MODE=auto;;
-  --gui) : ;;  # compat: a GUI já vem por padrão; flag mantida como no-op
+  --from-source|--source) MODE=source;; --binary) MODE=binary;;
+  --package|--deb|--rpm) MODE=package;; --auto) MODE=package;;
+  --gui) : ;;  # compat: no-op
 esac; done
 
 log() { printf '\033[1;36m▶ %s\033[0m\n' "$*"; }
@@ -97,9 +99,9 @@ EOF
 post_config() {
   hash -r 2>/dev/null || true
   local BIN; BIN="$(command -v schematize || true)"
-  # Um schematize antigo em ~/.cargo/bin sombreia o do pacote e confunde a versão.
-  # Como a distribuição agora é o pacote, removemos o cargo shadow (reversível).
-  if [ "$BIN" = "$HOME/.cargo/bin/schematize" ] && [ -x /usr/bin/schematize ] && command -v cargo >/dev/null; then
+  # Só no modo pacote/binário: um schematize em ~/.cargo/bin sombreia o do pacote.
+  # No modo source (padrão), ~/.cargo/bin É onde instalamos — não mexer.
+  if [ "$MODE" != source ] && [ "$BIN" = "$HOME/.cargo/bin/schematize" ] && [ -x /usr/bin/schematize ] && command -v cargo >/dev/null; then
     log "removendo schematize antigo do ~/.cargo/bin (sombreava o pacote)"
     cargo uninstall schematize >/dev/null 2>&1 || rm -f "$HOME/.cargo/bin/schematize" "$HOME/.cargo/bin/schematize-gui"
     hash -r 2>/dev/null || true
@@ -149,9 +151,13 @@ install_rpm() {
 }
 install_source() {
   ensure_runtime_deps; ensure_rust; gui_build_deps
-  local d; d="$(mktemp -d)"; log "clonando + compilando (CLI + GUI)"
+  . "$HOME/.cargo/env" 2>/dev/null || true
+  local d; d="$(mktemp -d)"
+  log "clonando + compilando CLI + GUI do fonte (release/LTO — leva alguns minutos na 1ª vez)"
   git clone --depth 1 "https://github.com/$REPO.git" "$d/src"
-  ( cd "$d/src" && cargo install --path . --features gui )
+  # cargo install põe schematize + schematize-gui em ~/.cargo/bin (com --features gui os dois entram).
+  ( cd "$d/src" && cargo install --path . --features gui --force )
+  export PATH="$HOME/.cargo/bin:$PATH"; hash -r 2>/dev/null || true
   install_gui_launcher
   rm -rf "$d"; post_config
 }
@@ -159,10 +165,11 @@ install_source() {
 case "$MODE" in
   source) install_source ;;
   binary) install_binary ;;
-  auto)
+  package)
     case "$FAMILY" in
       debian) command -v apt-get >/dev/null && install_deb || install_binary ;;
       rpm)    (command -v zypper >/dev/null || command -v dnf >/dev/null) && install_rpm || install_binary ;;
       *)      install_binary ;;
     esac ;;
+  *) install_source ;;
 esac

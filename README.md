@@ -8,38 +8,36 @@ mesmo** e traz as **novidades do blog** ([blog.schematize.net](https://blog.sche
 
 ## Instalar
 
-**Distros suportadas primariamente:** Debian 13, Linux Mint (base Debian/Ubuntu) e
-openSUSE Leap. Outras: cai no binário estático.
+**Padrão: compila na sua máquina.** É open source e quem instala é dev — o build local é o
+caminho de verdade (não depende de release/CI publicado, sempre casa com a sua arquitetura).
+O instalador cuida do **Rust** (rustup) e das **libs de build da GUI** (X11/Wayland/GL `-dev`,
+via apt/zypper/dnf — pede sudo), clona o main e compila CLI + GUI (`cargo install --features
+gui`). Primeira compilação leva alguns minutos.
 
-**Um comando** (detecta a distro; usa `.deb` no apt, `.rpm` no zypper, ou binário; instala
-deps e liga o agente):
 ```bash
 curl -fsSL https://github.com/schematizeme/schematize-cli/releases/latest/download/install.sh | bash
 ```
 
-**Compilar do fonte na máquina** (instala Rust via rustup + deps e compila):
-```bash
-curl -fsSL https://github.com/schematizeme/schematize-cli/releases/latest/download/install.sh | bash -s -- --from-source
-```
+**Distros com deps automáticas:** Debian 13 / Mint / Ubuntu e openSUSE Leap / Fedora. Outras:
+instale à mão as libs de X11/Wayland/GL `-dev` da sua distro e rode o mesmo comando.
 
-**Baixar o pacote direto:**
+**Atalhos (opcionais — só se houver release pronto):**
 ```bash
-# Debian / Mint / Ubuntu
-curl -fLO https://github.com/schematizeme/schematize-cli/releases/latest/download/schematize_amd64.deb
-sudo apt install ./schematize_amd64.deb
-# openSUSE Leap
-curl -fLO https://github.com/schematizeme/schematize-cli/releases/latest/download/schematize.x86_64.rpm
-sudo zypper install --allow-unsigned-rpm ./schematize.x86_64.rpm
+# binários pré-compilados do release (sem compilar)
+curl -fsSL .../releases/latest/download/install.sh | bash -s -- --binary
+# pacote .deb/.rpm da distro
+curl -fsSL .../releases/latest/download/install.sh | bash -s -- --package
 ```
 
 **Do fonte manualmente:**
 ```bash
 git clone https://github.com/schematizeme/schematize-cli.git
-cd schematize-cli && cargo install --path .
+cd schematize-cli && cargo install --path . --features gui
 ```
 
-O pacote instala `/usr/bin/schematize` + o autostart do agente em `/etc/xdg/autostart/`
-(inicia com a sessão, checa atualizações e notifica com botão **Atualizar**).
+Instala `schematize` + `schematize-gui` em `~/.cargo/bin` e liga o autostart do agente
+(inicia com a sessão, checa atualizações e notifica). **`schematize upgrade` recompila do
+fonte** (puxa o main e refaz o build) — sem depender de binário publicado.
 
 ## Interface gráfica (GUI)
 
@@ -55,22 +53,14 @@ O pacote instala `/usr/bin/schematize` + o autostart do agente em `/etc/xdg/auto
 
 Também liga o agente/overdev e abre o painel/site. Roda em **KDE** e **Cinnamon** (X11/Wayland).
 
-**Já vem pronta.** O `schematize-gui` é compilado no CI e entregue **dentro** do
-`.deb`/`.rpm` (e como binário pré-compilado). O instalador normal já instala a janela
-e cria o lançador no menu — **sem compilar, sem libs de dev**. As libs de runtime
-(X11/GL/Wayland) o apt/zypper resolvem, e num desktop KDE/Cinnamon já estão lá.
-
+**A GUI compila junto com o CLI** (`cargo install --features gui`) no install padrão — o
+instalador puxa as **libs de build** (X11/Wayland/GL `-dev`) e cria o lançador no menu.
+Depois é só:
 ```bash
-curl -fsSL https://github.com/schematizeme/schematize-cli/releases/latest/download/install.sh | bash
 schematize-gui   # ou procure "schematize" no menu de aplicativos
 ```
-
-**Compilar do fonte** (só se quiser; aí sim instala as libs de build):
-```bash
-curl -fsSL https://github.com/schematizeme/schematize-cli/releases/latest/download/install.sh | bash -s -- --from-source
-```
 O CLI (`schematize`) não depende de nada gráfico; a GUI é um binário separado
-(`schematize-gui`, feature `gui`).
+(`schematize-gui`, feature `gui`). Quem só quer o CLI pode compilar sem a feature `gui`.
 
 ## Mais que skills
 

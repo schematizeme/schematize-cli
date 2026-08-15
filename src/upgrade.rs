@@ -1,36 +1,30 @@
-//! `schematize upgrade` — atualiza o próprio CLI/GUI pro latest.
-//! O quê: compara versão atual vs release latest e troca os binários SEM sudo
-//! (via selfupdate: dir do exe se gravável, senão pkexec, senão ~/.local/bin).
-//! Onde: chamado por main. O install.sh (com sudo) fica só como caminho manual.
+//! `schematize upgrade` — RECOMPILA o CLI/GUI do fonte (source-first).
+//! O quê: puxa o install.sh do main e roda em modo --from-source (rustup + libs de
+//! build + `cargo install --features gui`), com stdio herdado pra sudo/rustup poderem
+//! pedir no terminal. Não depende de binário publicado por CI.
+//! Onde: chamado por main (`schematize upgrade`). A GUI/agente têm o atalho binário
+//! (selfupdate.rs) pra quando existir release pronto; este é o caminho de verdade.
 
 use crate::i18n::{t, tf};
-use crate::{selfupdate, skills};
+use std::process::Command;
 
-/// Checa e, se houver versão nova (ou `force`), troca os binários.
-pub fn run(force: bool) -> Result<(), String> {
+const INSTALL_SH: &str = "https://raw.githubusercontent.com/schematizeme/schematize-cli/main/install.sh";
+
+/// Recompila do fonte (sempre pega o main). `force` é aceito por compat (upgrade já reconstrói).
+pub fn run(_force: bool) -> Result<(), String> {
     println!("{}", t("upgrade.checking"));
-    let cur = env!("CARGO_PKG_VERSION");
-    println!("{}", tf("upgrade.current", &[("v", cur)]));
-
-    let latest = skills::latest_release_tag("schematize-cli");
-    if let Some(l) = &latest {
-        println!("{}", tf("upgrade.latest", &[("v", l)]));
-    }
-
-    let outdated = matches!(&latest, Some(l) if l != cur);
-    if !outdated && !force {
-        println!("{}", t("upgrade.uptodate"));
-        return Ok(());
-    }
-
-    println!("{}", t("upgrade.available"));
+    println!("{}", tf("upgrade.current", &[("v", env!("CARGO_PKG_VERSION"))]));
     println!("{}", t("upgrade.running"));
-    match selfupdate::run() {
-        Ok(msg) => {
-            println!("{msg}");
-            println!("{}", t("upgrade.done"));
-            Ok(())
-        }
-        Err(e) => Err(tf("upgrade.failed", &[("e", &e)])),
+    // stdio herdado: sudo (libs de build) e rustup podem pedir no terminal.
+    let status = Command::new("bash")
+        .arg("-c")
+        .arg(format!("curl -fsSL {INSTALL_SH} | bash -s -- --from-source"))
+        .status()
+        .map_err(|e| tf("upgrade.failed", &[("e", &e.to_string())]))?;
+    if status.success() {
+        println!("{}", t("upgrade.done"));
+        Ok(())
+    } else {
+        Err(tf("upgrade.failed", &[("e", "instalador do fonte falhou")]))
     }
 }
