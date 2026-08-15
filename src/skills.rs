@@ -9,6 +9,11 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::Path;
+use std::sync::Mutex;
+
+/// Serializa o read-modify-write de `state.json` — a GUI instala/remove em paralelo,
+/// e sem isto dois `save_state` concorrentes perderiam a entrada um do outro.
+static STATE_LOCK: Mutex<()> = Mutex::new(());
 
 #[derive(Serialize, Deserialize, Default)]
 pub struct State {
@@ -108,19 +113,39 @@ pub fn install(it: &Item) -> Result<String, String> {
 
     let _ = fs::remove_dir_all(&tmp);
 
-    let mut st = load_state();
-    st.skills.insert(it.slug.to_string(), Entry { version: version.clone(), installed_at: util::now_unix() });
-    save_state(&st)?;
+    {
+        let _guard = STATE_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let mut st = load_state();
+        st.skills.insert(it.slug.to_string(), Entry { version: version.clone(), installed_at: util::now_unix() });
+        save_state(&st)?;
+    }
     Ok(version)
 }
 
-/// Remove uma skill instalada (pasta + registro). Comandos ficam (podem ser de outra origem).
+/// Remove uma skill instalada: apaga os comandos achatados dela (nomes `<slug>-*` únicos),
+/// a pasta da skill e o registro no estado. Uninstall completo.
 pub fn remove(it: &Item) -> Result<(), String> {
     let dest = skills_dir().join(&it.skill_dir);
+    // Apaga os comandos desta skill de ~/.claude/commands ANTES de remover a pasta
+    // (a lista de nomes vem de assets/commands da própria skill; nomes são globalmente únicos).
+    let cmd_src = dest.join("assets").join("commands");
+    if let Ok(rd) = fs::read_dir(&cmd_src) {
+        for e in rd.flatten() {
+            let p = e.path();
+            if p.extension().and_then(|s| s.to_str()) == Some("md") {
+                if let Some(name) = p.file_name() {
+                    let _ = fs::remove_file(commands_dir().join(name));
+                }
+            }
+        }
+    }
     let _ = fs::remove_dir_all(&dest);
-    let mut st = load_state();
-    st.skills.remove(&it.slug);
-    save_state(&st)?;
+    {
+        let _guard = STATE_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let mut st = load_state();
+        st.skills.remove(&it.slug);
+        save_state(&st)?;
+    }
     Ok(())
 }
 

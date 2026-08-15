@@ -43,8 +43,17 @@ O pacote instala `/usr/bin/schematize` + o autostart do agente em `/etc/xdg/auto
 
 ## Interface gráfica (GUI)
 
-Janela de gerenciamento (egui) — lista skills (instalada vs latest) com botões de
-atualizar, liga o agente e o overdev. Roda em **KDE** e **Cinnamon** (X11/Wayland).
+**Gestor de skills de verdade** (egui): a janela lista todas as skills do catálogo
+(instalada vs latest) com **checkbox por skill** — marque **exatamente** o que quer e:
+- **Instalar/atualizar selecionados** e **Remover selecionados** rodam **em massa e em
+  paralelo** (não mais uma por vez);
+- **Seleção rápida:** Tudo · Pendentes · Nenhum;
+- **Atualizar tudo** cobre todas as pendentes (**inclui instalar as novas**, não só atualizar
+  as instaladas);
+- coluna **Estado** (atual / desatualizada / não instalada) e o próprio CLI na lista
+  (atualiza por self-update, sem sudo).
+
+Também liga o agente/overdev e abre o painel/site. Roda em **KDE** e **Cinnamon** (X11/Wayland).
 
 **Já vem pronta.** O `schematize-gui` é compilado no CI e entregue **dentro** do
 `.deb`/`.rpm` (e como binário pré-compilado). O instalador normal já instala a janela
