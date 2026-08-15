@@ -99,8 +99,10 @@ pub fn run() -> Result<String, String> {
 
     #[cfg(not(target_os = "windows"))]
     {
-        let tag = latest_release_tag(REPO)
-            .ok_or_else(|| "não consegui resolver o release mais recente (rede/GitHub?)".to_string())?;
+        // Detecção pelo FONTE (raw main), não pela API 60/h — o que quebrava o versionamento.
+        let tag = crate::skills::latest_version_raw(REPO)
+            .or_else(|| latest_release_tag(REPO))
+            .ok_or_else(|| "não consegui resolver a versão mais recente (rede/GitHub?)".to_string())?;
         if tag == cur {
             log("já está na versão mais recente");
             return Ok(format!("Já está atualizado (v{cur})."));

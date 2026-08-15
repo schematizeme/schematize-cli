@@ -37,8 +37,8 @@ struct Row {
     installed: Option<String>,
     latest: Option<String>,
     item: Option<Item>,
-    category: String,             // "base" | "language" | "external"
-    sponsor: Option<(String, String)>, // (nome, url) da empresa que patrocina
+    category: String,                             // "base" | "language" | "external"
+    sponsor: Option<(String, String, Option<String>)>, // (nome, url, CPF/CNPJ) do co-autor
 }
 impl Row {
     fn outdated(&self) -> bool {
@@ -67,7 +67,7 @@ fn collect_rows() -> Vec<Row> {
     let mut rows: Vec<Row> = registry::catalog()
         .into_iter()
         .map(|it| {
-            let sponsor = it.sponsor.as_ref().map(|s| (s.name.clone(), s.url.clone()));
+            let sponsor = it.sponsor.as_ref().map(|s| (s.name.clone(), s.url.clone(), s.doc.clone()));
             let category = if it.category.is_empty() { "language".into() } else { it.category.clone() };
             Row {
                 name: it.slug.clone(),
@@ -82,10 +82,10 @@ fn collect_rows() -> Vec<Row> {
     rows.push(Row {
         name: "schematize (CLI)".into(),
         installed: Some(env!("CARGO_PKG_VERSION").to_string()),
-        latest: skills::latest_release_tag("schematize-cli"),
+        latest: skills::latest_version_raw("schematize-cli"),
         item: None,
         category: "base".into(),
-        sponsor: Some(("Schematize".into(), "https://schematize.net".into())),
+        sponsor: Some(("Lucassa".into(), "https://lucassa.me".into(), None)),
     });
     rows
 }
@@ -644,8 +644,13 @@ impl App {
                         }
                         ui.vertical(|ui| {
                             ui.label(&r.name);
-                            if let Some((sn, su)) = &r.sponsor {
+                            if let Some((sn, su, doc)) = &r.sponsor {
                                 ui.hyperlink_to(egui::RichText::new(format!("{} {sn}", t("gui.by"))).small().weak(), su);
+                                if let Some(d) = doc {
+                                    if !d.is_empty() {
+                                        ui.label(egui::RichText::new(d).small().weak());
+                                    }
+                                }
                             }
                         });
                         ui.label(r.installed.clone().unwrap_or_else(|| "—".into()));

@@ -13,7 +13,7 @@ const CLI_REPO: &str = "schematize-cli";
 
 /// Última versão publicada do CLI (via API do GitHub).
 fn cli_latest() -> Option<String> {
-    skills::latest_release_tag(CLI_REPO)
+    skills::latest_version_raw(CLI_REPO)
 }
 
 /// Uma atualização disponível.

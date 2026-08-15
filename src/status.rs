@@ -20,7 +20,7 @@ pub fn run() {
         println!("  {}", skills::status_line(it, &st, true));
     }
     let cur = env!("CARGO_PKG_VERSION");
-    let cli_latest = skills::latest_release_tag("schematize-cli").unwrap_or_else(|| "?".into());
+    let cli_latest = skills::latest_version_raw("schematize-cli").unwrap_or_else(|| "?".into());
     let cli_up = if cli_latest == cur { t("common.current") } else { t("common.update") };
     println!("  {:<12} {:<8} latest={:<8} {}", t("status.cli"), cur, cli_latest, cli_up);
 

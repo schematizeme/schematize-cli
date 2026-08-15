@@ -72,6 +72,7 @@ O CLI (`schematize`) não depende de nada gráfico; a GUI é um binário separad
 ```bash
 schematize status              # painel: versões, agente, overdev, idioma, links
 schematize doctor [--fix]      # diagnostica o ambiente e conserta o que dá
+schematize debug               # diagnóstico do atualizador/versão (rate limit, exe, catálogo, log)
 schematize upgrade [--force]   # atualiza o próprio schematize pro latest
 schematize news                # últimos posts de blog.schematize.net
 schematize blog                # abre o blog no navegador

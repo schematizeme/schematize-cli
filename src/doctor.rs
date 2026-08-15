@@ -91,7 +91,7 @@ pub fn run(fix: bool) {
 
     // versão do CLI vs latest
     let cur = env!("CARGO_PKG_VERSION");
-    match skills::latest_release_tag("schematize-cli") {
+    match skills::latest_version_raw("schematize-cli") {
         Some(l) if l != cur => {
             issues += 1;
             line(&Lv::Warn, &t("doctor.check_cli"), &format!("{cur} → {l}"));

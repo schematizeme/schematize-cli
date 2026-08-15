@@ -1,16 +1,16 @@
 {
-  "_comment": "Índice do catálogo de skills do schematize. A CLI/GUI leem este arquivo (raw main) pra saber quais skills existem — skill nova = adicionar uma entrada aqui e commitar; NÃO precisa recompilar a CLI. category = grupo na GUI (base|language|external); sponsor = empresa que co-assina/patrocina a skill.",
+  "_comment": "Índice do catálogo de skills do schematize. A CLI/GUI leem este arquivo (raw main) — skill nova = adicionar entrada e commitar; NÃO recompila a CLI. category = grupo na GUI (base|language|external). sponsor = co-autor/patrocinador da skill: name, url e doc (CPF de pessoa ou CNPJ de empresa, pra credibilidade). PREENCHER os `doc` com os números reais (não invente): Lucassa=CPF, Hextorn=CNPJ, Basilisk Offsec=CNPJ.",
   "skills": [
-    { "slug": "engineering", "skill_dir": "schematize-engineering", "repo": "skill-engineering", "zip": "skill-engineering.zip", "category": "base", "sponsor": { "name": "Schematize", "url": "https://schematize.net" } },
-    { "slug": "web", "skill_dir": "schematize-web", "repo": "skill-web", "zip": "skill-web.zip", "category": "base", "sponsor": { "name": "Schematize", "url": "https://schematize.net" } },
-    { "slug": "go", "skill_dir": "schematize-go", "repo": "skill-go", "zip": "skill-go.zip", "category": "language", "sponsor": { "name": "Schematize", "url": "https://schematize.net" } },
-    { "slug": "rust", "skill_dir": "schematize-rust", "repo": "skill-rust", "zip": "skill-rust.zip", "category": "language", "sponsor": { "name": "Schematize", "url": "https://schematize.net" } },
-    { "slug": "elixir", "skill_dir": "schematize-elixir", "repo": "skill-elixir", "zip": "skill-elixir.zip", "category": "language", "sponsor": { "name": "Schematize", "url": "https://schematize.net" } },
-    { "slug": "csharp", "skill_dir": "schematize-csharp", "repo": "skill-csharp", "zip": "skill-csharp.zip", "category": "language", "sponsor": { "name": "Schematize", "url": "https://schematize.net" } },
-    { "slug": "zig", "skill_dir": "schematize-zig", "repo": "skill-zig", "zip": "skill-zig.zip", "category": "language", "sponsor": { "name": "Schematize", "url": "https://schematize.net" } },
-    { "slug": "ruby", "skill_dir": "schematize-ruby", "repo": "skill-ruby", "zip": "skill-ruby.zip", "category": "language", "sponsor": { "name": "Schematize", "url": "https://schematize.net" } },
-    { "slug": "node", "skill_dir": "schematize-node", "repo": "skill-node", "zip": "skill-node.zip", "category": "language", "sponsor": { "name": "Schematize", "url": "https://schematize.net" } },
-    { "slug": "seo", "skill_dir": "schematize-seo", "repo": "skill-seo", "zip": "skill-seo.zip", "category": "external", "sponsor": { "name": "Hextorn", "url": "https://hextorn.com" } },
-    { "slug": "pentest", "skill_dir": "schematize-pentest", "repo": "skill-pentest", "zip": "skill-pentest.zip", "category": "external", "sponsor": { "name": "Basilisk Offsec", "url": "https://basiliskoffsec.com" } }
+    { "slug": "engineering", "skill_dir": "schematize-engineering", "repo": "skill-engineering", "zip": "skill-engineering.zip", "category": "base", "sponsor": { "name": "Lucassa", "url": "https://lucassa.me", "doc": null } },
+    { "slug": "web", "skill_dir": "schematize-web", "repo": "skill-web", "zip": "skill-web.zip", "category": "base", "sponsor": { "name": "Lucassa", "url": "https://lucassa.me", "doc": null } },
+    { "slug": "go", "skill_dir": "schematize-go", "repo": "skill-go", "zip": "skill-go.zip", "category": "language", "sponsor": { "name": "Lucassa", "url": "https://lucassa.me", "doc": null } },
+    { "slug": "rust", "skill_dir": "schematize-rust", "repo": "skill-rust", "zip": "skill-rust.zip", "category": "language", "sponsor": { "name": "Lucassa", "url": "https://lucassa.me", "doc": null } },
+    { "slug": "elixir", "skill_dir": "schematize-elixir", "repo": "skill-elixir", "zip": "skill-elixir.zip", "category": "language", "sponsor": { "name": "Lucassa", "url": "https://lucassa.me", "doc": null } },
+    { "slug": "csharp", "skill_dir": "schematize-csharp", "repo": "skill-csharp", "zip": "skill-csharp.zip", "category": "language", "sponsor": { "name": "Lucassa", "url": "https://lucassa.me", "doc": null } },
+    { "slug": "zig", "skill_dir": "schematize-zig", "repo": "skill-zig", "zip": "skill-zig.zip", "category": "language", "sponsor": { "name": "Lucassa", "url": "https://lucassa.me", "doc": null } },
+    { "slug": "ruby", "skill_dir": "schematize-ruby", "repo": "skill-ruby", "zip": "skill-ruby.zip", "category": "language", "sponsor": { "name": "Lucassa", "url": "https://lucassa.me", "doc": null } },
+    { "slug": "node", "skill_dir": "schematize-node", "repo": "skill-node", "zip": "skill-node.zip", "category": "language", "sponsor": { "name": "Lucassa", "url": "https://lucassa.me", "doc": null } },
+    { "slug": "seo", "skill_dir": "schematize-seo", "repo": "skill-seo", "zip": "skill-seo.zip", "category": "external", "sponsor": { "name": "Hextorn", "url": "https://hextorn.com", "doc": null } },
+    { "slug": "pentest", "skill_dir": "schematize-pentest", "repo": "skill-pentest", "zip": "skill-pentest.zip", "category": "external", "sponsor": { "name": "Basilisk Offsec", "url": "https://basiliskoffsec.com", "doc": null } }
   ]
 }

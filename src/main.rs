@@ -6,8 +6,8 @@
 use clap::{Parser, Subcommand};
 use schematize::i18n::{t, tf};
 use schematize::{
-    agent, autostart, doctor, i18n, links, news, overdev, panel, registry, skills, status, upgrade,
-    util,
+    agent, autostart, debug, doctor, i18n, links, news, overdev, panel, registry, skills, status,
+    upgrade, util,
 };
 
 #[derive(Parser)]
@@ -42,6 +42,8 @@ enum Cmd {
         #[arg(long)]
         fix: bool,
     },
+    /// Debug the updater/versioning (versão, rate limit, exe, shadows, catálogo, log).
+    Debug,
     /// Update schematize itself to the latest version.
     Upgrade {
         #[arg(long)]
@@ -210,6 +212,10 @@ fn main() {
         }
         Cmd::Doctor { fix } => {
             doctor::run(fix);
+            Ok(())
+        }
+        Cmd::Debug => {
+            debug::run();
             Ok(())
         }
         Cmd::Upgrade { force } => upgrade::run(force),

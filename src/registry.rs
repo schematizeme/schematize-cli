@@ -13,11 +13,14 @@ pub const ORG: &str = "schematizeme";
 const CATALOG_URL: &str =
     "https://raw.githubusercontent.com/schematizeme/schematize-cli/main/catalog.json";
 
-/// Quem patrocina/co-assina a skill (mostrado na GUI): nome + link.
+/// Quem patrocina/co-assina a skill (mostrado na GUI): nome + link + doc (CPF/CNPJ).
 #[derive(Clone, Deserialize)]
 pub struct Sponsor {
     pub name: String,
     pub url: String,
+    /// CPF (pessoa) ou CNPJ (empresa) vinculado à skill — credibilidade. Opcional.
+    #[serde(default)]
+    pub doc: Option<String>,
 }
 
 /// Uma skill/tool instalável do ecossistema.
@@ -47,8 +50,8 @@ struct Catalog {
 /// Catálogo embutido — fallback quando o índice remoto está indisponível (offline).
 /// Mantido em dia como rede de segurança; a fonte de verdade é o `catalog.json`.
 fn builtin() -> Vec<Item> {
-    let sp = |name: &str, url: &str| Some(Sponsor { name: name.into(), url: url.into() });
-    let sch = || sp("Schematize", "https://schematize.net");
+    let sp = |name: &str, url: &str| Some(Sponsor { name: name.into(), url: url.into(), doc: None });
+    let me = || sp("Lucassa", "https://lucassa.me");
     let mk = |slug: &str, cat: &str, sponsor: Option<Sponsor>| Item {
         slug: slug.into(),
         skill_dir: format!("schematize-{slug}"),
@@ -58,15 +61,15 @@ fn builtin() -> Vec<Item> {
         sponsor,
     };
     vec![
-        mk("engineering", "base", sch()),
-        mk("web", "base", sch()),
-        mk("go", "language", sch()),
-        mk("rust", "language", sch()),
-        mk("elixir", "language", sch()),
-        mk("csharp", "language", sch()),
-        mk("zig", "language", sch()),
-        mk("ruby", "language", sch()),
-        mk("node", "language", sch()),
+        mk("engineering", "base", me()),
+        mk("web", "base", me()),
+        mk("go", "language", me()),
+        mk("rust", "language", me()),
+        mk("elixir", "language", me()),
+        mk("csharp", "language", me()),
+        mk("zig", "language", me()),
+        mk("ruby", "language", me()),
+        mk("node", "language", me()),
         mk("seo", "external", sp("Hextorn", "https://hextorn.com")),
         mk("pentest", "external", sp("Basilisk Offsec", "https://basiliskoffsec.com")),
     ]

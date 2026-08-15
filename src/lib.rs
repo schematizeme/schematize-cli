@@ -6,6 +6,7 @@ pub mod agent;
 pub mod appicon;
 pub mod autostart;
 pub mod config;
+pub mod debug;
 pub mod doctor;
 pub mod i18n;
 pub mod links;
