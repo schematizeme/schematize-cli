@@ -7,6 +7,10 @@
     { "slug": "web", "skill_dir": "schematize-web", "repo": "skill-web", "zip": "skill-web.zip" },
     { "slug": "seo", "skill_dir": "schematize-seo", "repo": "skill-seo", "zip": "skill-seo.zip" },
     { "slug": "node", "skill_dir": "schematize-node", "repo": "skill-node", "zip": "skill-node.zip" },
-    { "slug": "pentest", "skill_dir": "schematize-pentest", "repo": "skill-pentest", "zip": "skill-pentest.zip" }
+    { "slug": "pentest", "skill_dir": "schematize-pentest", "repo": "skill-pentest", "zip": "skill-pentest.zip" },
+    { "slug": "elixir", "skill_dir": "schematize-elixir", "repo": "skill-elixir", "zip": "skill-elixir.zip" },
+    { "slug": "csharp", "skill_dir": "schematize-csharp", "repo": "skill-csharp", "zip": "skill-csharp.zip" },
+    { "slug": "zig", "skill_dir": "schematize-zig", "repo": "skill-zig", "zip": "skill-zig.zip" },
+    { "slug": "ruby", "skill_dir": "schematize-ruby", "repo": "skill-ruby", "zip": "skill-ruby.zip" }
   ]
 }
