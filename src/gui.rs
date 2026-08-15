@@ -8,6 +8,7 @@
 
 use eframe::egui;
 use eframe::egui::IconData;
+use notify_rust::Notification;
 use schematize::i18n::{self, t, tf};
 use schematize::registry::Item;
 use schematize::{config, links, panel, registry, selfupdate, skills, util};
@@ -52,6 +53,13 @@ enum Op {
     Install(Item),
     Remove(Item),
     SelfUpdate,
+}
+/// Resultado de um lote entregue pela thread coordenadora à UI.
+struct Msg {
+    rows: Vec<Row>,
+    status: String,
+    /// Some(..) se um self-update do CLI/GUI rodou no lote (Ok=msg, Err=motivo).
+    selfupdate: Option<Result<String, String>>,
 }
 fn collect_rows() -> Vec<Row> {
     let mut rows: Vec<Row> = registry::catalog()
@@ -109,8 +117,12 @@ struct App {
     status: String,
     lang: String,
     busy: Arc<AtomicBool>,
-    tx: Sender<(Vec<Row>, String)>,
-    rx: Receiver<(Vec<Row>, String)>,
+    tx: Sender<Msg>,
+    rx: Receiver<Msg>,
+    // feedback de self-update
+    flash: String,
+    flash_err: bool,
+    restart: bool,
     // hub
     tab: Tab,
     project: Option<PathBuf>,
@@ -144,6 +156,9 @@ impl App {
             busy: Arc::new(AtomicBool::new(false)),
             tx,
             rx,
+            flash: String::new(),
+            flash_err: false,
+            restart: false,
             tab: Tab::Skills,
             project: None,
             project_input: String::new(),
@@ -181,7 +196,7 @@ impl App {
         std::thread::spawn(move || {
             let rows = collect_rows();
             let st = status_for(&rows);
-            let _ = tx.send((rows, st));
+            let _ = tx.send(Msg { rows, status: st, selfupdate: None });
             ctx.request_repaint();
         });
     }
@@ -192,24 +207,36 @@ impl App {
         }
         let tx = self.tx.clone();
         std::thread::spawn(move || {
+            // skills em paralelo; self-update à parte pra capturar o resultado.
             std::thread::scope(|sc| {
                 for op in &ops {
-                    sc.spawn(move || match op {
+                    match op {
                         Op::Install(it) => {
-                            let _ = skills::install(it);
+                            sc.spawn(move || {
+                                let _ = skills::install(it);
+                            });
                         }
                         Op::Remove(it) => {
-                            let _ = skills::remove(it);
+                            sc.spawn(move || {
+                                let _ = skills::remove(it);
+                            });
                         }
-                        Op::SelfUpdate => {
-                            let _ = selfupdate::run();
-                        }
-                    });
+                        Op::SelfUpdate => {}
+                    }
                 }
             });
+            let selfupdate = if ops.iter().any(|o| matches!(o, Op::SelfUpdate)) {
+                let res = selfupdate::run();
+                let r2 = res.clone();
+                // notificação de desktop numa thread própria (wait_for_action bloqueia).
+                std::thread::spawn(move || notify_selfupdate(&r2));
+                Some(res)
+            } else {
+                None
+            };
             let rows = collect_rows();
             let st = status_for(&rows);
-            let _ = tx.send((rows, st));
+            let _ = tx.send(Msg { rows, status: st, selfupdate });
             ctx.request_repaint();
         });
     }
@@ -343,18 +370,70 @@ fn shell(cmd: &str) -> String {
         Err(e) => format!("erro: {e}"),
     }
 }
+
+/// Relança a GUI (o binário no lugar já é o novo, pós-self-update) e encerra esta.
+fn restart_gui() -> ! {
+    let _ = match std::env::current_exe() {
+        Ok(exe) => std::process::Command::new(exe).spawn(),
+        Err(_) => std::process::Command::new("schematize-gui").spawn(),
+    };
+    std::process::exit(0);
+}
+
+/// Notificação de desktop do resultado do self-update, com botão "Reiniciar" no sucesso.
+fn notify_selfupdate(res: &Result<String, String>) {
+    let mut n = Notification::new();
+    n.icon("schematize");
+    let has_restart = match res {
+        Ok(m) => {
+            n.summary(&t("gui.su_ok_title")).body(&format!("{m}\n{}", t("gui.su_restart_hint")));
+            let up = m.contains("Atualizado para");
+            if up {
+                n.action("restart", &t("gui.restart_btn"));
+            }
+            up
+        }
+        Err(e) => {
+            n.summary(&t("gui.su_err_title")).body(e);
+            false
+        }
+    };
+    if let Ok(h) = n.timeout(0).show() {
+        if has_restart {
+            h.wait_for_action(|a| {
+                if a == "restart" {
+                    restart_gui();
+                }
+            });
+        }
+    }
+}
 fn nsize(deg: f32) -> f32 {
     3.0 + (deg.sqrt() * 1.7).min(9.0)
 }
 
 impl eframe::App for App {
     fn ui(&mut self, ui: &mut egui::Ui, _f: &mut eframe::Frame) {
-        while let Ok((rows, st)) = self.rx.try_recv() {
-            self.rows = rows;
-            self.status = st;
+        while let Ok(msg) = self.rx.try_recv() {
+            self.rows = msg.rows;
+            self.status = msg.status;
             self.busy.store(false, Ordering::SeqCst);
             let names: HashSet<String> = self.rows.iter().map(|r| r.name.clone()).collect();
             self.selected.retain(|n| names.contains(n));
+            if let Some(res) = msg.selfupdate {
+                match res {
+                    Ok(m) => {
+                        self.restart = m.contains("Atualizado para");
+                        self.flash = m;
+                        self.flash_err = false;
+                    }
+                    Err(e) => {
+                        self.flash = e;
+                        self.flash_err = true;
+                        self.restart = false;
+                    }
+                }
+            }
         }
         let ctx = ui.ctx().clone();
 
@@ -389,6 +468,26 @@ impl eframe::App for App {
                     self.tab = Tab::Graph;
                 }
             });
+            // banner de feedback do self-update (resultado + pedido de reiniciar)
+            if self.restart || !self.flash.is_empty() {
+                ui.add_space(4.0);
+                ui.horizontal(|ui| {
+                    let fg = if self.flash_err {
+                        egui::Color32::from_rgb(0xff, 0x8a, 0x8a)
+                    } else {
+                        egui::Color32::from_rgb(0x3e, 0xcf, 0x8e)
+                    };
+                    let txt = if self.restart { format!("✓ {}  ·  {}", self.flash, t("gui.su_restart_hint")) } else { self.flash.clone() };
+                    ui.colored_label(fg, txt);
+                    if self.restart && ui.button(t("gui.restart_btn")).clicked() {
+                        restart_gui();
+                    }
+                    if ui.small_button("✕").clicked() {
+                        self.flash.clear();
+                        self.restart = false;
+                    }
+                });
+            }
             ui.add_space(4.0);
         });
 
