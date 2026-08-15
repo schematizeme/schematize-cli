@@ -41,17 +41,22 @@ fonte** (puxa o main e refaz o build) — sem depender de binário publicado.
 
 ## Interface gráfica (GUI)
 
-**Gestor de skills de verdade** (egui): a janela lista todas as skills do catálogo
-(instalada vs latest) com **checkbox por skill** — marque **exatamente** o que quer e:
-- **Instalar/atualizar selecionados** e **Remover selecionados** rodam **em massa e em
-  paralelo** (não mais uma por vez);
-- **Seleção rápida:** Tudo · Pendentes · Nenhum;
-- **Atualizar tudo** cobre todas as pendentes (**inclui instalar as novas**, não só atualizar
-  as instaladas);
-- coluna **Estado** (atual / desatualizada / não instalada) e o próprio CLI na lista
-  (atualiza por self-update, sem sudo).
+O **hub onde se faz a schematização** — janela egui com **abas**, tudo dentro do app
+(nada de aba de navegador que some quando fecha):
 
-Também liga o agente/overdev e abre o painel/site. Roda em **KDE** e **Cinnamon** (X11/Wayland).
+- **Skills** — gestor: **checkbox por skill**, **Instalar/atualizar selecionados** e **Remover
+  selecionados** em **massa e em paralelo**, seleção rápida (Tudo/Pendentes/Nenhum), coluna
+  Estado, e o próprio CLI na lista.
+- **Overdev** — o run do projeto **nativo na janela**: objetivo, progresso (feitos/abertos/
+  on-hold), o **checklist** colorido por estado, e Decisões/Plano/Perguntas parkeadas.
+- **Grafo** — a **tela de grafos do index** (force-directed **estilo Obsidian**) desenhada
+  **dentro do app**: arrasta, dá zoom, busca, clica um nó pra ver o `arquivo:linha` e **abrir
+  no editor**; botões **Exportar Obsidian** e **abrir no navegador** (o HTML fica como extra,
+  não como o único jeito de ver).
+
+Você **escolhe o projeto** num seletor (recentes lembrados + colar caminho + pasta atual), e
+o Overdev/Grafo mostram aquele projeto — persistente, sempre ali. Roda em **KDE** e
+**Cinnamon** (X11/Wayland).
 
 **A GUI compila junto com o CLI** (`cargo install --features gui`) no install padrão — o
 instalador puxa as **libs de build** (X11/Wayland/GL `-dev`) e cria o lançador no menu.

@@ -13,24 +13,49 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 /// Nó do grafo: id (função/serviço) e, se conhecido, `arquivo:linha`.
-struct Node {
-    id: String,
-    loc: Option<String>,
+#[derive(Clone)]
+pub struct Node {
+    pub id: String,
+    pub loc: Option<String>,
 }
 /// Aresta dirigida do grafo, com rótulo opcional (contrato/rota/evento).
-struct Edge {
-    from: String,
-    to: String,
-    label: Option<String>,
+#[derive(Clone)]
+pub struct Edge {
+    pub from: String,
+    pub to: String,
+    pub label: Option<String>,
+}
+
+/// Estado do overdev de um projeto (lido do control-plane) — consumido pela GUI e pelo HTML.
+pub struct Overdev {
+    pub objetivo: String,
+    pub mode: String,
+    pub items: Vec<(char, String)>, // (' '|'x'|'~', texto)
+    pub decisoes: String,
+    pub plano: String,
+    pub perguntas: String,
+}
+impl Overdev {
+    pub fn counts(&self) -> (u32, u32, u32) {
+        let (mut o, mut d, mut h) = (0, 0, 0);
+        for (s, _) in &self.items {
+            match s {
+                'x' => d += 1,
+                '~' => h += 1,
+                _ => o += 1,
+            }
+        }
+        (o, d, h)
+    }
 }
 
 // ---------------------------------------------------------------------------
 // Descoberta do index e parsing do grafo (best-effort, tolerante a formato).
 // ---------------------------------------------------------------------------
 
-/// Procura `<algo>_archive/index/` a partir do cwd e do pai. None se não achar.
-fn find_index_dir() -> Option<PathBuf> {
-    for base in [PathBuf::from("."), PathBuf::from("..")] {
+/// Procura `<algo>_archive/index/` sob `root` (e no pai de root). None se não achar.
+pub fn find_index_dir(root: &Path) -> Option<PathBuf> {
+    for base in [root.to_path_buf(), root.join("..")] {
         if let Ok(rd) = fs::read_dir(&base) {
             for e in rd.flatten() {
                 let p = e.path();
@@ -47,7 +72,7 @@ fn find_index_dir() -> Option<PathBuf> {
             }
         }
     }
-    let direct = PathBuf::from("index");
+    let direct = root.join("index");
     if direct.is_dir() {
         return Some(direct);
     }
@@ -146,7 +171,7 @@ fn parse_func_row(l: &str) -> Option<(String, String)> {
 }
 
 /// Varre os `.md` do dir do index e monta (nós, arestas).
-fn parse_graph(dir: &Path) -> (Vec<Node>, Vec<Edge>) {
+pub fn parse_graph(dir: &Path) -> (Vec<Node>, Vec<Edge>) {
     let mut locs: BTreeMap<String, String> = BTreeMap::new();
     let mut edges: Vec<Edge> = Vec::new();
     let mut ids: BTreeSet<String> = BTreeSet::new();
@@ -193,25 +218,23 @@ fn parse_graph(dir: &Path) -> (Vec<Node>, Vec<Edge>) {
 // Estado do overdev (lido direto dos arquivos do control-plane).
 // ---------------------------------------------------------------------------
 
-/// (objetivo, mode, itens [(estado, texto)]) do run corrente, se houver.
-fn read_overdev() -> (String, String, Vec<(char, String)>) {
-    let state = fs::read_to_string(".overdev/state.json")
+/// Lê o estado do overdev de `root` (objetivo, mode, itens, decisões, plano, perguntas).
+/// Consumido pela GUI (view nativa) e pelo HTML. Vazio/`inativo` se não houver run.
+pub fn load_overdev(root: &Path) -> Overdev {
+    let od = root.join(".overdev");
+    let state = fs::read_to_string(od.join("state.json"))
         .ok()
         .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok());
-    let objetivo = state
-        .as_ref()
-        .and_then(|v| v.get("objetivo"))
-        .and_then(|v| v.as_str())
-        .unwrap_or("")
-        .to_string();
-    let mode = state
-        .as_ref()
-        .and_then(|v| v.get("mode"))
-        .and_then(|v| v.as_str())
-        .unwrap_or("inativo")
-        .to_string();
+    let get = |k: &str, d: &str| {
+        state
+            .as_ref()
+            .and_then(|v| v.get(k))
+            .and_then(|v| v.as_str())
+            .unwrap_or(d)
+            .to_string()
+    };
     let mut items = Vec::new();
-    let cl = fs::read_to_string(".overdev/CHECKLIST.md").unwrap_or_default();
+    let cl = fs::read_to_string(od.join("CHECKLIST.md")).unwrap_or_default();
     for line in cl.lines() {
         let t = line.trim_start();
         let (st, rest) = if let Some(r) = t.strip_prefix("- [ ]") {
@@ -225,7 +248,25 @@ fn read_overdev() -> (String, String, Vec<(char, String)>) {
         };
         items.push((st, rest.trim().to_string()));
     }
-    (objetivo, mode, items)
+    Overdev {
+        objetivo: get("objetivo", ""),
+        mode: get("mode", "inativo"),
+        items,
+        decisoes: fs::read_to_string(od.join("DECISOES.md")).unwrap_or_default(),
+        plano: fs::read_to_string(od.join("PLAN.md")).unwrap_or_default(),
+        perguntas: fs::read_to_string(root.join("PERGUNTAS-OVERDEV.txt")).unwrap_or_default(),
+    }
+}
+
+/// Carrega o grafo do index de `root`: (nós, arestas, dir do index se achou).
+pub fn load_graph(root: &Path) -> (Vec<Node>, Vec<Edge>, Option<PathBuf>) {
+    match find_index_dir(root) {
+        Some(dir) => {
+            let (n, e) = parse_graph(&dir);
+            (n, e, Some(dir))
+        }
+        None => (Vec::new(), Vec::new(), None),
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -234,75 +275,65 @@ fn read_overdev() -> (String, String, Vec<(char, String)>) {
 
 const TEMPLATE: &str = include_str!("panel.html");
 
-/// Monta o painel HTML self-contained e o abre no navegador.
-pub fn open() -> Result<(), String> {
-    let (objetivo, mode, items) = read_overdev();
-    let (mut open_c, mut done_c, mut hold_c) = (0u32, 0u32, 0u32);
-    let items_json: Vec<serde_json::Value> = items
-        .iter()
-        .map(|(s, t)| {
-            match s {
-                'x' => done_c += 1,
-                '~' => hold_c += 1,
-                _ => open_c += 1,
-            }
-            serde_json::json!({ "s": s.to_string(), "t": t })
-        })
-        .collect();
-
-    let idx = find_index_dir();
-    let (nodes, edges) = match &idx {
-        Some(d) => parse_graph(d),
-        None => (Vec::new(), Vec::new()),
-    };
+/// Monta o HTML self-contained do painel de `root`: (html, nº nós, nº arestas, dir index).
+pub fn render_html(root: &Path) -> (String, usize, usize, Option<PathBuf>) {
+    let ov = load_overdev(root);
+    let (o, d, h) = ov.counts();
+    let items_json: Vec<serde_json::Value> =
+        ov.items.iter().map(|(s, t)| serde_json::json!({ "s": s.to_string(), "t": t })).collect();
+    let (nodes, edges, idx) = load_graph(root);
     let nodes_json: Vec<serde_json::Value> =
         nodes.iter().map(|n| serde_json::json!({ "id": n.id, "loc": n.loc })).collect();
     let edges_json: Vec<serde_json::Value> = edges
         .iter()
         .map(|e| serde_json::json!({ "from": e.from, "to": e.to, "label": e.label }))
         .collect();
-
-    let cwd = std::env::current_dir()
+    let cwd = fs::canonicalize(root)
         .ok()
         .and_then(|p| p.to_str().map(String::from))
-        .unwrap_or_default();
+        .unwrap_or_else(|| root.to_string_lossy().into_owned());
     let data = serde_json::json!({
-        "objetivo": objetivo,
-        "mode": mode,
-        "counts": { "open": open_c, "done": done_c, "hold": hold_c },
+        "objetivo": ov.objetivo, "mode": ov.mode,
+        "counts": { "open": o, "done": d, "hold": h },
         "items": items_json,
-        "decisoes": fs::read_to_string(".overdev/DECISOES.md").unwrap_or_default(),
-        "plano": fs::read_to_string(".overdev/PLAN.md").unwrap_or_default(),
-        "perguntas": fs::read_to_string("PERGUNTAS-OVERDEV.txt").unwrap_or_default(),
-        "nodes": nodes_json,
-        "edges": edges_json,
-        "cwd": cwd,
+        "decisoes": ov.decisoes, "plano": ov.plano, "perguntas": ov.perguntas,
+        "nodes": nodes_json, "edges": edges_json, "cwd": cwd,
         "index": idx.as_ref().map(|p| p.to_string_lossy().into_owned()),
     });
     // `</` escapado pra não fechar o <script> por acidente com conteúdo de MD.
     let blob = data.to_string().replace("</", "<\\/");
-    let html = TEMPLATE.replacen("/*__DATA__*/null", &blob, 1);
+    (TEMPLATE.replacen("/*__DATA__*/null", &blob, 1), nodes.len(), edges.len(), idx)
+}
 
-    let out = if Path::new(".overdev").is_dir() {
-        PathBuf::from(".overdev/panel.html")
+/// Gera o HTML de `root` e abre no navegador. Retorna o caminho absoluto do arquivo.
+pub fn open_in_browser(root: &Path) -> Result<String, String> {
+    let (html, _n, _e, _idx) = render_html(root);
+    let out = if root.join(".overdev").is_dir() {
+        root.join(".overdev").join("panel.html")
     } else {
-        PathBuf::from("schematize-panel.html")
+        root.join("schematize-panel.html")
     };
     fs::write(&out, html).map_err(|e| e.to_string())?;
     let abs = fs::canonicalize(&out)
         .map(|p| p.to_string_lossy().into_owned())
         .unwrap_or_else(|_| out.to_string_lossy().into_owned());
+    open_url(&abs);
+    Ok(abs)
+}
+
+/// `schematize panel` — painel do diretório atual, aberto no navegador.
+pub fn open() -> Result<(), String> {
+    let root = std::env::current_dir().map_err(|e| e.to_string())?;
+    let (_html, n, e, idx) = render_html(&root);
+    let abs = open_in_browser(&root)?;
     println!("painel: {abs}");
     println!(
-        "  {} nós / {} arestas do index{}",
-        nodes.len(),
-        edges.len(),
+        "  {n} nós / {e} arestas do index{}",
         match &idx {
             Some(d) => format!(" ({})", d.display()),
             None => " (index não encontrado — rode /eng-index)".to_string(),
         }
     );
-    open_url(&abs);
     Ok(())
 }
 
@@ -322,9 +353,10 @@ fn slug(id: &str) -> String {
     s.trim_matches('-').to_string()
 }
 
-/// Exporta o grafo do index como vault Obsidian (uma nota por nó, com [[wikilinks]]).
-pub fn export_obsidian(out: Option<String>) -> Result<(), String> {
-    let idx = find_index_dir()
+/// Exporta o grafo do index de `root` como vault Obsidian (uma nota por nó, com [[wikilinks]]).
+/// Retorna o diretório do vault criado.
+pub fn export_obsidian_at(root: &Path, out: Option<String>) -> Result<PathBuf, String> {
+    let idx = find_index_dir(root)
         .ok_or_else(|| "index não encontrado (rode /eng-index primeiro)".to_string())?;
     let (nodes, edges) = parse_graph(&idx);
     if nodes.is_empty() {
@@ -392,11 +424,14 @@ pub fn export_obsidian(out: Option<String>) -> Result<(), String> {
         }
     }
     fs::write(outdir.join("_MAPA.md"), hub).map_err(|e| e.to_string())?;
+    Ok(fs::canonicalize(&outdir).unwrap_or(outdir))
+}
 
-    let abs = fs::canonicalize(&outdir)
-        .map(|p| p.to_string_lossy().into_owned())
-        .unwrap_or_else(|_| outdir.to_string_lossy().into_owned());
-    println!("vault Obsidian: {abs}");
-    println!("  {} notas ({} nós, {} arestas). Abra a pasta no Obsidian → Graph View.", nodes.len() + 1, nodes.len(), edges.len());
+/// `schematize graph obsidian` — exporta o index do diretório atual.
+pub fn export_obsidian(out: Option<String>) -> Result<(), String> {
+    let root = std::env::current_dir().map_err(|e| e.to_string())?;
+    let dir = export_obsidian_at(&root, out)?;
+    println!("vault Obsidian: {}", dir.display());
+    println!("  Abra a pasta no Obsidian → Graph View.");
     Ok(())
 }

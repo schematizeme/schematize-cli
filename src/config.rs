@@ -10,6 +10,9 @@ pub struct Config {
     /// Código do idioma escolhido (ex.: "pt", "en"). None = auto (env/fallback).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub lang: Option<String>,
+    /// Projetos abertos recentemente na GUI (caminhos absolutos, mais recente primeiro).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub recent_projects: Vec<String>,
 }
 
 /// Lê a config (vazia se não existir/ inválida).
@@ -35,4 +38,18 @@ pub fn set_lang(code: &str) -> Result<(), String> {
     let mut c = load();
     c.lang = Some(code.to_string());
     save(&c)
+}
+
+/// Lista de projetos recentes (mais recente primeiro).
+pub fn recent_projects() -> Vec<String> {
+    load().recent_projects
+}
+
+/// Registra um projeto como o mais recente (dedup, teto de 12). Persiste.
+pub fn add_recent_project(path: &str) {
+    let mut c = load();
+    c.recent_projects.retain(|p| p != path);
+    c.recent_projects.insert(0, path.to_string());
+    c.recent_projects.truncate(12);
+    let _ = save(&c);
 }
