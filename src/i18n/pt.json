@@ -86,6 +86,7 @@
   "gui.agent_on": "Ativar agente (autostart)",
   "gui.agent_off": "Desativar agente",
   "gui.overdev_on": "Ativar overdev (hooks)",
+  "gui.panel": "Abrir painel",
   "gui.tab_skills": "Skills",
   "gui.tab_status": "Status",
   "gui.blog": "Blog",

@@ -86,6 +86,7 @@
   "gui.agent_on": "エージェントを有効化（autostart）",
   "gui.agent_off": "エージェントを無効化",
   "gui.overdev_on": "overdev を有効化（hooks）",
+  "gui.panel": "パネルを開く",
   "gui.tab_skills": "Skills",
   "gui.tab_status": "ステータス",
   "gui.blog": "ブログ",

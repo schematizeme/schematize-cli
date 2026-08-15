@@ -11,6 +11,7 @@ pub mod i18n;
 pub mod links;
 pub mod news;
 pub mod overdev;
+pub mod panel;
 pub mod registry;
 pub mod selfupdate;
 pub mod settings;

@@ -226,6 +226,9 @@ impl eframe::App for App {
                 if ui.button(t("gui.overdev_on")).clicked() {
                     self.status = shell("schematize overdev enable");
                 }
+                if ui.button(t("gui.panel")).clicked() {
+                    self.status = shell("schematize panel");
+                }
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     if ui.button(t("gui.github")).clicked() {
                         util::open_url(links::GITHUB);

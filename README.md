@@ -126,6 +126,27 @@ Como funciona:
 
 Detalhe normativo do modo: skill `schematize-engineering`, `references/overdev.md` (`/eng-overdev`).
 
+## Painel auxiliar + grafo (fora do CLI/VSCode)
+
+O overdev começa por uma **Fase 0** (colher as decisões acordadas → carregar o grafo do
+index → planejamento pesado → só então tickar). O `schematize` **guarda esse contexto** e o
+mostra num **painel HTML no browser** — para acompanhar o run enquanto o agente trabalha.
+
+```bash
+schematize panel                 # gera um HTML self-contained e abre no navegador
+schematize graph obsidian        # exporta o index como vault Obsidian (markdown + [[wikilinks]])
+schematize graph obsidian --out ~/vault
+```
+
+- **`schematize panel`** lê `.overdev/*` (objetivo, checklist com feitos/abertos/on-hold,
+  `DECISOES.md`, `PLAN.md`, perguntas parkeadas) **e** o grafo do index
+  (`<projeto>_archive/index/`), e renderiza uma **tela de grafos force-directed estilo
+  Obsidian** — cada nó **linkado ao `arquivo:linha`** (abre no editor via `vscode://`). Sem
+  CDN, um arquivo só. Também acessível pelo botão **"Abrir painel"** da GUI.
+- **`schematize graph obsidian`** transforma o index num **vault Obsidian** navegável no
+  Graph View (uma nota por função/serviço, com `[[wikilinks]]` de quem-chama-quem).
+- O painel é **auxiliar e read-mostly**: o juiz do "terminou" segue sendo o checklist + gate.
+
 ## Estados do checklist
 `- [ ]` aberto (tem que fazer) · `- [x]` feito (verificado) · `- [~]` on-hold (pergunta
 parkeada, não bloqueia o fim do run).

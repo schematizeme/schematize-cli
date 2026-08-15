@@ -5,7 +5,10 @@
 
 use clap::{Parser, Subcommand};
 use schematize::i18n::{t, tf};
-use schematize::{agent, autostart, doctor, i18n, links, news, overdev, registry, skills, status, upgrade, util};
+use schematize::{
+    agent, autostart, doctor, i18n, links, news, overdev, panel, registry, skills, status, upgrade,
+    util,
+};
 
 #[derive(Parser)]
 #[command(name = "schematize", version, about = "Ecosystem manager for Claude — skills, overdev, and more (Linux-first).")]
@@ -61,6 +64,13 @@ enum Cmd {
         #[command(subcommand)]
         sub: Over,
     },
+    /// Open the auxiliary HTML panel (overdev + index graph) in the browser.
+    Panel,
+    /// Graph tools (export the index graph, Obsidian-style).
+    Graph {
+        #[command(subcommand)]
+        sub: GraphCmd,
+    },
     /// Check for updates once (with --notify, fire a desktop notification).
     Check {
         #[arg(long)]
@@ -72,6 +82,16 @@ enum Cmd {
     Autostart {
         #[command(subcommand)]
         sub: Auto,
+    },
+}
+
+#[derive(Subcommand)]
+enum GraphCmd {
+    /// Export the index as an Obsidian vault (markdown + [[wikilinks]]).
+    Obsidian {
+        /// Output directory (default: <project>_archive/obsidian).
+        #[arg(long)]
+        out: Option<String>,
     },
 }
 
@@ -219,6 +239,10 @@ fn main() {
             Over::Hold { texto } => overdev::hold(&texto.join(" ")),
             Over::Park { item, pergunta } => overdev::park(&item, &pergunta.join(" ")),
             Over::Stop => overdev::stop(),
+        },
+        Cmd::Panel => panel::open(),
+        Cmd::Graph { sub } => match sub {
+            GraphCmd::Obsidian { out } => panel::export_obsidian(out),
         },
         Cmd::Check { notify } => {
             agent::run_once(notify);

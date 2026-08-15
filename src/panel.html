@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="pt">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>schematize · painel</title>
+<style>
+  :root{
+    --bg:#14161c; --panel:#1b1e27; --panel2:#232734; --edge:#2c3140;
+    --tx:#e6e8ee; --mut:#8a90a2; --accent:#5b8cff; --ok:#3ecf8e; --hold:#e6b23a; --open:#7b8296;
+    --node:#8aa0ff; --node2:#5b8cff;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--tx);
+    font:13px/1.5 -apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,sans-serif}
+  #app{display:flex;height:100vh;width:100vw;overflow:hidden}
+  /* sidebar */
+  #side{width:346px;min-width:346px;height:100%;overflow-y:auto;background:var(--panel);
+    border-right:1px solid var(--edge);padding:16px}
+  #side h1{font-size:15px;margin:0 0 2px;font-weight:600}
+  .sub{color:var(--mut);font-size:12px;margin-bottom:14px;word-break:break-word}
+  .badge{display:inline-block;padding:1px 8px;border-radius:999px;font-size:11px;
+    background:var(--panel2);color:var(--mut);border:1px solid var(--edge)}
+  .badge.active{color:var(--ok);border-color:#255c46}
+  /* progress */
+  .bar{height:8px;border-radius:6px;background:var(--panel2);overflow:hidden;display:flex;margin:10px 0 6px}
+  .bar>i{display:block;height:100%}
+  .legend{display:flex;gap:14px;font-size:11px;color:var(--mut);margin-bottom:8px}
+  .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px;vertical-align:middle}
+  .sec{margin:16px 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--mut)}
+  ul.ck{list-style:none;margin:0;padding:0}
+  ul.ck li{padding:4px 0 4px 20px;position:relative;border-bottom:1px solid #1f2330;font-size:12.5px}
+  ul.ck li:before{position:absolute;left:0;top:4px;font-size:12px}
+  li.s-x{color:var(--mut)} li.s-x:before{content:"✓";color:var(--ok)}
+  li.s-open:before{content:"○";color:var(--open)}
+  li.s-hold{color:var(--hold)} li.s-hold:before{content:"~";color:var(--hold)}
+  details{margin:6px 0;background:var(--panel2);border:1px solid var(--edge);border-radius:8px}
+  details>summary{cursor:pointer;padding:8px 10px;font-size:12px;color:var(--tx);user-select:none}
+  details pre{margin:0;padding:0 12px 12px;white-space:pre-wrap;word-break:break-word;
+    color:var(--mut);font:11.5px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;max-height:340px;overflow:auto}
+  .empty{color:var(--mut);font-style:italic;font-size:12px;padding:6px 0}
+  /* graph */
+  #main{flex:1;position:relative;min-width:0}
+  #g{display:block;width:100%;height:100%;cursor:grab}
+  #g:active{cursor:grabbing}
+  #tools{position:absolute;top:12px;left:12px;right:12px;display:flex;gap:10px;align-items:center;pointer-events:none}
+  #tools>*{pointer-events:auto}
+  #q{background:var(--panel);border:1px solid var(--edge);color:var(--tx);border-radius:8px;
+    padding:7px 10px;width:240px;outline:none}
+  #q:focus{border-color:var(--accent)}
+  .pill{background:var(--panel);border:1px solid var(--edge);color:var(--mut);border-radius:8px;padding:7px 10px;font-size:12px}
+  .btn{background:var(--panel);border:1px solid var(--edge);color:var(--tx);border-radius:8px;padding:7px 11px;cursor:pointer}
+  .btn:hover{border-color:var(--accent)}
+  #info{position:absolute;bottom:12px;left:12px;max-width:420px;background:var(--panel);
+    border:1px solid var(--edge);border-radius:10px;padding:12px 14px;display:none}
+  #info h3{margin:0 0 4px;font-size:13px}
+  #info code{color:var(--accent);font-size:11.5px;word-break:break-all}
+  #info a{color:var(--accent);text-decoration:none}
+  #info .nb{color:var(--mut);font-size:11.5px;margin-top:6px;max-height:120px;overflow:auto}
+  #info .nb b{color:var(--tx);font-weight:500}
+  #hint{position:absolute;bottom:12px;right:12px;color:var(--mut);font-size:11px}
+</style>
+</head>
+<body>
+<div id="app">
+  <aside id="side">
+    <h1 id="goal">painel schematize</h1>
+    <div class="sub"><span id="mode" class="badge">—</span> <span id="gen"></span></div>
+
+    <div class="sec">checklist</div>
+    <div class="bar" id="bar"></div>
+    <div class="legend">
+      <span><i class="dot" style="background:var(--ok)"></i><span id="cdone">0</span> feitos</span>
+      <span><i class="dot" style="background:var(--open)"></i><span id="copen">0</span> abertos</span>
+      <span><i class="dot" style="background:var(--hold)"></i><span id="chold">0</span> on-hold</span>
+    </div>
+    <ul class="ck" id="ck"></ul>
+
+    <div class="sec">contexto</div>
+    <details id="d-dec"><summary>Decisões acordadas</summary><pre></pre></details>
+    <details id="d-plan"><summary>Plano</summary><pre></pre></details>
+    <details id="d-q"><summary>Perguntas parkeadas</summary><pre></pre></details>
+  </aside>
+
+  <main id="main">
+    <div id="tools">
+      <input id="q" placeholder="buscar nó…" autocomplete="off">
+      <span class="pill" id="gcount">0 nós</span>
+      <button class="btn" id="fit">ajustar</button>
+    </div>
+    <canvas id="g"></canvas>
+    <div id="info"></div>
+    <div id="hint">arraste o fundo p/ mover · roda p/ zoom · arraste nó p/ fixar · clique p/ detalhes</div>
+  </main>
+</div>
+
+<script>
+const D = /*__DATA__*/null;
+
+/* ---------- sidebar ---------- */
+(function side(){
+  const g = D.objetivo && D.objetivo.trim() ? D.objetivo : "sem run de overdev ativo";
+  document.getElementById('goal').textContent = g;
+  const m = document.getElementById('mode');
+  m.textContent = D.mode || '—';
+  if(D.mode==='active') m.classList.add('active');
+  const c = D.counts||{open:0,done:0,hold:0}, tot=(c.open+c.done+c.hold)||1;
+  const bar = document.getElementById('bar');
+  const seg=(v,col)=>{ if(!v) return; const i=document.createElement('i'); i.style.width=(100*v/tot)+'%'; i.style.background=col; bar.appendChild(i); };
+  seg(c.done,'var(--ok)'); seg(c.hold,'var(--hold)'); seg(c.open,'var(--open)');
+  cdone.textContent=c.done; copen.textContent=c.open; chold.textContent=c.hold;
+  const ck=document.getElementById('ck');
+  if(!D.items||!D.items.length){ ck.innerHTML='<li class="empty">sem checklist (.overdev/CHECKLIST.md)</li>'; }
+  else for(const it of D.items){
+    const li=document.createElement('li');
+    li.className = it.s==='x'?'s-x': it.s==='~'?'s-hold':'s-open';
+    li.textContent = it.t; ck.appendChild(li);
+  }
+  const fill=(id,txt)=>{ const d=document.getElementById(id), pre=d.querySelector('pre');
+    if(txt && txt.trim()){ pre.textContent=txt; } else { pre.innerHTML='<span class="empty">vazio</span>'; d.style.opacity=.6; } };
+  fill('d-dec',D.decisoes); fill('d-plan',D.plano); fill('d-q',D.perguntas);
+})();
+
+/* ---------- graph ---------- */
+const cv=document.getElementById('g'), ctx=cv.getContext('2d');
+const byId=new Map();
+const nodes=(D.nodes||[]).map((n,i)=>{ const a=i*2.399963, r=40+9*Math.sqrt(i);
+  const o={id:n.id,loc:n.loc,x:Math.cos(a)*r,y:Math.sin(a)*r,vx:0,vy:0,deg:0,pin:false}; byId.set(n.id,o); return o; });
+const edges=(D.edges||[]).filter(e=>byId.has(e.from)&&byId.has(e.to))
+  .map(e=>({a:byId.get(e.from),b:byId.get(e.to),label:e.label}));
+edges.forEach(e=>{e.a.deg++;e.b.deg++;});
+document.getElementById('gcount').textContent = nodes.length+' nós';
+
+let scale=1, ox=0, oy=0, alpha=1, sel=null, hover=null, q='';
+let W=0,H=0,dpr=Math.max(1,window.devicePixelRatio||1);
+function resize(){ const r=cv.getBoundingClientRect(); W=r.width; H=r.height;
+  cv.width=W*dpr; cv.height=H*dpr; ctx.setTransform(dpr,0,0,dpr,0,0); }
+window.addEventListener('resize',resize); resize();
+
+/* força: repulsão O(n^2) + molas + gravidade, com alpha decaindo */
+function step(){
+  if(alpha<0.02) return;
+  const N=nodes.length, REP=1400, SPR=0.02, LEN=70, G=0.015;
+  for(let i=0;i<N;i++){ const a=nodes[i];
+    for(let j=i+1;j<N;j++){ const b=nodes[j];
+      let dx=a.x-b.x, dy=a.y-b.y, d2=dx*dx+dy*dy+0.01, d=Math.sqrt(d2);
+      const f=REP/d2, fx=f*dx/d, fy=f*dy/d;
+      a.vx+=fx; a.vy+=fy; b.vx-=fx; b.vy-=fy;
+    }
+    a.vx-=a.x*G; a.vy-=a.y*G;
+  }
+  for(const e of edges){ const a=e.a,b=e.b;
+    let dx=b.x-a.x, dy=b.y-a.y, d=Math.hypot(dx,dy)||0.01, f=(d-LEN)*SPR;
+    const fx=f*dx/d, fy=f*dy/d; a.vx+=fx; a.vy+=fy; b.vx-=fx; b.vy-=fy;
+  }
+  for(const n of nodes){ if(n.pin){n.vx=0;n.vy=0;continue;}
+    n.vx*=0.86; n.vy*=0.86; n.x+=n.vx*alpha; n.y+=n.vy*alpha; }
+  alpha*=0.994;
+}
+const nsize=n=>3+Math.min(9,Math.sqrt(n.deg)*1.7);
+function neighbors(n){ const s=new Set(); for(const e of edges){ if(e.a===n)s.add(e.b); if(e.b===n)s.add(e.a);} return s; }
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  ctx.save(); ctx.translate(W/2+ox,H/2+oy); ctx.scale(scale,scale);
+  const focus=sel||hover, nb=focus?neighbors(focus):null;
+  const match=id=> q && id.toLowerCase().includes(q);
+  // edges
+  ctx.lineWidth=1/scale;
+  for(const e of edges){
+    const on = focus && (e.a===focus||e.b===focus);
+    ctx.strokeStyle = on? 'rgba(120,150,255,.75)' : 'rgba(120,130,160,.16)';
+    ctx.beginPath(); ctx.moveTo(e.a.x,e.a.y); ctx.lineTo(e.b.x,e.b.y); ctx.stroke();
+  }
+  // nodes
+  for(const n of nodes){
+    const dim = (focus && n!==focus && !(nb&&nb.has(n))) || (q && !match(n.id));
+    const r=nsize(n);
+    ctx.globalAlpha = dim?0.28:1;
+    ctx.beginPath(); ctx.arc(n.x,n.y,r,0,7);
+    ctx.fillStyle = n===sel ? '#ffffff' : (n.loc ? '#5b8cff' : '#8aa0ff');
+    ctx.fill();
+    if(n===sel){ ctx.lineWidth=2/scale; ctx.strokeStyle='#9db4ff'; ctx.stroke(); }
+    // labels: quando há zoom, ou nó em foco/vizinho/busca
+    if(scale>1.15 || n===focus || (nb&&nb.has(n)) || match(n.id)){
+      ctx.globalAlpha = dim?0.4:0.95; ctx.fillStyle='#c9cee0';
+      ctx.save(); ctx.translate(n.x+r+2/scale, n.y); ctx.scale(1/scale,1/scale);
+      ctx.font='11px ui-monospace,monospace';
+      ctx.fillText(n.id.length>34?n.id.slice(0,33)+'…':n.id, 0, 4);
+      ctx.restore();
+    }
+  }
+  ctx.globalAlpha=1; ctx.restore();
+}
+function loop(){ step(); draw(); requestAnimationFrame(loop); } loop();
+
+/* ---------- interação ---------- */
+function toWorld(px,py){ return {x:(px-W/2-ox)/scale, y:(py-H/2-oy)/scale}; }
+function pick(px,py){ const w=toWorld(px,py); let best=null,bd=1e9;
+  for(const n of nodes){ const d=Math.hypot(n.x-w.x,n.y-w.y); const r=nsize(n)+6/scale;
+    if(d<r && d<bd){bd=d;best=n;} } return best; }
+let drag=null, panning=false, lx=0, ly=0, moved=false;
+cv.addEventListener('mousedown',e=>{ const n=pick(e.offsetX,e.offsetY); moved=false;
+  if(n){ drag=n; n.pin=true; } else { panning=true; } lx=e.offsetX; ly=e.offsetY; });
+window.addEventListener('mousemove',e=>{
+  const rect=cv.getBoundingClientRect(); const px=e.clientX-rect.left, py=e.clientY-rect.top;
+  if(drag){ const w=toWorld(px,py); drag.x=w.x; drag.y=w.y; drag.vx=drag.vy=0; alpha=Math.max(alpha,.3); moved=true; }
+  else if(panning){ ox+=px-lx; oy+=py-ly; lx=px; ly=py; moved=true; }
+  else { const n=pick(px,py); hover=n; cv.style.cursor=n?'pointer':'grab'; }
+});
+window.addEventListener('mouseup',e=>{
+  if(drag && !moved){ select(drag); }
+  else if(panning && !moved){ select(null); }
+  drag=null; panning=false;
+});
+cv.addEventListener('wheel',e=>{ e.preventDefault(); const f=Math.exp(-e.deltaY*0.0012);
+  const mx=e.offsetX-W/2-ox, my=e.offsetY-H/2-oy;
+  ox-=mx*(f-1); oy-=my*(f-1); scale=Math.min(6,Math.max(0.15,scale*f)); },{passive:false});
+document.getElementById('q').addEventListener('input',e=>{ q=e.target.value.trim().toLowerCase(); });
+document.getElementById('fit').addEventListener('click',fit);
+
+function select(n){ sel=n; const info=document.getElementById('info');
+  if(!n){ info.style.display='none'; return; }
+  const outs=edges.filter(e=>e.a===n).map(e=>e.b.id);
+  const ins=edges.filter(e=>e.b===n).map(e=>e.a.id);
+  let h='<h3>'+esc(n.id)+'</h3>';
+  if(n.loc){ const link='vscode://file/'+D.cwd+'/'+n.loc;
+    h+='<div><a href="'+esc(link)+'"><code>'+esc(n.loc)+'</code></a></div>'; }
+  else h+='<div class="nb">sem arquivo:linha no index</div>';
+  if(outs.length) h+='<div class="nb"><b>chama:</b> '+outs.slice(0,20).map(esc).join(', ')+(outs.length>20?'…':'')+'</div>';
+  if(ins.length) h+='<div class="nb"><b>chamado por:</b> '+ins.slice(0,20).map(esc).join(', ')+(ins.length>20?'…':'')+'</div>';
+  info.innerHTML=h; info.style.display='block';
+}
+function fit(){ if(!nodes.length){return;}
+  let minx=1e9,miny=1e9,maxx=-1e9,maxy=-1e9;
+  for(const n of nodes){ minx=Math.min(minx,n.x);miny=Math.min(miny,n.y);maxx=Math.max(maxx,n.x);maxy=Math.max(maxy,n.y);}
+  const w=maxx-minx||1, h=maxy-miny||1; scale=Math.min(6,Math.max(0.15,0.86*Math.min(W/w,H/h)));
+  ox=-scale*(minx+maxx)/2; oy=-scale*(miny+maxy)/2;
+}
+function esc(s){ return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+setTimeout(fit,400);
+if(!nodes.length){ const info=document.getElementById('info');
+  info.innerHTML='<h3>sem grafo</h3><div class="nb">Rode <code>/eng-index</code> pra gerar o index (MAPA + grafos) — o painel lê de <code>&lt;projeto&gt;_archive/index/</code>.</div>';
+  info.style.display='block'; }
+</script>
+</body>
+</html>

@@ -86,6 +86,7 @@
   "gui.agent_on": "启用代理（autostart）",
   "gui.agent_off": "禁用代理",
   "gui.overdev_on": "启用 overdev（hooks）",
+  "gui.panel": "打开面板",
   "gui.tab_skills": "Skills",
   "gui.tab_status": "状态",
   "gui.blog": "博客",

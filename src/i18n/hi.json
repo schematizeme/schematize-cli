@@ -86,6 +86,7 @@
   "gui.agent_on": "एजेंट सक्षम करें (autostart)",
   "gui.agent_off": "एजेंट अक्षम करें",
   "gui.overdev_on": "overdev सक्षम करें (hooks)",
+  "gui.panel": "पैनल खोलें",
   "gui.tab_skills": "Skills",
   "gui.tab_status": "स्थिति",
   "gui.blog": "ब्लॉग",

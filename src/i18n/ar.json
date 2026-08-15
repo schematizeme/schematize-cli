@@ -86,6 +86,7 @@
   "gui.agent_on": "تفعيل الوكيل (autostart)",
   "gui.agent_off": "تعطيل الوكيل",
   "gui.overdev_on": "تفعيل overdev (hooks)",
+  "gui.panel": "فتح اللوحة",
   "gui.tab_skills": "المهارات",
   "gui.tab_status": "الحالة",
   "gui.blog": "المدونة",
