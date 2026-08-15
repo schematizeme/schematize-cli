@@ -15,7 +15,7 @@ via apt/zypper/dnf — pede sudo), clona o main e compila CLI + GUI (`cargo inst
 gui`). Primeira compilação leva alguns minutos.
 
 ```bash
-curl -fsSL https://github.com/schematizeme/schematize-cli/releases/latest/download/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/schematizeme/schematize-cli/main/install.sh | bash
 ```
 
 **Distros com deps automáticas:** Debian 13 / Mint / Ubuntu e openSUSE Leap / Fedora. Outras:
@@ -24,9 +24,9 @@ instale à mão as libs de X11/Wayland/GL `-dev` da sua distro e rode o mesmo co
 **Atalhos (opcionais — só se houver release pronto):**
 ```bash
 # binários pré-compilados do release (sem compilar)
-curl -fsSL .../releases/latest/download/install.sh | bash -s -- --binary
+curl -fsSL https://raw.githubusercontent.com/schematizeme/schematize-cli/main/install.sh | bash -s -- --binary
 # pacote .deb/.rpm da distro
-curl -fsSL .../releases/latest/download/install.sh | bash -s -- --package
+curl -fsSL https://raw.githubusercontent.com/schematizeme/schematize-cli/main/install.sh | bash -s -- --package
 ```
 
 **Do fonte manualmente:**
