@@ -46,7 +46,10 @@ O **hub onde se faz a schematização** — janela egui com **abas**, tudo dentr
 
 - **Skills** — gestor: **checkbox por skill**, **Instalar/atualizar selecionados** e **Remover
   selecionados** em **massa e em paralelo**, seleção rápida (Tudo/Pendentes/Nenhum), coluna
-  Estado, e o próprio CLI na lista.
+  Estado, e o próprio CLI na lista. O **botão de atualizar nunca fica no-op** (pensado pra quem
+  não é dev): binário + **pkexec** (senha gráfica, sem terminal) e, se faltar binário/falhar,
+  **abre um terminal** com o rebuild do fonte; depois pede pra **reiniciar a janela**. A versão
+  é lida do **fonte (raw)**, não da API do GitHub (60/h) — diagnóstico em `schematize debug`.
 - **Overdev** — o run do projeto **nativo na janela**: objetivo, progresso (feitos/abertos/
   on-hold), o **checklist** colorido por estado, e Decisões/Plano/Perguntas parkeadas.
 - **Grafo** — a **tela de grafos do index** (force-directed **estilo Obsidian**) desenhada
