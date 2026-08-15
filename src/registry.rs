@@ -13,6 +13,13 @@ pub const ORG: &str = "schematizeme";
 const CATALOG_URL: &str =
     "https://raw.githubusercontent.com/schematizeme/schematize-cli/main/catalog.json";
 
+/// Quem patrocina/co-assina a skill (mostrado na GUI): nome + link.
+#[derive(Clone, Deserialize)]
+pub struct Sponsor {
+    pub name: String,
+    pub url: String,
+}
+
 /// Uma skill/tool instalável do ecossistema.
 #[derive(Clone, Deserialize)]
 pub struct Item {
@@ -24,6 +31,12 @@ pub struct Item {
     pub repo: String,
     /// nome do asset .zip do release.
     pub zip: String,
+    /// grupo na GUI: "base" (arquitetura), "language" (linguagem), "external" (ferramenta).
+    #[serde(default)]
+    pub category: String,
+    /// empresa que patrocina/co-assina a skill (None = tratar como Schematize).
+    #[serde(default)]
+    pub sponsor: Option<Sponsor>,
 }
 
 #[derive(Deserialize)]
@@ -34,23 +47,29 @@ struct Catalog {
 /// Catálogo embutido — fallback quando o índice remoto está indisponível (offline).
 /// Mantido em dia como rede de segurança; a fonte de verdade é o `catalog.json`.
 fn builtin() -> Vec<Item> {
-    const B: &[(&str, &str, &str, &str)] = &[
-        ("engineering", "schematize-engineering", "skill-engineering", "skill-engineering.zip"),
-        ("go", "schematize-go", "skill-go", "skill-go.zip"),
-        ("rust", "schematize-rust", "skill-rust", "skill-rust.zip"),
-        ("web", "schematize-web", "skill-web", "skill-web.zip"),
-        ("seo", "schematize-seo", "skill-seo", "skill-seo.zip"),
-        ("node", "schematize-node", "skill-node", "skill-node.zip"),
-        ("pentest", "schematize-pentest", "skill-pentest", "skill-pentest.zip"),
-    ];
-    B.iter()
-        .map(|(s, d, r, z)| Item {
-            slug: s.to_string(),
-            skill_dir: d.to_string(),
-            repo: r.to_string(),
-            zip: z.to_string(),
-        })
-        .collect()
+    let sp = |name: &str, url: &str| Some(Sponsor { name: name.into(), url: url.into() });
+    let sch = || sp("Schematize", "https://schematize.net");
+    let mk = |slug: &str, cat: &str, sponsor: Option<Sponsor>| Item {
+        slug: slug.into(),
+        skill_dir: format!("schematize-{slug}"),
+        repo: format!("skill-{slug}"),
+        zip: format!("skill-{slug}.zip"),
+        category: cat.into(),
+        sponsor,
+    };
+    vec![
+        mk("engineering", "base", sch()),
+        mk("web", "base", sch()),
+        mk("go", "language", sch()),
+        mk("rust", "language", sch()),
+        mk("elixir", "language", sch()),
+        mk("csharp", "language", sch()),
+        mk("zig", "language", sch()),
+        mk("ruby", "language", sch()),
+        mk("node", "language", sch()),
+        mk("seo", "external", sp("Hextorn", "https://hextorn.com")),
+        mk("pentest", "external", sp("Basilisk Offsec", "https://basiliskoffsec.com")),
+    ]
 }
 
 /// O catálogo atual: tenta o índice remoto; cai no embutido se falhar/vazio.

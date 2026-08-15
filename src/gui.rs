@@ -37,6 +37,8 @@ struct Row {
     installed: Option<String>,
     latest: Option<String>,
     item: Option<Item>,
+    category: String,             // "base" | "language" | "external"
+    sponsor: Option<(String, String)>, // (nome, url) da empresa que patrocina
 }
 impl Row {
     fn outdated(&self) -> bool {
@@ -64,11 +66,17 @@ struct Msg {
 fn collect_rows() -> Vec<Row> {
     let mut rows: Vec<Row> = registry::catalog()
         .into_iter()
-        .map(|it| Row {
-            name: it.slug.clone(),
-            installed: skills::installed_version(&it),
-            latest: skills::resolve_latest(&it).ok(),
-            item: Some(it),
+        .map(|it| {
+            let sponsor = it.sponsor.as_ref().map(|s| (s.name.clone(), s.url.clone()));
+            let category = if it.category.is_empty() { "language".into() } else { it.category.clone() };
+            Row {
+                name: it.slug.clone(),
+                installed: skills::installed_version(&it),
+                latest: skills::resolve_latest(&it).ok(),
+                category,
+                sponsor,
+                item: Some(it),
+            }
         })
         .collect();
     rows.push(Row {
@@ -76,6 +84,8 @@ fn collect_rows() -> Vec<Row> {
         installed: Some(env!("CARGO_PKG_VERSION").to_string()),
         latest: skills::latest_release_tag("schematize-cli"),
         item: None,
+        category: "base".into(),
+        sponsor: Some(("Schematize".into(), "https://schematize.net".into())),
     });
     rows
 }
@@ -608,37 +618,50 @@ impl App {
             });
         });
         ui.separator();
+        let rows = self.rows.clone();
         egui::ScrollArea::vertical().show(ui, |ui| {
-            egui::Grid::new("skills").num_columns(5).striped(true).spacing([14.0, 8.0]).show(ui, |ui| {
-                ui.strong("");
-                ui.strong(t("gui.col_skill"));
-                ui.strong(t("gui.col_installed"));
-                ui.strong(t("gui.col_latest"));
-                ui.strong(t("gui.col_state"));
-                ui.end_row();
-                for r in self.rows.clone() {
-                    let mut on = self.selected.contains(&r.name);
-                    if ui.add_enabled(!busy, egui::Checkbox::new(&mut on, "")).changed() {
-                        if on {
-                            self.selected.insert(r.name.clone());
-                        } else {
-                            self.selected.remove(&r.name);
-                        }
-                    }
-                    ui.label(&r.name);
-                    ui.label(r.installed.clone().unwrap_or_else(|| "—".into()));
-                    ui.label(r.latest.clone().unwrap_or_else(|| "?".into()));
-                    let col = if r.missing() {
-                        egui::Color32::from_rgb(0xe6, 0xb2, 0x3a)
-                    } else if r.outdated() {
-                        egui::Color32::from_rgb(0x5b, 0x8c, 0xff)
-                    } else {
-                        egui::Color32::from_rgb(0x8a, 0x90, 0xa2)
-                    };
-                    ui.label(egui::RichText::new(state_text(&r)).color(col));
-                    ui.end_row();
+            for (cat, label) in [
+                ("base", t("gui.cat_base")),
+                ("language", t("gui.cat_language")),
+                ("external", t("gui.cat_external")),
+            ] {
+                let group: Vec<Row> = rows.iter().filter(|r| r.category == cat).cloned().collect();
+                if group.is_empty() {
+                    continue;
                 }
-            });
+                ui.add_space(10.0);
+                ui.label(egui::RichText::new(label).strong().size(14.0).color(egui::Color32::from_rgb(0x9d, 0xb4, 0xff)));
+                ui.add_space(2.0);
+                egui::Grid::new(format!("skills_{cat}")).num_columns(5).striped(true).spacing([14.0, 8.0]).show(ui, |ui| {
+                    for r in &group {
+                        let mut on = self.selected.contains(&r.name);
+                        if ui.add_enabled(!busy, egui::Checkbox::new(&mut on, "")).changed() {
+                            if on {
+                                self.selected.insert(r.name.clone());
+                            } else {
+                                self.selected.remove(&r.name);
+                            }
+                        }
+                        ui.vertical(|ui| {
+                            ui.label(&r.name);
+                            if let Some((sn, su)) = &r.sponsor {
+                                ui.hyperlink_to(egui::RichText::new(format!("{} {sn}", t("gui.by"))).small().weak(), su);
+                            }
+                        });
+                        ui.label(r.installed.clone().unwrap_or_else(|| "—".into()));
+                        ui.label(r.latest.clone().unwrap_or_else(|| "?".into()));
+                        let col = if r.missing() {
+                            egui::Color32::from_rgb(0xe6, 0xb2, 0x3a)
+                        } else if r.outdated() {
+                            egui::Color32::from_rgb(0x5b, 0x8c, 0xff)
+                        } else {
+                            egui::Color32::from_rgb(0x8a, 0x90, 0xa2)
+                        };
+                        ui.label(egui::RichText::new(state_text(r)).color(col));
+                        ui.end_row();
+                    }
+                });
+            }
         });
     }
 
