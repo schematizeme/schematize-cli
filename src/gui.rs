@@ -135,6 +135,12 @@ fn install_fonts(ctx: &egui::Context) {
         "/usr/share/fonts/truetype/noto/NotoSansArabic-Regular.ttf",
         "/usr/share/fonts/truetype/noto/NotoSansDevanagari-Regular.ttf",
         "/usr/share/fonts/truetype/noto/NotoSansHebrew-Regular.ttf",
+        // Tailandês (th) e Bengali (bn) — fonts-noto-core no Debian. Coreano (Hangul)
+        // vem do CJK acima; Persa (fa) usa a escrita árabe (já coberta acima).
+        "/usr/share/fonts/truetype/noto/NotoSansThai-Regular.ttf",
+        "/usr/share/fonts/noto/NotoSansThai-Regular.ttf",
+        "/usr/share/fonts/truetype/noto/NotoSansBengali-Regular.ttf",
+        "/usr/share/fonts/noto/NotoSansBengali-Regular.ttf",
         "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf",
         // Linux — DejaVu (quase sempre presente): latino/cirílico/grego
         "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",

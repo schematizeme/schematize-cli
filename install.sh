@@ -75,15 +75,20 @@ gui_build_deps() {
     *) die "GUI do fonte: instale manualmente as libs de X11/Wayland/GL da sua distro." ;;
   esac
 }
-# Fontes de cobertura ampla (CJK/árabe/devanagari) — pra GUI não mostrar "quadradinhos"
-# nos idiomas não-latinos. Best-effort (nomes variam por distro).
+# Fontes de cobertura ampla (CJK/árabe/devanagari/tailandês/bengali) — pra GUI não
+# mostrar "quadradinhos" nos idiomas não-latinos. Best-effort (nomes variam por distro).
+# No Debian, fonts-noto-core já traz Thai e Bengali (NotoSansThai/NotoSansBengali);
+# fonts-noto (amplo) entra como reforço. Coreano vem do CJK; persa usa a escrita árabe.
 ensure_fonts() {
   case "$FAMILY" in
-    debian) pkg_install fonts-noto-core fonts-noto-cjk fonts-dejavu-core >/dev/null 2>&1 || true ;;
+    debian) pkg_install fonts-noto-core fonts-noto-cjk fonts-dejavu-core >/dev/null 2>&1 || true
+            pkg_install fonts-noto >/dev/null 2>&1 || true ;;
     rpm)    if command -v zypper >/dev/null; then
               $SUDO zypper --non-interactive install -y noto-sans-fonts noto-sans-cjk-fonts dejavu-fonts >/dev/null 2>&1 || true
+              $SUDO zypper --non-interactive install -y google-noto-sans-thai-fonts google-noto-sans-bengali-fonts >/dev/null 2>&1 || true
             else
               $SUDO dnf install -y google-noto-sans-fonts google-noto-sans-cjk-fonts dejavu-sans-fonts >/dev/null 2>&1 || true
+              $SUDO dnf install -y google-noto-sans-thai-fonts google-noto-sans-bengali-fonts >/dev/null 2>&1 || true
             fi ;;
   esac
 }

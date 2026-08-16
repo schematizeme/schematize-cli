@@ -21,7 +21,21 @@ pub const LANGS: &[(&str, &str, &str)] = &[
     ("ru", "Русский",       include_str!("i18n/ru.json")),
     ("ar", "العربية",       include_str!("i18n/ar.json")),
     ("hi", "हिन्दी",          include_str!("i18n/hi.json")),
+    ("ko", "한국어",         include_str!("i18n/ko.json")),
+    ("tr", "Türkçe",        include_str!("i18n/tr.json")),
+    ("vi", "Tiếng Việt",    include_str!("i18n/vi.json")),
+    ("id", "Bahasa Indonesia", include_str!("i18n/id.json")),
+    ("pl", "Polski",        include_str!("i18n/pl.json")),
+    ("nl", "Nederlands",    include_str!("i18n/nl.json")),
+    ("th", "ไทย",           include_str!("i18n/th.json")),
+    ("fa", "فارسی",         include_str!("i18n/fa.json")),
+    ("bn", "বাংলা",          include_str!("i18n/bn.json")),
 ];
+
+/// Idiomas escritos da direita para a esquerda (RTL). A direção é da UI, não do JSON.
+pub fn is_rtl(code: &str) -> bool {
+    matches!(code, "ar" | "fa")
+}
 
 /// Idioma ativo já parseado (mapa do idioma + mapa en para fallback).
 struct Active {
