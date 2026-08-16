@@ -132,10 +132,10 @@ post_config() {
   fi
   "$BIN" autostart enable || true
   echo; ok "pronto. Próximos passos:"
-  echo "    schematize install --all      # instala as skills"
+  echo "    schematize skills install --all   # instala as skills"
   echo "    schematize overdev enable     # liga o modo overdev"
   echo "    schematize gui                # abre a janela (o & libera o terminal; ou use o menu de apps)"
-  echo "    schematize list               # versões instaladas vs latest"
+  echo "    schematize skills list            # versões instaladas vs latest"
 }
 
 install_binary() {

@@ -20,24 +20,34 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Cmd {
-    /// Install one or more skills (or all with --all) from the latest release.
+    /// Manage skills (a FEATURE of the app): install | update | remove | list.
+    Skills {
+        #[command(subcommand)]
+        sub: SkillsCmd,
+    },
+    // --- Aliases de compat (ocultos): os antigos top-level de SKILLS agora vivem
+    // sob `schematize skills <sub>`. Mantidos válidos pra não quebrar scripts/hooks/docs.
+    /// (alias oculto de `skills install`)
+    #[command(hide = true)]
     Install {
         names: Vec<String>,
         #[arg(long)]
         all: bool,
-        /// Also install any recommended (complementary) skills, e.g. engineering.
         #[arg(long)]
         with_recommended: bool,
     },
-    /// Update installed skills to latest (all if no name/--all).
+    /// (alias oculto de `skills update`)
+    #[command(hide = true)]
     Update {
         names: Vec<String>,
         #[arg(long)]
         all: bool,
     },
-    /// List skills: installed vs latest available.
+    /// (alias oculto de `skills list`)
+    #[command(hide = true)]
     List,
-    /// Remove an installed skill.
+    /// (alias oculto de `skills remove`)
+    #[command(hide = true)]
     Remove { name: String },
     /// Overview dashboard: versions, agent, overdev, language, links.
     Status,
@@ -48,7 +58,7 @@ enum Cmd {
     },
     /// Debug the updater/versioning (versão, rate limit, exe, shadows, catálogo, log).
     Debug,
-    /// Update schematize itself to the latest version.
+    /// Update schematize itself — atualiza o próprio schematize (o APP, o binário), não as skills.
     Upgrade {
         #[arg(long)]
         force: bool,
@@ -101,6 +111,30 @@ enum Cmd {
         #[command(subcommand)]
         sub: SshCmd,
     },
+}
+
+/// Gestão de SKILLS — uma funcionalidade do app, agrupada sob `schematize skills`.
+#[derive(Subcommand)]
+enum SkillsCmd {
+    /// Install one or more skills (or all with --all) from the latest release.
+    Install {
+        names: Vec<String>,
+        #[arg(long)]
+        all: bool,
+        /// Also install any recommended (complementary) skills, e.g. engineering.
+        #[arg(long)]
+        with_recommended: bool,
+    },
+    /// Update installed skills to latest (all if no name/--all).
+    Update {
+        names: Vec<String>,
+        #[arg(long)]
+        all: bool,
+    },
+    /// List skills: installed vs latest available.
+    List,
+    /// Remove an installed skill.
+    Remove { name: String },
 }
 
 #[derive(Subcommand)]
@@ -322,75 +356,104 @@ fn ssh_cmd(sub: SshCmd) -> Result<(), String> {
     }
 }
 
+/// `schematize skills <sub>` — dispatcher da gestão de skills (a feature).
+fn skills_cmd(sub: SkillsCmd) -> Result<(), String> {
+    match sub {
+        SkillsCmd::Install { names, all, with_recommended } => {
+            skills_install(&names, all, with_recommended)
+        }
+        SkillsCmd::Update { names, all } => skills_update(&names, all),
+        SkillsCmd::List => skills_list(),
+        SkillsCmd::Remove { name } => skills_remove(&name),
+    }
+}
+
+/// Instala skills (ou todas com --all) e, opcionalmente, as recomendadas.
+fn skills_install(names: &[String], all: bool, with_recommended: bool) -> Result<(), String> {
+    let cat = registry::catalog();
+    let selected = resolve(&cat, names, all);
+    for it in &selected {
+        match skills::install(it) {
+            Ok(v) => println!("✓ {}", tf("skills.installed_ok", &[("name", &it.slug), ("v", &v)])),
+            Err(e) => eprintln!("✗ {}: {e}", it.slug),
+        }
+    }
+    // Recomendações (skill BASE complementar). Nunca instala de surpresa:
+    // com --all já vem tudo; senão sugere, e só instala com --with-recommended.
+    if !all {
+        let mut suggested: Vec<String> = Vec::new();
+        for it in &selected {
+            for rec in &it.recommends {
+                let already = registry::find(&cat, rec)
+                    .map(|r| skills::installed_version(&r).is_some())
+                    .unwrap_or(false);
+                let in_batch = selected.iter().any(|s| &s.slug == rec);
+                if !already && !in_batch && !suggested.contains(rec) {
+                    suggested.push(rec.clone());
+                }
+            }
+        }
+        if !suggested.is_empty() {
+            if with_recommended {
+                for rec in &suggested {
+                    if let Some(r) = registry::find(&cat, rec) {
+                        match skills::install(&r) {
+                            Ok(v) => println!("✓ {}", tf("skills.installed_ok", &[("name", &r.slug), ("v", &v)])),
+                            Err(e) => eprintln!("✗ {}: {e}", r.slug),
+                        }
+                    }
+                }
+            } else {
+                println!("{}", tf("skills.recommends_hint", &[("list", &suggested.join(", "))]));
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Atualiza skills instaladas pro latest (todas se não passar nome/--all).
+fn skills_update(names: &[String], all: bool) -> Result<(), String> {
+    let cat = registry::catalog();
+    for it in resolve(&cat, names, all) {
+        match skills::install(&it) {
+            Ok(v) => println!("✓ {}", tf("skills.updated", &[("name", &it.slug), ("v", &v)])),
+            Err(e) => eprintln!("✗ {}: {e}", it.slug),
+        }
+    }
+    Ok(())
+}
+
+/// Lista skills: instaladas vs última disponível.
+fn skills_list() -> Result<(), String> {
+    let st = skills::load_state();
+    println!("{}", t("skills.header"));
+    for it in &registry::catalog() {
+        println!("  {}", skills::status_line(it, &st, true));
+    }
+    Ok(())
+}
+
+/// Remove uma skill instalada.
+fn skills_remove(name: &str) -> Result<(), String> {
+    let cat = registry::catalog();
+    match registry::find(&cat, name) {
+        Some(it) => skills::remove(&it).map(|_| println!("{}", tf("skills.removed", &[("name", &it.slug)]))),
+        None => Err(tf("skills.unknown", &[("name", name)])),
+    }
+}
+
 fn main() {
     let cli = Cli::parse();
     let r: Result<(), String> = match cli.cmd {
+        // Feature SKILLS, agrupada. O app é uma coisa; skills são uma funcionalidade.
+        Cmd::Skills { sub } => skills_cmd(sub),
+        // Aliases ocultos de compat (mesma lógica que o subcomando `skills`).
         Cmd::Install { names, all, with_recommended } => {
-            let cat = registry::catalog();
-            let selected = resolve(&cat, &names, all);
-            for it in &selected {
-                match skills::install(it) {
-                    Ok(v) => println!("✓ {}", tf("skills.installed_ok", &[("name", &it.slug), ("v", &v)])),
-                    Err(e) => eprintln!("✗ {}: {e}", it.slug),
-                }
-            }
-            // Recomendações (skill BASE complementar). Nunca instala de surpresa:
-            // com --all já vem tudo; senão sugere, e só instala com --with-recommended.
-            if !all {
-                let mut suggested: Vec<String> = Vec::new();
-                for it in &selected {
-                    for rec in &it.recommends {
-                        let already = registry::find(&cat, rec)
-                            .map(|r| skills::installed_version(&r).is_some())
-                            .unwrap_or(false);
-                        let in_batch = selected.iter().any(|s| &s.slug == rec);
-                        if !already && !in_batch && !suggested.contains(rec) {
-                            suggested.push(rec.clone());
-                        }
-                    }
-                }
-                if !suggested.is_empty() {
-                    if with_recommended {
-                        for rec in &suggested {
-                            if let Some(r) = registry::find(&cat, rec) {
-                                match skills::install(&r) {
-                                    Ok(v) => println!("✓ {}", tf("skills.installed_ok", &[("name", &r.slug), ("v", &v)])),
-                                    Err(e) => eprintln!("✗ {}: {e}", r.slug),
-                                }
-                            }
-                        }
-                    } else {
-                        println!("{}", tf("skills.recommends_hint", &[("list", &suggested.join(", "))]));
-                    }
-                }
-            }
-            Ok(())
+            skills_install(&names, all, with_recommended)
         }
-        Cmd::Update { names, all } => {
-            let cat = registry::catalog();
-            for it in resolve(&cat, &names, all) {
-                match skills::install(&it) {
-                    Ok(v) => println!("✓ {}", tf("skills.updated", &[("name", &it.slug), ("v", &v)])),
-                    Err(e) => eprintln!("✗ {}: {e}", it.slug),
-                }
-            }
-            Ok(())
-        }
-        Cmd::List => {
-            let st = skills::load_state();
-            println!("{}", t("skills.header"));
-            for it in &registry::catalog() {
-                println!("  {}", skills::status_line(it, &st, true));
-            }
-            Ok(())
-        }
-        Cmd::Remove { name } => {
-            let cat = registry::catalog();
-            match registry::find(&cat, &name) {
-                Some(it) => skills::remove(&it).map(|_| println!("{}", tf("skills.removed", &[("name", &it.slug)]))),
-                None => Err(tf("skills.unknown", &[("name", &name)])),
-            }
-        }
+        Cmd::Update { names, all } => skills_update(&names, all),
+        Cmd::List => skills_list(),
+        Cmd::Remove { name } => skills_remove(&name),
         Cmd::Status => {
             status::run();
             Ok(())

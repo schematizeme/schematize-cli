@@ -98,13 +98,18 @@ Novo idioma = soltar um `src/i18n/<code>.json` e uma linha em `i18n.rs`.
 
 ## Skills (instalação e versão)
 
+Skills são uma FUNCIONALIDADE do app, agrupadas sob `schematize skills`:
+
 ```bash
-schematize install --all        # instala todas as skills do catálogo
-schematize install web go       # instala só algumas
-schematize list                 # instalada vs última disponível
-schematize update --all         # atualiza tudo pro latest
-schematize remove node          # remove uma
+schematize skills install --all   # instala todas as skills do catálogo
+schematize skills install web go  # instala só algumas
+schematize skills list            # instalada vs última disponível
+schematize skills update --all    # atualiza tudo pro latest
+schematize skills remove node     # remove uma
 ```
+
+Os antigos `schematize install|update|list|remove` seguem válidos como aliases (compat).
+Para atualizar o PRÓPRIO app (o binário), é outra coisa: `schematize upgrade`.
 
 Instala em `~/.claude/skills/<skill>/` e achata os comandos em `~/.claude/commands/`.
 O estado de versões fica em `~/.claude/schematize/state.json`.
