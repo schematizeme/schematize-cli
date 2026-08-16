@@ -9,6 +9,11 @@ GUI = crate **Slint** (`schematize_gui_slint`, já é o default). CLI/engine = `
 
 ---
 
+> **STATUS: FASE 1 = 🤖 FEITA (release v0.22.0).** Todas as 🤖 abaixo fechadas: CLI
+> `skills`/`upgrade` separados (+aliases), Home com cards, barra enxuta + modal de dev_dirs
+> nos dois, restart do egui desacoplado, +14 i18n nos 20 locales. As 👤 aguardam você abrir
+> o app (`schematize upgrade && schematize gui`) e validar o visual/fluxo. Próxima: Fase 2.
+
 ## FASE 1 — Fundamentos (separação + tela inicial + barra + bug do restart)
 
 ### 1.1 Separar APP × SKILLS na CLI
