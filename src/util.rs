@@ -76,6 +76,23 @@ pub fn run(cmd: &str, args: &[&str]) -> Result<String, String> {
     }
 }
 
+/// Executa um comando de shell HERDANDO o terminal (stdin/stdout/stderr).
+/// Ao contrário de `run` (que captura), este deixa o processo interagir com o usuário —
+/// essencial pra `sudo` pedir senha e pra instaladores oficiais mostrarem progresso.
+/// Fluxo: usado APENAS pelo engine de environments, DEPOIS do consentimento explícito.
+pub fn run_shell(cmd: &str) -> Result<(), String> {
+    let status = Command::new("bash")
+        .arg("-lc")
+        .arg(cmd)
+        .status()
+        .map_err(|e| format!("falha ao executar shell: {e}"))?;
+    if status.success() {
+        Ok(())
+    } else {
+        Err(format!("comando falhou ({status}): {cmd}"))
+    }
+}
+
 /// Segundos desde a época (timestamp sem depender de crate de data).
 pub fn now_unix() -> u64 {
     std::time::SystemTime::now()

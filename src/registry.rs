@@ -41,6 +41,11 @@ pub struct Item {
     /// selo de VERIFICADO — skill oficial/de parceiro vetado (vs. futura skill de comunidade).
     #[serde(default)]
     pub verified: bool,
+    /// slugs de skills COMPLEMENTARES recomendadas — ex.: toda linguagem recomenda a
+    /// "engineering" (a skill BASE). Consumido pelo install (sugere/instala com --with-recommended)
+    /// e exposto pra GUI ler depois. `#[serde(default)]` = catálogo antigo (sem o campo) ainda parseia.
+    #[serde(default)]
+    pub recommends: Vec<String>,
 }
 
 #[derive(Deserialize)]
@@ -54,7 +59,7 @@ fn builtin() -> Vec<Item> {
     let sp = |name: &str, url: &str| Some(Sponsor { name: name.into(), url: url.into() });
     let me = || sp("Lucassa", "https://lucassa.me");
     // Todas as skills oficiais nascem verificadas (publisher conhecido/vetado).
-    let mk = |slug: &str, cat: &str, sponsor: Option<Sponsor>| Item {
+    let mk = |slug: &str, cat: &str, sponsor: Option<Sponsor>, recommends: &[&str]| Item {
         slug: slug.into(),
         skill_dir: format!("schematize-{slug}"),
         repo: format!("skill-{slug}"),
@@ -62,26 +67,29 @@ fn builtin() -> Vec<Item> {
         category: cat.into(),
         sponsor,
         verified: true,
+        recommends: recommends.iter().map(|s| s.to_string()).collect(),
     };
+    // Toda skill de LINGUAGEM recomenda a "engineering" (a skill BASE complementar).
+    let lang = ["engineering"];
     vec![
-        mk("engineering", "base", me()),
-        mk("web", "base", me()),
-        mk("go", "language", me()),
-        mk("rust", "language", me()),
-        mk("elixir", "language", me()),
-        mk("csharp", "language", me()),
-        mk("zig", "language", me()),
-        mk("ruby", "language", me()),
-        mk("node", "language", me()),
-        mk("seo", "external", sp("Hextorn", "https://hextorn.com")),
-        mk("pentest", "external", sp("Basilisk Offsec", "https://basiliskoffsec.com")),
-        mk("audit", "external", me()),
-        mk("ai", "base", me()),
-        mk("data", "base", me()),
-        mk("mobile", "base", me()),
-        mk("infra", "base", me()),
-        mk("docs", "base", me()),
-        mk("scaffold", "base", me()),
+        mk("engineering", "base", me(), &[]),
+        mk("web", "base", me(), &[]),
+        mk("go", "language", me(), &lang),
+        mk("rust", "language", me(), &lang),
+        mk("elixir", "language", me(), &lang),
+        mk("csharp", "language", me(), &lang),
+        mk("zig", "language", me(), &lang),
+        mk("ruby", "language", me(), &lang),
+        mk("node", "language", me(), &lang),
+        mk("seo", "external", sp("Hextorn", "https://hextorn.com"), &[]),
+        mk("pentest", "external", sp("Basilisk Offsec", "https://basiliskoffsec.com"), &[]),
+        mk("audit", "external", me(), &[]),
+        mk("ai", "base", me(), &[]),
+        mk("data", "base", me(), &[]),
+        mk("mobile", "base", me(), &[]),
+        mk("infra", "base", me(), &[]),
+        mk("docs", "base", me(), &[]),
+        mk("scaffold", "base", me(), &[]),
     ]
 }
 

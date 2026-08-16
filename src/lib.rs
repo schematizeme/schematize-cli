@@ -7,6 +7,7 @@ pub mod appicon;
 pub mod autostart;
 pub mod config;
 pub mod debug;
+pub mod environments;
 pub mod doctor;
 pub mod i18n;
 pub mod links;

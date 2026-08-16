@@ -6,8 +6,8 @@
 use clap::{Parser, Subcommand};
 use schematize::i18n::{t, tf};
 use schematize::{
-    agent, autostart, debug, doctor, i18n, links, news, overdev, panel, registry, skills, status,
-    upgrade, util,
+    agent, autostart, debug, doctor, environments, i18n, links, news, overdev, panel, registry,
+    skills, status, upgrade, util,
 };
 
 #[derive(Parser)]
@@ -24,6 +24,9 @@ enum Cmd {
         names: Vec<String>,
         #[arg(long)]
         all: bool,
+        /// Also install any recommended (complementary) skills, e.g. engineering.
+        #[arg(long)]
+        with_recommended: bool,
     },
     /// Update installed skills to latest (all if no name/--all).
     Update {
@@ -84,6 +87,38 @@ enum Cmd {
     Autostart {
         #[command(subcommand)]
         sub: Auto,
+    },
+    /// Language environments: install a runtime + common tools (docker|mise|distro|official).
+    Env {
+        #[command(subcommand)]
+        sub: EnvCmd,
+    },
+}
+
+#[derive(Subcommand)]
+enum EnvCmd {
+    /// List languages, methods available on this machine, and install status.
+    List,
+    /// Install a language runtime + tools via a chosen method.
+    Install {
+        lang: String,
+        /// docker | mise | distro | official (required; no default — deny-by-default).
+        #[arg(long)]
+        method: Option<String>,
+        /// Print everything and execute nothing.
+        #[arg(long)]
+        dry_run: bool,
+        /// Skip the interactive confirmation (run without asking).
+        #[arg(long)]
+        yes: bool,
+    },
+    /// Remove a language environment (auto-detects the method if omitted).
+    Remove {
+        lang: String,
+        #[arg(long)]
+        method: Option<String>,
+        #[arg(long)]
+        dry_run: bool,
     },
 }
 
@@ -171,12 +206,43 @@ fn lang_cmd(code: Option<String>, list: bool) -> Result<(), String> {
 fn main() {
     let cli = Cli::parse();
     let r: Result<(), String> = match cli.cmd {
-        Cmd::Install { names, all } => {
+        Cmd::Install { names, all, with_recommended } => {
             let cat = registry::catalog();
-            for it in resolve(&cat, &names, all) {
-                match skills::install(&it) {
+            let selected = resolve(&cat, &names, all);
+            for it in &selected {
+                match skills::install(it) {
                     Ok(v) => println!("✓ {}", tf("skills.installed_ok", &[("name", &it.slug), ("v", &v)])),
                     Err(e) => eprintln!("✗ {}: {e}", it.slug),
+                }
+            }
+            // Recomendações (skill BASE complementar). Nunca instala de surpresa:
+            // com --all já vem tudo; senão sugere, e só instala com --with-recommended.
+            if !all {
+                let mut suggested: Vec<String> = Vec::new();
+                for it in &selected {
+                    for rec in &it.recommends {
+                        let already = registry::find(&cat, rec)
+                            .map(|r| skills::installed_version(&r).is_some())
+                            .unwrap_or(false);
+                        let in_batch = selected.iter().any(|s| &s.slug == rec);
+                        if !already && !in_batch && !suggested.contains(rec) {
+                            suggested.push(rec.clone());
+                        }
+                    }
+                }
+                if !suggested.is_empty() {
+                    if with_recommended {
+                        for rec in &suggested {
+                            if let Some(r) = registry::find(&cat, rec) {
+                                match skills::install(&r) {
+                                    Ok(v) => println!("✓ {}", tf("skills.installed_ok", &[("name", &r.slug), ("v", &v)])),
+                                    Err(e) => eprintln!("✗ {}: {e}", r.slug),
+                                }
+                            }
+                        }
+                    } else {
+                        println!("{}", tf("skills.recommends_hint", &[("list", &suggested.join(", "))]));
+                    }
                 }
             }
             Ok(())
@@ -261,6 +327,18 @@ fn main() {
         Cmd::Autostart { sub } => match sub {
             Auto::Enable => autostart::enable(&util::self_exe()),
             Auto::Disable => autostart::disable(),
+        },
+        Cmd::Env { sub } => match sub {
+            EnvCmd::List => {
+                environments::list();
+                Ok(())
+            }
+            EnvCmd::Install { lang, method, dry_run, yes } => {
+                environments::install(&lang, method, dry_run, yes)
+            }
+            EnvCmd::Remove { lang, method, dry_run } => {
+                environments::remove(&lang, method, dry_run)
+            }
         },
     };
     if let Err(e) = r {
