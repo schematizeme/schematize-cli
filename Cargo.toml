@@ -1,6 +1,6 @@
 [package]
 name = "schematize"
-version = "0.17.0"
+version = "0.18.0"
 edition = "2021"
 description = "Gerenciador do ecossistema schematize: instala/versiona as skills e roda o modo overdev (dev contínuo à prova de parada). Linux-first."
 license = "MIT"
@@ -32,6 +32,12 @@ eframe = { version = "0.36.1", optional = true, default-features = false, featur
     "wayland",
     "x11",
 ] }
+# Seletor de pasta NATIVO do sistema (só na GUI). Backend padrão = xdg-portal +
+# wayland + pollster (blocking): funciona em Wayland/X11 via portal, SEM puxar GTK.
+rfd = { version = "0.17", optional = true, default-features = false, features = [
+    "xdg-portal",
+    "wayland",
+] }
 
 [profile.release]
 strip = true
@@ -39,7 +45,7 @@ opt-level = "z"
 lto = true
 
 [features]
-gui = ["dep:eframe"]
+gui = ["dep:eframe", "dep:rfd"]
 
 # ---- Empacotamento .deb (Debian/Mint/Ubuntu) — cargo-deb ----
 [package.metadata.deb]

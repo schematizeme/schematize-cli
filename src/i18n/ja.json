@@ -106,7 +106,7 @@
   "gui.tab_overdev": "Overdev",
   "gui.tab_graph": "グラフ",
   "gui.project": "プロジェクト:",
-  "gui.no_project": "上でプロジェクトを選択してください（パスを貼り付けるか「現在のフォルダ」を使用）。",
+  "gui.no_project": "プロジェクトが選択されていません。下に開発ディレクトリを登録してください（例：PROJETOS フォルダー）。schematize は .overdev/.schematize/.git マーカーからプロジェクトを自動的に検出します。または単一のフォルダーを開いてください。",
   "gui.use_cwd": "現在のフォルダ",
   "gui.reload": "再読み込み",
   "gui.project_hint": "プロジェクトのパスを貼り付け",
@@ -134,5 +134,12 @@
   "gui.by": "作成者",
   "open.unknown": "不明なターゲット: {name}（site、blog、github を試してください）",
   "gui.col_author": "作成者",
-  "gui.verified": "認証済み — 公式／審査済みパートナー"
+  "gui.verified": "認証済み — 公式／審査済みパートナー",
+  "gui.detected_projects": "検出されたプロジェクト",
+  "gui.recent_projects": "最近",
+  "gui.open_folder": "フォルダーを開く…",
+  "gui.dev_dirs": "開発ディレクトリ",
+  "gui.remove": "削除",
+  "gui.dev_dirs_empty": "開発ディレクトリはまだありません。追加してください（例：PROJETOS フォルダー）。schematize は .overdev/.schematize/.git マーカーからプロジェクトを自動的に検出します。",
+  "gui.add_dev_dir": "開発ディレクトリを追加…"
 }

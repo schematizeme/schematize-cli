@@ -98,7 +98,7 @@
   "gui.tab_overdev": "Overdev",
   "gui.tab_graph": "Graph",
   "gui.project": "Project:",
-  "gui.no_project": "Select a project above (paste its path or use 'current folder').",
+  "gui.no_project": "No project selected. Register your development directories below (e.g. your PROJETOS folder) — schematize finds the projects on its own via the .overdev/.schematize/.git markers — or open a single folder.",
   "gui.use_cwd": "current folder",
   "gui.reload": "reload",
   "gui.project_hint": "paste a project path",
@@ -134,5 +134,12 @@
   "open.unknown": "unknown target: {name} (try: site, blog, github)",
   "agent.update_failed": "Update failed",
   "gui.col_author": "Author",
-  "gui.verified": "Verified — official / vetted partner"
+  "gui.verified": "Verified — official / vetted partner",
+  "gui.detected_projects": "Detected projects",
+  "gui.recent_projects": "Recent",
+  "gui.open_folder": "Open folder…",
+  "gui.dev_dirs": "Development directories",
+  "gui.add_dev_dir": "Add development directory…",
+  "gui.dev_dirs_empty": "No development directories yet. Add one (e.g. your PROJETOS folder) — schematize finds the projects on its own via the .overdev/.schematize/.git markers.",
+  "gui.remove": "remove"
 }

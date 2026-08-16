@@ -11,7 +11,7 @@ use eframe::egui::IconData;
 use notify_rust::Notification;
 use schematize::i18n::{self, t, tf};
 use schematize::registry::Item;
-use schematize::{config, links, panel, registry, selfupdate, skills, util};
+use schematize::{config, links, panel, projects, registry, selfupdate, skills, util};
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -204,8 +204,10 @@ struct App {
     // hub
     tab: Tab,
     project: Option<PathBuf>,
-    project_input: String,
     recent: Vec<String>,
+    // diretórios de desenvolvimento + projetos descobertos por marcadores
+    dev_dirs: Vec<String>,
+    projects: Vec<projects::Project>,
     // overdev
     overdev: Option<panel::Overdev>,
     // grafo
@@ -241,8 +243,9 @@ impl App {
             restart: false,
             tab: Tab::Skills,
             project: None,
-            project_input: String::new(),
             recent: config::recent_projects(),
+            dev_dirs: config::dev_dirs(),
+            projects: vec![],
             overdev: None,
             gnodes: vec![],
             gedges: vec![],
@@ -257,6 +260,7 @@ impl App {
             fit_pending: false,
         };
         app.refresh(cc.egui_ctx.clone());
+        app.projects = projects::scan(&app.dev_dirs); // descobre projetos dos dev_dirs
         // projeto inicial: o mais recente, ou o cwd se tiver .overdev/_archive.
         if let Some(p) = app.recent.first().cloned() {
             app.set_project(PathBuf::from(p));
@@ -352,6 +356,13 @@ impl App {
             .iter()
             .filter(|r| self.selected.contains(&r.name) && !r.missing() && r.item.is_some())
             .count()
+    }
+
+    // ---- diretórios de desenvolvimento + descoberta ----
+    /// Recarrega a lista de dev_dirs da config e re-varre os projetos por marcadores.
+    fn rescan_projects(&mut self) {
+        self.dev_dirs = config::dev_dirs();
+        self.projects = projects::scan(&self.dev_dirs);
     }
 
     // ---- projeto ----
@@ -538,6 +549,14 @@ fn nsize(deg: f32) -> f32 {
     3.0 + (deg.sqrt() * 1.7).min(9.0)
 }
 
+/// Nome curto (basename) de um caminho pra exibir no seletor; cai no caminho inteiro.
+fn basename_of(p: &PathBuf) -> String {
+    p.file_name()
+        .and_then(|s| s.to_str())
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| p.to_string_lossy().into_owned())
+}
+
 impl eframe::App for App {
     fn ui(&mut self, ui: &mut egui::Ui, _f: &mut eframe::Frame) {
         while let Ok(msg) = self.rx.try_recv() {
@@ -655,43 +674,82 @@ impl eframe::App for App {
 impl App {
     // ---- barra de seleção de projeto (abas Overdev/Grafo) ----
     fn project_bar(&mut self, ui: &mut egui::Ui) {
+        // Linha 1: seletor de projeto (descobertos por marcadores + recentes) + ações.
         ui.horizontal(|ui| {
             ui.label(t("gui.project"));
             let cur = self
                 .project
                 .as_ref()
-                .map(|p| p.to_string_lossy().into_owned())
+                .map(|p| basename_of(p))
                 .unwrap_or_else(|| t("gui.no_project"));
             let mut pick: Option<String> = None;
             egui::ComboBox::from_id_salt("proj").width(360.0).selected_text(cur).show_ui(ui, |ui| {
-                for p in &self.recent {
-                    if ui.selectable_label(false, p).clicked() {
-                        pick = Some(p.clone());
+                // Projetos descobertos nos diretórios de desenvolvimento.
+                if !self.projects.is_empty() {
+                    ui.label(egui::RichText::new(t("gui.detected_projects")).weak().small());
+                    for pr in &self.projects {
+                        let label = format!("{}   ·  {}", pr.name, pr.marker);
+                        if ui.selectable_label(false, label).on_hover_text(&pr.path).clicked() {
+                            pick = Some(pr.path.clone());
+                        }
+                    }
+                }
+                // Recentes que não estão já na lista de descobertos.
+                let known: HashSet<&str> = self.projects.iter().map(|p| p.path.as_str()).collect();
+                let recents: Vec<&String> = self.recent.iter().filter(|r| !known.contains(r.as_str())).collect();
+                if !recents.is_empty() {
+                    ui.separator();
+                    ui.label(egui::RichText::new(t("gui.recent_projects")).weak().small());
+                    for p in recents {
+                        if ui.selectable_label(false, basename_of(&PathBuf::from(p))).on_hover_text(p).clicked() {
+                            pick = Some(p.clone());
+                        }
                     }
                 }
             });
             if let Some(p) = pick {
                 self.set_project(PathBuf::from(p));
             }
-            if ui.button(t("gui.use_cwd")).clicked() {
-                if let Ok(cwd) = std::env::current_dir() {
-                    self.set_project(cwd);
+            // Abrir uma pasta avulsa por vez (seletor NATIVO do sistema).
+            if ui.button(t("gui.open_folder")).clicked() {
+                if let Some(dir) = rfd::FileDialog::new().set_title(t("gui.open_folder")).pick_folder() {
+                    self.set_project(dir);
                 }
             }
             if ui.button(t("gui.reload")).clicked() {
+                self.rescan_projects();
                 self.reload_project();
             }
         });
-        ui.horizontal(|ui| {
-            ui.add(egui::TextEdit::singleline(&mut self.project_input).hint_text(t("gui.project_hint")).desired_width(360.0));
-            if ui.button(t("gui.add")).clicked() {
-                let p = self.project_input.trim().to_string();
-                if !p.is_empty() && PathBuf::from(&p).is_dir() {
-                    self.set_project(PathBuf::from(p));
-                    self.project_input.clear();
+
+        // Linha 2: gestão dos diretórios de desenvolvimento.
+        ui.horizontal_wrapped(|ui| {
+            ui.label(egui::RichText::new(t("gui.dev_dirs")).strong());
+            if ui.button(t("gui.add_dev_dir")).clicked() {
+                if let Some(dir) = rfd::FileDialog::new().set_title(t("gui.add_dev_dir")).pick_folder() {
+                    let abs = std::fs::canonicalize(&dir).unwrap_or(dir);
+                    config::add_dev_dir(&abs.to_string_lossy());
+                    self.rescan_projects();
                 }
             }
         });
+        if self.dev_dirs.is_empty() {
+            ui.label(egui::RichText::new(t("gui.dev_dirs_empty")).weak());
+        } else {
+            let mut remove: Option<String> = None;
+            for d in &self.dev_dirs {
+                ui.horizontal(|ui| {
+                    if ui.small_button("✕").on_hover_text(t("gui.remove")).clicked() {
+                        remove = Some(d.clone());
+                    }
+                    ui.label(egui::RichText::new(d).monospace().weak());
+                });
+            }
+            if let Some(d) = remove {
+                config::remove_dev_dir(&d);
+                self.rescan_projects();
+            }
+        }
         ui.separator();
     }
 

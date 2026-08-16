@@ -13,6 +13,7 @@ pub mod links;
 pub mod news;
 pub mod overdev;
 pub mod panel;
+pub mod projects;
 pub mod registry;
 pub mod selfupdate;
 pub mod settings;

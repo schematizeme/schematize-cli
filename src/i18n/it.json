@@ -106,7 +106,7 @@
   "gui.tab_overdev": "Overdev",
   "gui.tab_graph": "Grafo",
   "gui.project": "Progetto:",
-  "gui.no_project": "Seleziona un progetto qui sopra (incolla il percorso o usa 'cartella attuale').",
+  "gui.no_project": "Nessun progetto selezionato. Registra le tue directory di sviluppo qui sotto (es. la tua cartella PROJETOS) — schematize trova i progetti da solo tramite i marcatori .overdev/.schematize/.git — oppure apri una singola cartella.",
   "gui.use_cwd": "cartella attuale",
   "gui.reload": "ricarica",
   "gui.project_hint": "incolla il percorso di un progetto",
@@ -134,5 +134,12 @@
   "gui.by": "di",
   "open.unknown": "destinazione sconosciuta: {name} (prova: site, blog, github)",
   "gui.col_author": "Autore",
-  "gui.verified": "Verificato — ufficiale / partner selezionato"
+  "gui.verified": "Verificato — ufficiale / partner selezionato",
+  "gui.detected_projects": "Progetti rilevati",
+  "gui.recent_projects": "Recenti",
+  "gui.open_folder": "Apri cartella…",
+  "gui.dev_dirs": "Directory di sviluppo",
+  "gui.remove": "rimuovi",
+  "gui.dev_dirs_empty": "Ancora nessuna directory di sviluppo. Aggiungine una (es. la tua cartella PROJETOS) — schematize trova i progetti da solo tramite i marcatori .overdev/.schematize/.git.",
+  "gui.add_dev_dir": "Aggiungi directory di sviluppo…"
 }

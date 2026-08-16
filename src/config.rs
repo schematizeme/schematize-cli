@@ -13,6 +13,11 @@ pub struct Config {
     /// Projetos abertos recentemente na GUI (caminhos absolutos, mais recente primeiro).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub recent_projects: Vec<String>,
+    /// Diretórios de desenvolvimento cadastrados: cada um pode ser a pasta de UM
+    /// projeto ou uma pasta guarda-chuva (ex.: `PROJETOS`) onde o schematize
+    /// descobre os projetos pelos marcadores. Caminhos absolutos.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub dev_dirs: Vec<String>,
 }
 
 /// Lê a config (vazia se não existir/ inválida).
@@ -52,4 +57,28 @@ pub fn add_recent_project(path: &str) {
     c.recent_projects.insert(0, path.to_string());
     c.recent_projects.truncate(12);
     let _ = save(&c);
+}
+
+/// Diretórios de desenvolvimento cadastrados (na ordem de cadastro).
+pub fn dev_dirs() -> Vec<String> {
+    load().dev_dirs
+}
+
+/// Cadastra um diretório de desenvolvimento (dedup exato, mantém ordem). Persiste.
+pub fn add_dev_dir(path: &str) {
+    let mut c = load();
+    if !c.dev_dirs.iter().any(|p| p == path) {
+        c.dev_dirs.push(path.to_string());
+        let _ = save(&c);
+    }
+}
+
+/// Remove um diretório de desenvolvimento cadastrado. Persiste.
+pub fn remove_dev_dir(path: &str) {
+    let mut c = load();
+    let before = c.dev_dirs.len();
+    c.dev_dirs.retain(|p| p != path);
+    if c.dev_dirs.len() != before {
+        let _ = save(&c);
+    }
 }

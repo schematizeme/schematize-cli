@@ -106,7 +106,7 @@
   "gui.tab_overdev": "Overdev",
   "gui.tab_graph": "图谱",
   "gui.project": "项目：",
-  "gui.no_project": "在上方选择一个项目（粘贴其路径或使用“当前文件夹”）。",
+  "gui.no_project": "未选择项目。请在下方登记你的开发目录（例如你的 PROJETOS 文件夹）——schematize 会通过 .overdev/.schematize/.git 标记自动找到项目——或打开单个文件夹。",
   "gui.use_cwd": "当前文件夹",
   "gui.reload": "重新加载",
   "gui.project_hint": "粘贴项目路径",
@@ -134,5 +134,12 @@
   "gui.by": "作者",
   "open.unknown": "未知目标：{name}（可尝试：site、blog、github）",
   "gui.col_author": "作者",
-  "gui.verified": "已验证 — 官方／认证合作伙伴"
+  "gui.verified": "已验证 — 官方／认证合作伙伴",
+  "gui.detected_projects": "检测到的项目",
+  "gui.recent_projects": "最近",
+  "gui.open_folder": "打开文件夹…",
+  "gui.dev_dirs": "开发目录",
+  "gui.remove": "移除",
+  "gui.dev_dirs_empty": "尚无开发目录。添加一个（例如你的 PROJETOS 文件夹）——schematize 会通过 .overdev/.schematize/.git 标记自动找到项目。",
+  "gui.add_dev_dir": "添加开发目录…"
 }

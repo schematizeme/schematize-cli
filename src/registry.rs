@@ -76,6 +76,12 @@ fn builtin() -> Vec<Item> {
         mk("seo", "external", sp("Hextorn", "https://hextorn.com")),
         mk("pentest", "external", sp("Basilisk Offsec", "https://basiliskoffsec.com")),
         mk("audit", "external", me()),
+        mk("ai", "base", me()),
+        mk("data", "base", me()),
+        mk("mobile", "base", me()),
+        mk("infra", "base", me()),
+        mk("docs", "base", me()),
+        mk("scaffold", "base", me()),
     ]
 }
 

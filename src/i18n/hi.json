@@ -106,7 +106,7 @@
   "gui.tab_overdev": "Overdev",
   "gui.tab_graph": "ग्राफ़",
   "gui.project": "प्रोजेक्ट:",
-  "gui.no_project": "ऊपर एक प्रोजेक्ट चुनें (उसका पथ पेस्ट करें या 'वर्तमान फ़ोल्डर' का उपयोग करें)।",
+  "gui.no_project": "कोई प्रोजेक्ट चयनित नहीं। नीचे अपनी डेवलपमेंट डायरेक्ट्रीज़ पंजीकृत करें (जैसे आपका PROJETOS फ़ोल्डर) — schematize .overdev/.schematize/.git मार्कर से प्रोजेक्ट खुद ढूँढ लेता है — या एक अकेला फ़ोल्डर खोलें।",
   "gui.use_cwd": "वर्तमान फ़ोल्डर",
   "gui.reload": "पुनः लोड करें",
   "gui.project_hint": "प्रोजेक्ट पथ पेस्ट करें",
@@ -134,5 +134,12 @@
   "gui.by": "द्वारा",
   "open.unknown": "अज्ञात लक्ष्य: {name} (आज़माएँ: site, blog, github)",
   "gui.col_author": "लेखक",
-  "gui.verified": "सत्यापित — आधिकारिक / जाँचा हुआ भागीदार"
+  "gui.verified": "सत्यापित — आधिकारिक / जाँचा हुआ भागीदार",
+  "gui.detected_projects": "पहचाने गए प्रोजेक्ट",
+  "gui.recent_projects": "हाल के",
+  "gui.open_folder": "फ़ोल्डर खोलें…",
+  "gui.dev_dirs": "डेवलपमेंट डायरेक्ट्रीज़",
+  "gui.remove": "हटाएँ",
+  "gui.dev_dirs_empty": "अभी तक कोई डेवलपमेंट डायरेक्ट्री नहीं। एक जोड़ें (जैसे आपका PROJETOS फ़ोल्डर) — schematize .overdev/.schematize/.git मार्कर से प्रोजेक्ट खुद ढूँढ लेता है।",
+  "gui.add_dev_dir": "डेवलपमेंट डायरेक्ट्री जोड़ें…"
 }

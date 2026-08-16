@@ -106,7 +106,7 @@
   "gui.tab_overdev": "Overdev",
   "gui.tab_graph": "Graphe",
   "gui.project": "Projet :",
-  "gui.no_project": "Sélectionnez un projet ci-dessus (collez son chemin ou utilisez « dossier actuel »).",
+  "gui.no_project": "Aucun projet sélectionné. Enregistrez vos répertoires de développement ci-dessous (par ex. votre dossier PROJETOS) — schematize trouve les projets tout seul grâce aux marqueurs .overdev/.schematize/.git — ou ouvrez un dossier isolé.",
   "gui.use_cwd": "dossier actuel",
   "gui.reload": "recharger",
   "gui.project_hint": "collez le chemin d'un projet",
@@ -134,5 +134,12 @@
   "gui.by": "par",
   "open.unknown": "cible inconnue : {name} (essayez : site, blog, github)",
   "gui.col_author": "Auteur",
-  "gui.verified": "Vérifié — officiel / partenaire validé"
+  "gui.verified": "Vérifié — officiel / partenaire validé",
+  "gui.detected_projects": "Projets détectés",
+  "gui.recent_projects": "Récents",
+  "gui.open_folder": "Ouvrir un dossier…",
+  "gui.dev_dirs": "Répertoires de développement",
+  "gui.remove": "retirer",
+  "gui.dev_dirs_empty": "Aucun répertoire de développement pour l'instant. Ajoutez-en un (par ex. votre dossier PROJETOS) — schematize trouve les projets tout seul grâce aux marqueurs .overdev/.schematize/.git.",
+  "gui.add_dev_dir": "Ajouter un répertoire de développement…"
 }

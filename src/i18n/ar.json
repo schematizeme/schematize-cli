@@ -106,7 +106,7 @@
   "gui.tab_overdev": "Overdev",
   "gui.tab_graph": "الرسم البياني",
   "gui.project": "المشروع:",
-  "gui.no_project": "اختر مشروعًا بالأعلى (الصق مساره أو استخدم «المجلد الحالي»).",
+  "gui.no_project": "لم يتم اختيار أي مشروع. سجّل أدلة التطوير الخاصة بك أدناه (مثل مجلد PROJETOS) — يعثر schematize على المشاريع تلقائيًا عبر العلامات .overdev/.schematize/.git — أو افتح مجلدًا منفردًا.",
   "gui.use_cwd": "المجلد الحالي",
   "gui.reload": "إعادة تحميل",
   "gui.project_hint": "الصق مسار مشروع",
@@ -134,5 +134,12 @@
   "gui.by": "بواسطة",
   "open.unknown": "هدف غير معروف: {name} (جرّب: site أو blog أو github)",
   "gui.col_author": "المؤلف",
-  "gui.verified": "موثَّق — رسمي / شريك معتمد"
+  "gui.verified": "موثَّق — رسمي / شريك معتمد",
+  "gui.detected_projects": "المشاريع المكتشفة",
+  "gui.recent_projects": "الأخيرة",
+  "gui.open_folder": "فتح مجلد…",
+  "gui.dev_dirs": "أدلة التطوير",
+  "gui.remove": "إزالة",
+  "gui.dev_dirs_empty": "لا توجد أدلة تطوير بعد. أضف واحدًا (مثل مجلد PROJETOS) — يعثر schematize على المشاريع تلقائيًا عبر العلامات .overdev/.schematize/.git.",
+  "gui.add_dev_dir": "إضافة دليل تطوير…"
 }

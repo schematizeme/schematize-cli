@@ -106,7 +106,7 @@
   "gui.tab_overdev": "Overdev",
   "gui.tab_graph": "Граф",
   "gui.project": "Проект:",
-  "gui.no_project": "Выберите проект выше (вставьте его путь или используйте «текущая папка»).",
+  "gui.no_project": "Проект не выбран. Зарегистрируйте свои каталоги разработки ниже (например, вашу папку PROJETOS) — schematize сам находит проекты по маркерам .overdev/.schematize/.git — или откройте отдельную папку.",
   "gui.use_cwd": "текущая папка",
   "gui.reload": "перезагрузить",
   "gui.project_hint": "вставьте путь к проекту",
@@ -134,5 +134,12 @@
   "gui.by": "от",
   "open.unknown": "неизвестная цель: {name} (попробуйте: site, blog, github)",
   "gui.col_author": "Автор",
-  "gui.verified": "Проверено — официальный / проверенный партнёр"
+  "gui.verified": "Проверено — официальный / проверенный партнёр",
+  "gui.detected_projects": "Обнаруженные проекты",
+  "gui.recent_projects": "Недавние",
+  "gui.open_folder": "Открыть папку…",
+  "gui.dev_dirs": "Каталоги разработки",
+  "gui.remove": "удалить",
+  "gui.dev_dirs_empty": "Пока нет каталогов разработки. Добавьте один (например, вашу папку PROJETOS) — schematize сам находит проекты по маркерам .overdev/.schematize/.git.",
+  "gui.add_dev_dir": "Добавить каталог разработки…"
 }

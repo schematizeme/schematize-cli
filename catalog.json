@@ -12,6 +12,12 @@
     { "slug": "node", "skill_dir": "schematize-node", "repo": "skill-node", "zip": "skill-node.zip", "category": "language", "verified": true, "sponsor": { "name": "Lucassa", "url": "https://lucassa.me" } },
     { "slug": "seo", "skill_dir": "schematize-seo", "repo": "skill-seo", "zip": "skill-seo.zip", "category": "external", "verified": true, "sponsor": { "name": "Hextorn", "url": "https://hextorn.com" } },
     { "slug": "pentest", "skill_dir": "schematize-pentest", "repo": "skill-pentest", "zip": "skill-pentest.zip", "category": "external", "verified": true, "sponsor": { "name": "Basilisk Offsec", "url": "https://basiliskoffsec.com" } },
-    { "slug": "audit", "skill_dir": "schematize-audit", "repo": "skill-audit", "zip": "skill-audit.zip", "category": "external", "verified": true, "sponsor": { "name": "Lucassa", "url": "https://lucassa.me" } }
+    { "slug": "audit", "skill_dir": "schematize-audit", "repo": "skill-audit", "zip": "skill-audit.zip", "category": "external", "verified": true, "sponsor": { "name": "Lucassa", "url": "https://lucassa.me" } },
+    { "slug": "ai", "skill_dir": "schematize-ai", "repo": "skill-ai", "zip": "skill-ai.zip", "category": "base", "verified": true, "sponsor": { "name": "Lucassa", "url": "https://lucassa.me" } },
+    { "slug": "data", "skill_dir": "schematize-data", "repo": "skill-data", "zip": "skill-data.zip", "category": "base", "verified": true, "sponsor": { "name": "Lucassa", "url": "https://lucassa.me" } },
+    { "slug": "mobile", "skill_dir": "schematize-mobile", "repo": "skill-mobile", "zip": "skill-mobile.zip", "category": "base", "verified": true, "sponsor": { "name": "Lucassa", "url": "https://lucassa.me" } },
+    { "slug": "infra", "skill_dir": "schematize-infra", "repo": "skill-infra", "zip": "skill-infra.zip", "category": "base", "verified": true, "sponsor": { "name": "Lucassa", "url": "https://lucassa.me" } },
+    { "slug": "docs", "skill_dir": "schematize-docs", "repo": "skill-docs", "zip": "skill-docs.zip", "category": "base", "verified": true, "sponsor": { "name": "Lucassa", "url": "https://lucassa.me" } },
+    { "slug": "scaffold", "skill_dir": "schematize-scaffold", "repo": "skill-scaffold", "zip": "skill-scaffold.zip", "category": "base", "verified": true, "sponsor": { "name": "Lucassa", "url": "https://lucassa.me" } }
   ]
 }
