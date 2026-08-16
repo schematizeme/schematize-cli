@@ -208,5 +208,19 @@
   "ssh.copy_fail": "복사할 수 없습니다 (wl-copy 또는 xclip를 설치하세요).",
   "ssh.confirm_rm": "키 '{name}'을(를) 제거할까요 (개인 + 공개)? [y/N]",
   "ssh.aborted": "중단됨.",
-  "ssh.removed": "제거된 키: {name}"
+  "ssh.removed": "제거된 키: {name}",
+  "gui.home": "홈",
+  "gui.home_title": "무엇을 하시겠어요?",
+  "gui.home_market": "Skills 마켓",
+  "gui.home_overdev_desc": "프로젝트의 지속적인 개발을 추적하세요.",
+  "gui.home_market_desc": "skills와 environments를 설치, 업데이트, 탐색하세요.",
+  "gui.home_graph_desc": "프로젝트의 마이크로함수 그래프를 탐색하세요.",
+  "gui.home_environments": "Environments",
+  "gui.home_environments_desc": "언어 런타임을 관리하세요.",
+  "gui.home_ssh": "SSH",
+  "gui.home_ssh_desc": "키와 원격 접속.",
+  "gui.home_settings": "설정",
+  "gui.home_settings_desc": "언어, 테마, 환경설정.",
+  "gui.open_vscode": "VSCode에서 열기",
+  "gui.open_loose_project": "개별 프로젝트 열기…"
 }

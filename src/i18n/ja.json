@@ -208,5 +208,19 @@
   "ssh.copy_fail": "コピーできませんでした（wl-copy か xclip をインストールしてください）。",
   "ssh.confirm_rm": "鍵 '{name}'（秘密鍵＋公開鍵）を削除しますか？ [y/N]",
   "ssh.aborted": "中止しました。",
-  "ssh.removed": "鍵を削除しました: {name}"
+  "ssh.removed": "鍵を削除しました: {name}",
+  "gui.home": "ホーム",
+  "gui.home_title": "何をしますか？",
+  "gui.home_market": "Skills マーケット",
+  "gui.home_overdev_desc": "プロジェクトの継続的な開発を追跡します。",
+  "gui.home_market_desc": "skills や environments をインストール・更新・発見します。",
+  "gui.home_graph_desc": "プロジェクトのマイクロ関数グラフを探索します。",
+  "gui.home_environments": "Environments",
+  "gui.home_environments_desc": "言語ランタイムを管理します。",
+  "gui.home_ssh": "SSH",
+  "gui.home_ssh_desc": "鍵とリモートアクセス。",
+  "gui.home_settings": "設定",
+  "gui.home_settings_desc": "言語、テーマ、環境設定。",
+  "gui.open_vscode": "VSCode で開く",
+  "gui.open_loose_project": "単独プロジェクトを開く…"
 }

@@ -208,5 +208,19 @@
   "ssh.copy_fail": "کپی ممکن نشد (wl-copy یا xclip را نصب کنید).",
   "ssh.confirm_rm": "کلید '{name}' حذف شود (خصوصی + عمومی)؟ [y/N]",
   "ssh.aborted": "لغو شد.",
-  "ssh.removed": "کلید حذف شد: {name}"
+  "ssh.removed": "کلید حذف شد: {name}",
+  "gui.home": "خانه",
+  "gui.home_title": "می‌خواهید چه کاری انجام دهید؟",
+  "gui.home_market": "بازار Skills",
+  "gui.home_overdev_desc": "توسعه مداوم پروژه را دنبال کنید.",
+  "gui.home_market_desc": "skills و environments را نصب، به‌روزرسانی و کشف کنید.",
+  "gui.home_graph_desc": "گراف میکروتابع‌های پروژه را کاوش کنید.",
+  "gui.home_environments": "Environments",
+  "gui.home_environments_desc": "ران‌تایم‌های زبان را مدیریت کنید.",
+  "gui.home_ssh": "SSH",
+  "gui.home_ssh_desc": "کلیدها و دسترسی از راه دور.",
+  "gui.home_settings": "تنظیمات",
+  "gui.home_settings_desc": "زبان، پوسته و ترجیحات.",
+  "gui.open_vscode": "باز کردن در VSCode",
+  "gui.open_loose_project": "باز کردن پروژه مستقل…"
 }

@@ -208,5 +208,19 @@
   "ssh.copy_fail": "Kopieren fehlgeschlagen (wl-copy oder xclip installieren).",
   "ssh.confirm_rm": "Schlüssel '{name}' entfernen (privat + öffentlich)? [j/N]",
   "ssh.aborted": "abgebrochen.",
-  "ssh.removed": "Schlüssel entfernt: {name}"
+  "ssh.removed": "Schlüssel entfernt: {name}",
+  "gui.home": "Start",
+  "gui.home_title": "Was möchtest du tun?",
+  "gui.home_market": "Skills-Marktplatz",
+  "gui.home_overdev_desc": "Verfolge die kontinuierliche Entwicklung des Projekts.",
+  "gui.home_market_desc": "Installiere, aktualisiere und entdecke skills und environments.",
+  "gui.home_graph_desc": "Erkunde den Mikrofunktionen-Graphen des Projekts.",
+  "gui.home_environments": "Environments",
+  "gui.home_environments_desc": "Verwalte die Sprach-Runtimes.",
+  "gui.home_ssh": "SSH",
+  "gui.home_ssh_desc": "Schlüssel und Fernzugriff.",
+  "gui.home_settings": "Einstellungen",
+  "gui.home_settings_desc": "Sprache, Theme und Voreinstellungen.",
+  "gui.open_vscode": "In VSCode öffnen",
+  "gui.open_loose_project": "Einzelnes Projekt öffnen…"
 }

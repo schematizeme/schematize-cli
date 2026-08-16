@@ -208,5 +208,19 @@
   "ssh.copy_fail": "не удалось скопировать (установите wl-copy или xclip).",
   "ssh.confirm_rm": "удалить ключ '{name}' (закрытый + открытый)? [y/N]",
   "ssh.aborted": "отменено.",
-  "ssh.removed": "ключ удалён: {name}"
+  "ssh.removed": "ключ удалён: {name}",
+  "gui.home": "Главная",
+  "gui.home_title": "Что вы хотите сделать?",
+  "gui.home_market": "Магазин Skills",
+  "gui.home_overdev_desc": "Следите за непрерывной разработкой проекта.",
+  "gui.home_market_desc": "Устанавливайте, обновляйте и открывайте skills и environments.",
+  "gui.home_graph_desc": "Изучите граф микрофункций проекта.",
+  "gui.home_environments": "Environments",
+  "gui.home_environments_desc": "Управляйте языковыми средами выполнения.",
+  "gui.home_ssh": "SSH",
+  "gui.home_ssh_desc": "Ключи и удалённый доступ.",
+  "gui.home_settings": "Настройки",
+  "gui.home_settings_desc": "Язык, тема и предпочтения.",
+  "gui.open_vscode": "Открыть в VSCode",
+  "gui.open_loose_project": "Открыть отдельный проект…"
 }

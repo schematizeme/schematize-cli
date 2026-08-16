@@ -208,5 +208,19 @@
   "ssh.copy_fail": "kopyalanamadı (wl-copy veya xclip kurun).",
   "ssh.confirm_rm": "'{name}' anahtarı kaldırılsın mı (özel + genel)? [y/N]",
   "ssh.aborted": "iptal edildi.",
-  "ssh.removed": "kaldırılan anahtar: {name}"
+  "ssh.removed": "kaldırılan anahtar: {name}",
+  "gui.home": "Ana Sayfa",
+  "gui.home_title": "Ne yapmak istiyorsun?",
+  "gui.home_market": "Skills Pazarı",
+  "gui.home_overdev_desc": "Projenin sürekli gelişimini takip et.",
+  "gui.home_market_desc": "skills ve environments kur, güncelle ve keşfet.",
+  "gui.home_graph_desc": "Projenin mikrofonksiyon grafiğini keşfet.",
+  "gui.home_environments": "Environments",
+  "gui.home_environments_desc": "Dil çalışma zamanlarını yönet.",
+  "gui.home_ssh": "SSH",
+  "gui.home_ssh_desc": "Anahtarlar ve uzaktan erişim.",
+  "gui.home_settings": "Ayarlar",
+  "gui.home_settings_desc": "Dil, tema ve tercihler.",
+  "gui.open_vscode": "VSCode'da aç",
+  "gui.open_loose_project": "Bağımsız proje aç…"
 }

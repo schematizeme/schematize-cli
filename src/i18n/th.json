@@ -208,5 +208,19 @@
   "ssh.copy_fail": "ไม่สามารถคัดลอกได้ (ติดตั้ง wl-copy หรือ xclip)",
   "ssh.confirm_rm": "ลบคีย์ '{name}' (ส่วนตัว + สาธารณะ)? [y/N]",
   "ssh.aborted": "ยกเลิกแล้ว",
-  "ssh.removed": "ลบคีย์แล้ว: {name}"
+  "ssh.removed": "ลบคีย์แล้ว: {name}",
+  "gui.home": "หน้าแรก",
+  "gui.home_title": "คุณต้องการทำอะไร?",
+  "gui.home_market": "ตลาด Skills",
+  "gui.home_overdev_desc": "ติดตามการพัฒนาอย่างต่อเนื่องของโปรเจกต์",
+  "gui.home_market_desc": "ติดตั้ง อัปเดต และค้นพบ skills และ environments",
+  "gui.home_graph_desc": "สำรวจกราฟไมโครฟังก์ชันของโปรเจกต์",
+  "gui.home_environments": "Environments",
+  "gui.home_environments_desc": "จัดการรันไทม์ของภาษา",
+  "gui.home_ssh": "SSH",
+  "gui.home_ssh_desc": "คีย์และการเข้าถึงระยะไกล",
+  "gui.home_settings": "การตั้งค่า",
+  "gui.home_settings_desc": "ภาษา ธีม และการกำหนดค่า",
+  "gui.open_vscode": "เปิดใน VSCode",
+  "gui.open_loose_project": "เปิดโปรเจกต์เดี่ยว…"
 }

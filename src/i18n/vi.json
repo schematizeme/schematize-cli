@@ -208,5 +208,19 @@
   "ssh.copy_fail": "không thể sao chép (cài đặt wl-copy hoặc xclip).",
   "ssh.confirm_rm": "gỡ bỏ khóa '{name}' (riêng tư + công khai)? [y/N]",
   "ssh.aborted": "đã hủy.",
-  "ssh.removed": "khóa đã gỡ bỏ: {name}"
+  "ssh.removed": "khóa đã gỡ bỏ: {name}",
+  "gui.home": "Trang chủ",
+  "gui.home_title": "Bạn muốn làm gì?",
+  "gui.home_market": "Chợ Skills",
+  "gui.home_overdev_desc": "Theo dõi quá trình phát triển liên tục của dự án.",
+  "gui.home_market_desc": "Cài đặt, cập nhật và khám phá skills và environments.",
+  "gui.home_graph_desc": "Khám phá đồ thị vi hàm của dự án.",
+  "gui.home_environments": "Environments",
+  "gui.home_environments_desc": "Quản lý các runtime ngôn ngữ.",
+  "gui.home_ssh": "SSH",
+  "gui.home_ssh_desc": "Khóa và truy cập từ xa.",
+  "gui.home_settings": "Cài đặt",
+  "gui.home_settings_desc": "Ngôn ngữ, giao diện và tùy chọn.",
+  "gui.open_vscode": "Mở trong VSCode",
+  "gui.open_loose_project": "Mở dự án độc lập…"
 }

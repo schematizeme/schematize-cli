@@ -208,5 +208,19 @@
   "ssh.copy_fail": "কপি করা যায়নি (wl-copy বা xclip ইনস্টল করুন)।",
   "ssh.confirm_rm": "'{name}' কী সরাবেন (প্রাইভেট + পাবলিক)? [y/N]",
   "ssh.aborted": "বাতিল করা হয়েছে।",
-  "ssh.removed": "কী সরানো হয়েছে: {name}"
+  "ssh.removed": "কী সরানো হয়েছে: {name}",
+  "gui.home": "হোম",
+  "gui.home_title": "আপনি কী করতে চান?",
+  "gui.home_market": "Skills মার্কেটপ্লেস",
+  "gui.home_overdev_desc": "প্রকল্পের ধারাবাহিক উন্নয়ন অনুসরণ করুন।",
+  "gui.home_market_desc": "skills এবং environments ইনস্টল, আপডেট ও আবিষ্কার করুন।",
+  "gui.home_graph_desc": "প্রকল্পের মাইক্রোফাংশন গ্রাফ অন্বেষণ করুন।",
+  "gui.home_environments": "Environments",
+  "gui.home_environments_desc": "ভাষার রানটাইম পরিচালনা করুন।",
+  "gui.home_ssh": "SSH",
+  "gui.home_ssh_desc": "কী এবং রিমোট অ্যাক্সেস।",
+  "gui.home_settings": "সেটিংস",
+  "gui.home_settings_desc": "ভাষা, থিম এবং পছন্দসমূহ।",
+  "gui.open_vscode": "VSCode-এ খুলুন",
+  "gui.open_loose_project": "পৃথক প্রকল্প খুলুন…"
 }

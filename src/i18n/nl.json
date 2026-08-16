@@ -208,5 +208,19 @@
   "ssh.copy_fail": "kon niet kopiëren (installeer wl-copy of xclip).",
   "ssh.confirm_rm": "sleutel '{name}' verwijderen (privé + publiek)? [y/N]",
   "ssh.aborted": "afgebroken.",
-  "ssh.removed": "sleutel verwijderd: {name}"
+  "ssh.removed": "sleutel verwijderd: {name}",
+  "gui.home": "Start",
+  "gui.home_title": "Wat wil je doen?",
+  "gui.home_market": "Skills-marktplaats",
+  "gui.home_overdev_desc": "Volg de continue ontwikkeling van het project.",
+  "gui.home_market_desc": "Installeer, update en ontdek skills en environments.",
+  "gui.home_graph_desc": "Verken de microfunctie-graaf van het project.",
+  "gui.home_environments": "Environments",
+  "gui.home_environments_desc": "Beheer de taal-runtimes.",
+  "gui.home_ssh": "SSH",
+  "gui.home_ssh_desc": "Sleutels en externe toegang.",
+  "gui.home_settings": "Instellingen",
+  "gui.home_settings_desc": "Taal, thema en voorkeuren.",
+  "gui.open_vscode": "Openen in VSCode",
+  "gui.open_loose_project": "Los project openen…"
 }

@@ -208,5 +208,19 @@
   "ssh.copy_fail": "could not copy (install wl-copy or xclip).",
   "ssh.confirm_rm": "remove key '{name}' (private + public)? [y/N]",
   "ssh.aborted": "aborted.",
-  "ssh.removed": "removed key: {name}"
+  "ssh.removed": "removed key: {name}",
+  "gui.home": "Home",
+  "gui.home_title": "What do you want to do?",
+  "gui.home_market": "Skills Marketplace",
+  "gui.home_overdev_desc": "Follow the project's continuous development.",
+  "gui.home_market_desc": "Install, update, and discover skills and environments.",
+  "gui.home_graph_desc": "Explore the project's microfunction graph.",
+  "gui.home_environments": "Environments",
+  "gui.home_environments_desc": "Manage the language runtimes.",
+  "gui.home_ssh": "SSH",
+  "gui.home_ssh_desc": "Keys and remote access.",
+  "gui.home_settings": "Settings",
+  "gui.home_settings_desc": "Language, theme, and preferences.",
+  "gui.open_vscode": "Open in VSCode",
+  "gui.open_loose_project": "Open loose project…"
 }

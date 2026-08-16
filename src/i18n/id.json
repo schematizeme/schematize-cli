@@ -208,5 +208,19 @@
   "ssh.copy_fail": "tidak dapat menyalin (pasang wl-copy atau xclip).",
   "ssh.confirm_rm": "hapus kunci '{name}' (privat + publik)? [y/N]",
   "ssh.aborted": "dibatalkan.",
-  "ssh.removed": "kunci dihapus: {name}"
+  "ssh.removed": "kunci dihapus: {name}",
+  "gui.home": "Beranda",
+  "gui.home_title": "Apa yang ingin Anda lakukan?",
+  "gui.home_market": "Pasar Skills",
+  "gui.home_overdev_desc": "Ikuti pengembangan berkelanjutan proyek.",
+  "gui.home_market_desc": "Instal, perbarui, dan temukan skills dan environments.",
+  "gui.home_graph_desc": "Jelajahi graf mikrofungsi proyek.",
+  "gui.home_environments": "Environments",
+  "gui.home_environments_desc": "Kelola runtime bahasa.",
+  "gui.home_ssh": "SSH",
+  "gui.home_ssh_desc": "Kunci dan akses jarak jauh.",
+  "gui.home_settings": "Pengaturan",
+  "gui.home_settings_desc": "Bahasa, tema, dan preferensi.",
+  "gui.open_vscode": "Buka di VSCode",
+  "gui.open_loose_project": "Buka proyek lepas…"
 }

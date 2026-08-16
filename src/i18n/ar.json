@@ -208,5 +208,19 @@
   "ssh.copy_fail": "تعذّر النسخ (ثبّت wl-copy أو xclip).",
   "ssh.confirm_rm": "إزالة المفتاح '{name}' (الخاص + العام)؟ [y/N]",
   "ssh.aborted": "أُلغي.",
-  "ssh.removed": "تمت إزالة المفتاح: {name}"
+  "ssh.removed": "تمت إزالة المفتاح: {name}",
+  "gui.home": "الرئيسية",
+  "gui.home_title": "ماذا تريد أن تفعل؟",
+  "gui.home_market": "سوق Skills",
+  "gui.home_overdev_desc": "تابع التطوير المستمر للمشروع.",
+  "gui.home_market_desc": "ثبّت وحدّث واكتشف skills و environments.",
+  "gui.home_graph_desc": "استكشف مخطط الدوال الصغيرة للمشروع.",
+  "gui.home_environments": "Environments",
+  "gui.home_environments_desc": "أدر بيئات تشغيل اللغات.",
+  "gui.home_ssh": "SSH",
+  "gui.home_ssh_desc": "المفاتيح والوصول عن بُعد.",
+  "gui.home_settings": "الإعدادات",
+  "gui.home_settings_desc": "اللغة والمظهر والتفضيلات.",
+  "gui.open_vscode": "فتح في VSCode",
+  "gui.open_loose_project": "فتح مشروع مستقل…"
 }

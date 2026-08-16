@@ -208,5 +208,19 @@
   "ssh.copy_fail": "无法复制（请安装 wl-copy 或 xclip）。",
   "ssh.confirm_rm": "删除密钥 '{name}'（私钥 + 公钥）？[y/N]",
   "ssh.aborted": "已取消。",
-  "ssh.removed": "已删除密钥：{name}"
+  "ssh.removed": "已删除密钥：{name}",
+  "gui.home": "主页",
+  "gui.home_title": "你想做什么？",
+  "gui.home_market": "Skills 市场",
+  "gui.home_overdev_desc": "跟踪项目的持续开发。",
+  "gui.home_market_desc": "安装、更新并发现 skills 和 environments。",
+  "gui.home_graph_desc": "浏览项目的微函数图。",
+  "gui.home_environments": "Environments",
+  "gui.home_environments_desc": "管理语言运行时。",
+  "gui.home_ssh": "SSH",
+  "gui.home_ssh_desc": "密钥与远程访问。",
+  "gui.home_settings": "设置",
+  "gui.home_settings_desc": "语言、主题和偏好设置。",
+  "gui.open_vscode": "在 VSCode 中打开",
+  "gui.open_loose_project": "打开独立项目…"
 }

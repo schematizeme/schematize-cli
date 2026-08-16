@@ -515,10 +515,17 @@ fn update_cli() -> Result<String, String> {
 
 /// Relança a GUI (o binário no lugar já é o novo, pós-self-update) e encerra esta.
 fn restart_gui() -> ! {
-    let _ = match std::env::current_exe() {
-        Ok(exe) => std::process::Command::new(exe).spawn(),
-        Err(_) => std::process::Command::new("schematize-gui").spawn(),
-    };
+    use std::os::unix::process::CommandExt;
+    use std::process::Stdio;
+    // DESACOPLA o filho (novo processo/grupo + stdio nulo): senão ele morre junto quando
+    // o processo atual sai — o bug "reinicia só fecha, não reabre a janela".
+    let exe = std::env::current_exe().unwrap_or_else(|_| "schematize-gui".into());
+    let _ = std::process::Command::new(exe)
+        .process_group(0)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn();
     std::process::exit(0);
 }
 

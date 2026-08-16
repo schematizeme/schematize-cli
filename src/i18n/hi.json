@@ -208,5 +208,19 @@
   "ssh.copy_fail": "कॉपी नहीं कर पाए (wl-copy या xclip इंस्टॉल करें).",
   "ssh.confirm_rm": "कुंजी '{name}' हटाएँ (निजी + सार्वजनिक)? [y/N]",
   "ssh.aborted": "रद्द किया गया।",
-  "ssh.removed": "कुंजी हटाई गई: {name}"
+  "ssh.removed": "कुंजी हटाई गई: {name}",
+  "gui.home": "होम",
+  "gui.home_title": "आप क्या करना चाहते हैं?",
+  "gui.home_market": "Skills मार्केटप्लेस",
+  "gui.home_overdev_desc": "परियोजना के निरंतर विकास को ट्रैक करें।",
+  "gui.home_market_desc": "skills और environments इंस्टॉल, अपडेट और खोजें।",
+  "gui.home_graph_desc": "परियोजना के माइक्रोफ़ंक्शन ग्राफ़ का अन्वेषण करें।",
+  "gui.home_environments": "Environments",
+  "gui.home_environments_desc": "भाषा रनटाइम प्रबंधित करें।",
+  "gui.home_ssh": "SSH",
+  "gui.home_ssh_desc": "कुंजियाँ और रिमोट एक्सेस।",
+  "gui.home_settings": "सेटिंग्स",
+  "gui.home_settings_desc": "भाषा, थीम और प्राथमिकताएँ।",
+  "gui.open_vscode": "VSCode में खोलें",
+  "gui.open_loose_project": "अलग प्रोजेक्ट खोलें…"
 }

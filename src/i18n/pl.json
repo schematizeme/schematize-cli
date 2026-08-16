@@ -208,5 +208,19 @@
   "ssh.copy_fail": "nie udało się skopiować (zainstaluj wl-copy lub xclip).",
   "ssh.confirm_rm": "usunąć klucz '{name}' (prywatny + publiczny)? [y/N]",
   "ssh.aborted": "przerwano.",
-  "ssh.removed": "usunięto klucz: {name}"
+  "ssh.removed": "usunięto klucz: {name}",
+  "gui.home": "Start",
+  "gui.home_title": "Co chcesz zrobić?",
+  "gui.home_market": "Rynek Skills",
+  "gui.home_overdev_desc": "Śledź ciągły rozwój projektu.",
+  "gui.home_market_desc": "Instaluj, aktualizuj i odkrywaj skills oraz environments.",
+  "gui.home_graph_desc": "Eksploruj graf mikrofunkcji projektu.",
+  "gui.home_environments": "Environments",
+  "gui.home_environments_desc": "Zarządzaj środowiskami uruchomieniowymi języków.",
+  "gui.home_ssh": "SSH",
+  "gui.home_ssh_desc": "Klucze i dostęp zdalny.",
+  "gui.home_settings": "Ustawienia",
+  "gui.home_settings_desc": "Język, motyw i preferencje.",
+  "gui.open_vscode": "Otwórz w VSCode",
+  "gui.open_loose_project": "Otwórz samodzielny projekt…"
 }
