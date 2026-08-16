@@ -99,6 +99,9 @@ pub fn run(fix: bool) {
         _ => line(&Lv::Ok, &t("doctor.check_cli"), cur),
     }
 
+    // GUI: flavor (Slint novo vs egui antigo), lançador .desktop e coexistência pacote+fonte.
+    issues += gui_checks(fix);
+
     println!();
     if issues == 0 {
         println!("\x1b[1;32m{}\x1b[0m", t("doctor.summary_ok"));
@@ -121,4 +124,142 @@ fn shadowed() -> Option<String> {
 /// GitHub acessível? (HEAD rápido na API, sem baixar corpo.)
 fn github_reachable() -> bool {
     util::run("curl", &["-sfI", "-m", "6", "https://api.github.com"]).is_ok()
+}
+
+/// Localiza o binário `schematize-gui` no PATH. Prioriza o resolvido pelo shell
+/// (`command -v`, que respeita a ordem do PATH); cai em ~/.cargo/bin e /usr/bin.
+fn find_gui_bin() -> Option<std::path::PathBuf> {
+    if let Ok(out) = util::run("bash", &["-lc", "command -v schematize-gui"]) {
+        let p = out.trim();
+        if !p.is_empty() {
+            let pb = std::path::PathBuf::from(p);
+            if pb.exists() {
+                return Some(pb);
+            }
+        }
+    }
+    for c in [util::home().join(".cargo/bin/schematize-gui"), std::path::PathBuf::from("/usr/bin/schematize-gui")] {
+        if c.exists() {
+            return Some(c);
+        }
+    }
+    None
+}
+
+/// Checagens da GUI. Devolve quantos problemas (WARN/FAIL) contabilizou.
+/// - flavor: o binário instalado é o Slint (novo) ou o egui (antigo)?
+/// - lançador: o `.desktop` usa `Exec=` com caminho ABSOLUTO? (com --fix, reescreve)
+/// - coexistência: pacote (/usr/bin) + fonte (~/.cargo/bin) ao mesmo tempo (informativo).
+fn gui_checks(fix: bool) -> usize {
+    let mut issues = 0usize;
+
+    // 1) Flavor: lê os bytes do binário e procura "slint" (novo) vs "eframe"/"egui" (antigo).
+    let gui_bin = find_gui_bin();
+    match &gui_bin {
+        Some(path) => match fs::read(path) {
+            Ok(bytes) => {
+                let has = |needle: &[u8]| bytes.windows(needle.len()).any(|w| w == needle);
+                let is_slint = has(b"slint");
+                let is_egui = has(b"eframe") || has(b"egui");
+                if is_slint {
+                    line(&Lv::Ok, "GUI (schematize-gui)", &format!("Slint — {}", path.display()));
+                } else if is_egui {
+                    issues += 1;
+                    line(
+                        &Lv::Warn,
+                        "GUI (schematize-gui)",
+                        "é a GUI antiga (egui), não o Slint — rode `schematize upgrade` para reconstruir",
+                    );
+                } else {
+                    issues += 1;
+                    line(
+                        &Lv::Warn,
+                        "GUI (schematize-gui)",
+                        "não parece o Slint — rode `schematize upgrade` para reconstruir",
+                    );
+                }
+            }
+            Err(e) => line(&Lv::Warn, "GUI (schematize-gui)", &format!("ilegível: {e}")),
+        },
+        None => line(&Lv::Ok, "GUI (schematize-gui)", "não instalado (usa a GUI embutida)"),
+    }
+
+    // 2) Lançador .desktop: o Exec= tem que ser um caminho ABSOLUTO (senão o ambiente
+    //    gráfico, sem ~/.cargo/bin no PATH, abre o schematize-gui errado do /usr/bin).
+    let desktop = util::home().join(".local/share/applications/schematize-gui.desktop");
+    if desktop.exists() {
+        match fs::read_to_string(&desktop) {
+            Ok(content) => {
+                let exec = content
+                    .lines()
+                    .find_map(|l| l.strip_prefix("Exec="))
+                    .map(str::trim)
+                    .unwrap_or("");
+                let absolute = exec.starts_with('/');
+                if absolute {
+                    line(&Lv::Ok, "Lançador .desktop", "Exec com caminho absoluto");
+                } else if fix {
+                    match gui_bin.as_ref() {
+                        Some(bin) => match write_desktop(&desktop, bin) {
+                            Ok(()) => {
+                                let _ = util::run(
+                                    "update-desktop-database",
+                                    &[desktop.parent().and_then(|p| p.to_str()).unwrap_or("")],
+                                );
+                                line(&Lv::Ok, "Lançador .desktop", &format!("corrigido → Exec={}", bin.display()));
+                            }
+                            Err(e) => {
+                                issues += 1;
+                                line(&Lv::Warn, "Lançador .desktop", &format!("falha ao corrigir: {e}"));
+                            }
+                        },
+                        None => {
+                            issues += 1;
+                            line(&Lv::Warn, "Lançador .desktop", "Exec não-absoluto e schematize-gui não encontrado para corrigir");
+                        }
+                    }
+                } else {
+                    issues += 1;
+                    line(
+                        &Lv::Warn,
+                        "Lançador .desktop",
+                        "Exec não é caminho absoluto — rode `schematize doctor --fix` para reescrever",
+                    );
+                }
+            }
+            Err(e) => line(&Lv::Warn, "Lançador .desktop", &format!("ilegível: {e}")),
+        }
+    }
+
+    // 3) Pacote + fonte coexistindo: informa que a de fonte (~/.cargo/bin, à frente no
+    //    PATH) é a que vale e sugere remover o pacote se quiser limpar.
+    let pkg = std::path::Path::new("/usr/bin/schematize-gui");
+    let src = util::home().join(".cargo/bin/schematize-gui");
+    if pkg.exists() && src.exists() {
+        line(
+            &Lv::Ok,
+            "Instalações de GUI",
+            "duas: pacote (/usr/bin) + fonte (~/.cargo/bin); a de fonte vale (PATH à frente) — `sudo apt remove schematize` (ou zypper) p/ limpar o pacote",
+        );
+    }
+
+    issues
+}
+
+/// Reescreve o `.desktop` do schematize-gui com `Exec=<caminho absoluto>` (mesmo
+/// formato que o install.sh usa: Type/Name/Exec/Terminal=false/Categories).
+fn write_desktop(path: &Path, bin: &Path) -> Result<(), String> {
+    let body = format!(
+        "[Desktop Entry]\n\
+         Type=Application\n\
+         Name=Schematize\n\
+         Exec={}\n\
+         Terminal=false\n\
+         Categories=Development;\n",
+        bin.display()
+    );
+    if let Some(dir) = path.parent() {
+        fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+    }
+    fs::write(path, body).map_err(|e| e.to_string())
 }
