@@ -222,5 +222,8 @@
   "gui.home_settings": "সেটিংস",
   "gui.home_settings_desc": "ভাষা, থিম এবং পছন্দসমূহ।",
   "gui.open_vscode": "VSCode-এ খুলুন",
-  "gui.open_loose_project": "পৃথক প্রকল্প খুলুন…"
+  "gui.open_loose_project": "পৃথক প্রকল্প খুলুন…",
+  "skilledit.created": "{path}-এ skill তৈরি হয়েছে",
+  "skilledit.wrote": "{file} লেখা হয়েছে",
+  "skilledit.files_header": "schematize-{slug}-এর সম্পাদনাযোগ্য ফাইল:"
 }

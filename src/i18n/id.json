@@ -222,5 +222,8 @@
   "gui.home_settings": "Pengaturan",
   "gui.home_settings_desc": "Bahasa, tema, dan preferensi.",
   "gui.open_vscode": "Buka di VSCode",
-  "gui.open_loose_project": "Buka proyek lepas…"
+  "gui.open_loose_project": "Buka proyek lepas…",
+  "skilledit.created": "skill dibuat di {path}",
+  "skilledit.wrote": "menulis {file}",
+  "skilledit.files_header": "berkas yang dapat diedit dari schematize-{slug}:"
 }

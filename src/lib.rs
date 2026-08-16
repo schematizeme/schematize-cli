@@ -18,6 +18,7 @@ pub mod projects;
 pub mod registry;
 pub mod selfupdate;
 pub mod settings;
+pub mod skilledit;
 pub mod skills;
 pub mod sshkeys;
 pub mod status;

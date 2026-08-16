@@ -222,5 +222,8 @@
   "gui.home_settings": "تنظیمات",
   "gui.home_settings_desc": "زبان، پوسته و ترجیحات.",
   "gui.open_vscode": "باز کردن در VSCode",
-  "gui.open_loose_project": "باز کردن پروژه مستقل…"
+  "gui.open_loose_project": "باز کردن پروژه مستقل…",
+  "skilledit.created": "skill در {path} ساخته شد",
+  "skilledit.wrote": "{file} نوشته شد",
+  "skilledit.files_header": "فایل‌های قابل ویرایش schematize-{slug}:"
 }

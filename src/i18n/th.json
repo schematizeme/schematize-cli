@@ -222,5 +222,8 @@
   "gui.home_settings": "การตั้งค่า",
   "gui.home_settings_desc": "ภาษา ธีม และการกำหนดค่า",
   "gui.open_vscode": "เปิดใน VSCode",
-  "gui.open_loose_project": "เปิดโปรเจกต์เดี่ยว…"
+  "gui.open_loose_project": "เปิดโปรเจกต์เดี่ยว…",
+  "skilledit.created": "สร้าง skill ที่ {path}",
+  "skilledit.wrote": "เขียน {file} แล้ว",
+  "skilledit.files_header": "ไฟล์ที่แก้ไขได้ของ schematize-{slug}:"
 }

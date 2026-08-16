@@ -222,5 +222,8 @@
   "gui.home_settings": "Instellingen",
   "gui.home_settings_desc": "Taal, thema en voorkeuren.",
   "gui.open_vscode": "Openen in VSCode",
-  "gui.open_loose_project": "Los project openen…"
+  "gui.open_loose_project": "Los project openen…",
+  "skilledit.created": "skill aangemaakt in {path}",
+  "skilledit.wrote": "{file} geschreven",
+  "skilledit.files_header": "bewerkbare bestanden van schematize-{slug}:"
 }

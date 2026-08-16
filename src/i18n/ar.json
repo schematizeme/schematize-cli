@@ -222,5 +222,8 @@
   "gui.home_settings": "الإعدادات",
   "gui.home_settings_desc": "اللغة والمظهر والتفضيلات.",
   "gui.open_vscode": "فتح في VSCode",
-  "gui.open_loose_project": "فتح مشروع مستقل…"
+  "gui.open_loose_project": "فتح مشروع مستقل…",
+  "skilledit.created": "تم إنشاء المهارة في {path}",
+  "skilledit.wrote": "تمت كتابة {file}",
+  "skilledit.files_header": "الملفات القابلة للتحرير لـ schematize-{slug}:"
 }

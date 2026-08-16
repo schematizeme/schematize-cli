@@ -7,7 +7,7 @@ use clap::{Parser, Subcommand};
 use schematize::i18n::{t, tf};
 use schematize::{
     agent, autostart, debug, doctor, environments, i18n, links, news, overdev, panel, registry,
-    skills, sshkeys, status, upgrade, util,
+    skilledit, skills, sshkeys, status, upgrade, util,
 };
 use std::io::{self, BufRead, Write};
 
@@ -135,6 +135,33 @@ enum SkillsCmd {
     List,
     /// Remove an installed skill.
     Remove { name: String },
+    /// Create a new skill scaffold in ~/.claude/skills/schematize-<slug>/.
+    New {
+        /// slug (allow-list [a-z0-9-]) — vira a pasta schematize-<slug>.
+        slug: String,
+        /// Human name (title/descriptions); defaults to the slug.
+        #[arg(long)]
+        name: Option<String>,
+        /// Dense description for the SKILL.md frontmatter.
+        #[arg(long)]
+        desc: Option<String>,
+        /// Overwrite if the skill already exists.
+        #[arg(long)]
+        force: bool,
+    },
+    /// Edit an installed skill: --list its files, or --file <rel> to print one (or set it).
+    Edit {
+        slug: String,
+        /// List the editable files (relative paths). Default action if nothing else is given.
+        #[arg(long)]
+        list: bool,
+        /// A file relative to the skill root: prints it (or writes it with --set-from).
+        #[arg(long)]
+        file: Option<String>,
+        /// Write the file from this source path (needs --file <rel>).
+        #[arg(long)]
+        set_from: Option<String>,
+    },
 }
 
 #[derive(Subcommand)]
@@ -365,7 +392,46 @@ fn skills_cmd(sub: SkillsCmd) -> Result<(), String> {
         SkillsCmd::Update { names, all } => skills_update(&names, all),
         SkillsCmd::List => skills_list(),
         SkillsCmd::Remove { name } => skills_remove(&name),
+        SkillsCmd::New { slug, name, desc, force } => skills_new(&slug, name, desc, force),
+        SkillsCmd::Edit { slug, list, file, set_from } => skills_edit(&slug, list, file, set_from),
     }
+}
+
+/// `schematize skills new <slug>` — scaffolda o piso mínimo válido de uma skill nova.
+fn skills_new(slug: &str, name: Option<String>, desc: Option<String>, force: bool) -> Result<(), String> {
+    let name = name.unwrap_or_else(|| slug.to_string());
+    let desc = desc.unwrap_or_default();
+    let dest = if force {
+        skilledit::scaffold_force(slug, &name, &desc)?
+    } else {
+        skilledit::scaffold(slug, &name, &desc)?
+    };
+    println!("{}", tf("skilledit.created", &[("path", &dest.display().to_string())]));
+    Ok(())
+}
+
+/// `schematize skills edit <slug>` — lista os arquivos, imprime um, ou o grava de um arquivo fonte.
+fn skills_edit(slug: &str, list: bool, file: Option<String>, set_from: Option<String>) -> Result<(), String> {
+    // Com --file: escreve (se --set-from) ou imprime o conteúdo.
+    if let Some(rel) = file {
+        if let Some(src) = set_from {
+            let content = std::fs::read_to_string(&src).map_err(|e| format!("falha ao ler {src}: {e}"))?;
+            skilledit::write_file(slug, &rel, &content)?;
+            println!("{}", tf("skilledit.wrote", &[("file", &rel)]));
+            return Ok(());
+        }
+        let content = skilledit::read_file(slug, &rel)?;
+        print!("{content}");
+        return Ok(());
+    }
+    // Sem --file: lista (o default quando nada mais é passado). `--list` é o mesmo comportamento.
+    let _ = list;
+    let files = skilledit::list_files(slug)?;
+    println!("{}", tf("skilledit.files_header", &[("slug", slug)]));
+    for f in files {
+        println!("  {f}");
+    }
+    Ok(())
 }
 
 /// Instala skills (ou todas com --all) e, opcionalmente, as recomendadas.

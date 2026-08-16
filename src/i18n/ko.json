@@ -222,5 +222,8 @@
   "gui.home_settings": "설정",
   "gui.home_settings_desc": "언어, 테마, 환경설정.",
   "gui.open_vscode": "VSCode에서 열기",
-  "gui.open_loose_project": "개별 프로젝트 열기…"
+  "gui.open_loose_project": "개별 프로젝트 열기…",
+  "skilledit.created": "{path} 에 skill 생성됨",
+  "skilledit.wrote": "{file} 작성됨",
+  "skilledit.files_header": "schematize-{slug} 의 편집 가능한 파일:"
 }

@@ -222,5 +222,8 @@
   "gui.home_settings": "Settings",
   "gui.home_settings_desc": "Language, theme, and preferences.",
   "gui.open_vscode": "Open in VSCode",
-  "gui.open_loose_project": "Open loose project…"
+  "gui.open_loose_project": "Open loose project…",
+  "skilledit.created": "skill created at {path}",
+  "skilledit.wrote": "wrote {file}",
+  "skilledit.files_header": "editable files of schematize-{slug}:"
 }

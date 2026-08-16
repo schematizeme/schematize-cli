@@ -222,5 +222,8 @@
   "gui.home_settings": "Ustawienia",
   "gui.home_settings_desc": "Język, motyw i preferencje.",
   "gui.open_vscode": "Otwórz w VSCode",
-  "gui.open_loose_project": "Otwórz samodzielny projekt…"
+  "gui.open_loose_project": "Otwórz samodzielny projekt…",
+  "skilledit.created": "utworzono skill w {path}",
+  "skilledit.wrote": "zapisano {file}",
+  "skilledit.files_header": "edytowalne pliki schematize-{slug}:"
 }
