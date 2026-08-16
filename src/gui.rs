@@ -37,8 +37,9 @@ struct Row {
     installed: Option<String>,
     latest: Option<String>,
     item: Option<Item>,
-    category: String,                             // "base" | "language" | "external"
-    sponsor: Option<(String, String, Option<String>)>, // (nome, url, CPF/CNPJ) do co-autor
+    category: String,                  // "base" | "language" | "external"
+    sponsor: Option<(String, String)>, // (nome, url) do autor
+    verified: bool,                    // selo de verificado
 }
 impl Row {
     fn outdated(&self) -> bool {
@@ -67,14 +68,16 @@ fn collect_rows() -> Vec<Row> {
     let mut rows: Vec<Row> = registry::catalog()
         .into_iter()
         .map(|it| {
-            let sponsor = it.sponsor.as_ref().map(|s| (s.name.clone(), s.url.clone(), s.doc.clone()));
+            let sponsor = it.sponsor.as_ref().map(|s| (s.name.clone(), s.url.clone()));
             let category = if it.category.is_empty() { "language".into() } else { it.category.clone() };
+            let verified = it.verified;
             Row {
                 name: it.slug.clone(),
                 installed: skills::installed_version(&it),
                 latest: skills::resolve_latest(&it).ok(),
                 category,
                 sponsor,
+                verified,
                 item: Some(it),
             }
         })
@@ -85,7 +88,8 @@ fn collect_rows() -> Vec<Row> {
         latest: skills::latest_version_raw("schematize-cli"),
         item: None,
         category: "base".into(),
-        sponsor: Some(("Lucassa".into(), "https://lucassa.me".into(), None)),
+        sponsor: Some(("Lucassa".into(), "https://lucassa.me".into())),
+        verified: true,
     });
     rows
 }
@@ -118,6 +122,70 @@ struct GNode {
     vx: f32,
     vy: f32,
     deg: f32,
+}
+
+/// Carrega fontes de sistema que cobrem CJK/árabe/devanagari/etc como FALLBACK — mata os
+/// "quadradinhos" (tofu) nos idiomas não-latinos. Latino usa a fonte padrão; o resto cai aqui.
+fn install_fonts(ctx: &egui::Context) {
+    let mut fonts = egui::FontDefinitions::default();
+    let candidates: &[&str] = &[
+        // Linux — Noto (fonts-noto / fonts-noto-cjk)
+        "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+        "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
+        "/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc",
+        "/usr/share/fonts/truetype/noto/NotoSansArabic-Regular.ttf",
+        "/usr/share/fonts/truetype/noto/NotoSansDevanagari-Regular.ttf",
+        "/usr/share/fonts/truetype/noto/NotoSansHebrew-Regular.ttf",
+        "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf",
+        // Linux — DejaVu (quase sempre presente): latino/cirílico/grego
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "/usr/share/fonts/dejavu/DejaVuSans.ttf",
+        // macOS
+        "/System/Library/Fonts/PingFang.ttc",
+        "/Library/Fonts/Arial Unicode.ttf",
+        // Windows
+        "C:\\Windows\\Fonts\\msyh.ttc",
+        "C:\\Windows\\Fonts\\arialuni.ttf",
+    ];
+    let mut added = Vec::new();
+    for (i, path) in candidates.iter().enumerate() {
+        if let Ok(bytes) = std::fs::read(path) {
+            let name = format!("sys-{i}");
+            fonts.font_data.insert(name.clone(), egui::FontData::from_owned(bytes).into());
+            added.push(name);
+        }
+    }
+    if !added.is_empty() {
+        for fam in [egui::FontFamily::Proportional, egui::FontFamily::Monospace] {
+            let list = fonts.families.entry(fam).or_default();
+            for n in &added {
+                list.push(n.clone());
+            }
+        }
+    }
+    ctx.set_fonts(fonts);
+}
+
+/// Um tema um pouco menos "cru": fontes maiores, mais respiro e um azul de acento.
+fn install_style(ctx: &egui::Context) {
+    use egui::FontFamily::{Monospace, Proportional};
+    use egui::{FontId, TextStyle};
+    ctx.all_styles_mut(|s| {
+        s.text_styles = [
+            (TextStyle::Heading, FontId::new(21.0, Proportional)),
+            (TextStyle::Body, FontId::new(14.5, Proportional)),
+            (TextStyle::Monospace, FontId::new(13.0, Monospace)),
+            (TextStyle::Button, FontId::new(14.5, Proportional)),
+            (TextStyle::Small, FontId::new(11.5, Proportional)),
+        ]
+        .into();
+        s.spacing.item_spacing = egui::vec2(10.0, 9.0);
+        s.spacing.button_padding = egui::vec2(11.0, 6.0);
+        let accent = egui::Color32::from_rgb(0x5b, 0x8c, 0xff);
+        s.visuals.hyperlink_color = accent;
+        s.visuals.selection.bg_fill = egui::Color32::from_rgb(0x2a, 0x3a, 0x66);
+        s.visuals.selection.stroke = egui::Stroke::new(1.0, accent);
+    });
 }
 
 struct App {
@@ -157,6 +225,8 @@ struct App {
 impl App {
     fn new(cc: &eframe::CreationContext<'_>) -> Self {
         cc.egui_ctx.set_visuals(egui::Visuals::dark());
+        install_fonts(&cc.egui_ctx); // mata os "quadradinhos" dos idiomas não-latinos
+        install_style(&cc.egui_ctx); // menos cru: fontes/respiro/acento
         let (tx, rx) = channel();
         let mut app = Self {
             rows: vec![],
@@ -678,7 +748,14 @@ impl App {
                 ui.add_space(10.0);
                 ui.label(egui::RichText::new(label).strong().size(14.0).color(egui::Color32::from_rgb(0x9d, 0xb4, 0xff)));
                 ui.add_space(2.0);
-                egui::Grid::new(format!("skills_{cat}")).num_columns(5).striped(true).spacing([14.0, 8.0]).show(ui, |ui| {
+                egui::Grid::new(format!("skills_{cat}")).num_columns(6).striped(true).spacing([18.0, 10.0]).show(ui, |ui| {
+                    ui.label("");
+                    ui.strong(t("gui.col_skill"));
+                    ui.strong(t("gui.col_author"));
+                    ui.strong(t("gui.col_installed"));
+                    ui.strong(t("gui.col_latest"));
+                    ui.strong(t("gui.col_state"));
+                    ui.end_row();
                     for r in &group {
                         let mut on = self.selected.contains(&r.name);
                         if ui.add_enabled(!busy, egui::Checkbox::new(&mut on, "")).changed() {
@@ -688,17 +765,23 @@ impl App {
                                 self.selected.remove(&r.name);
                             }
                         }
-                        ui.vertical(|ui| {
-                            ui.label(&r.name);
-                            if let Some((sn, su, doc)) = &r.sponsor {
-                                ui.hyperlink_to(egui::RichText::new(format!("{} {sn}", t("gui.by"))).small().weak(), su);
-                                if let Some(d) = doc {
-                                    if !d.is_empty() {
-                                        ui.label(egui::RichText::new(d).small().weak());
-                                    }
-                                }
+                        // skill + selo verificado
+                        ui.horizontal(|ui| {
+                            ui.label(egui::RichText::new(&r.name).strong());
+                            if r.verified {
+                                ui.label(egui::RichText::new("✓").color(egui::Color32::from_rgb(0x3e, 0xcf, 0x8e)))
+                                    .on_hover_text(t("gui.verified"));
                             }
                         });
+                        // autor (coluna própria, link clicável)
+                        match &r.sponsor {
+                            Some((sn, su)) => {
+                                ui.hyperlink_to(egui::RichText::new(sn).weak(), su);
+                            }
+                            None => {
+                                ui.label("—");
+                            }
+                        }
                         ui.label(r.installed.clone().unwrap_or_else(|| "—".into()));
                         ui.label(r.latest.clone().unwrap_or_else(|| "?".into()));
                         let col = if r.missing() {

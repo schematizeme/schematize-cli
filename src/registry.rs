@@ -13,14 +13,12 @@ pub const ORG: &str = "schematizeme";
 const CATALOG_URL: &str =
     "https://raw.githubusercontent.com/schematizeme/schematize-cli/main/catalog.json";
 
-/// Quem patrocina/co-assina a skill (mostrado na GUI): nome + link + doc (CPF/CNPJ).
+/// Autor/co-autor da skill (mostrado na GUI): a pessoa/organização por trás (credibilidade).
+/// Só nome + link — quem quiser verificar a firma vai ao site do parceiro (o `url`). Sem doc.
 #[derive(Clone, Deserialize)]
 pub struct Sponsor {
     pub name: String,
     pub url: String,
-    /// CPF (pessoa) ou CNPJ (empresa) vinculado à skill — credibilidade. Opcional.
-    #[serde(default)]
-    pub doc: Option<String>,
 }
 
 /// Uma skill/tool instalável do ecossistema.
@@ -37,9 +35,12 @@ pub struct Item {
     /// grupo na GUI: "base" (arquitetura), "language" (linguagem), "external" (ferramenta).
     #[serde(default)]
     pub category: String,
-    /// empresa que patrocina/co-assina a skill (None = tratar como Schematize).
+    /// autor/co-autor (pessoa/org) por trás da skill.
     #[serde(default)]
     pub sponsor: Option<Sponsor>,
+    /// selo de VERIFICADO — skill oficial/de parceiro vetado (vs. futura skill de comunidade).
+    #[serde(default)]
+    pub verified: bool,
 }
 
 #[derive(Deserialize)]
@@ -50,8 +51,9 @@ struct Catalog {
 /// Catálogo embutido — fallback quando o índice remoto está indisponível (offline).
 /// Mantido em dia como rede de segurança; a fonte de verdade é o `catalog.json`.
 fn builtin() -> Vec<Item> {
-    let sp = |name: &str, url: &str| Some(Sponsor { name: name.into(), url: url.into(), doc: None });
+    let sp = |name: &str, url: &str| Some(Sponsor { name: name.into(), url: url.into() });
     let me = || sp("Lucassa", "https://lucassa.me");
+    // Todas as skills oficiais nascem verificadas (publisher conhecido/vetado).
     let mk = |slug: &str, cat: &str, sponsor: Option<Sponsor>| Item {
         slug: slug.into(),
         skill_dir: format!("schematize-{slug}"),
@@ -59,6 +61,7 @@ fn builtin() -> Vec<Item> {
         zip: format!("skill-{slug}.zip"),
         category: cat.into(),
         sponsor,
+        verified: true,
     };
     vec![
         mk("engineering", "base", me()),
@@ -72,6 +75,7 @@ fn builtin() -> Vec<Item> {
         mk("node", "language", me()),
         mk("seo", "external", sp("Hextorn", "https://hextorn.com")),
         mk("pentest", "external", sp("Basilisk Offsec", "https://basiliskoffsec.com")),
+        mk("audit", "external", me()),
     ]
 }
 

@@ -98,7 +98,7 @@
   "gui.tab_overdev": "Overdev",
   "gui.tab_graph": "Graph",
   "gui.project": "Project:",
-  "gui.no_project": "select a project",
+  "gui.no_project": "Select a project above (paste its path or use 'current folder').",
   "gui.use_cwd": "current folder",
   "gui.reload": "reload",
   "gui.project_hint": "paste a project path",
@@ -107,8 +107,8 @@
   "gui.export_obsidian": "export Obsidian",
   "gui.open_editor": "open in editor",
   "gui.no_loc": "no file:line in the index",
-  "gui.no_overdev": "no overdev run in this project",
-  "gui.no_graph": "no index — run /eng-index",
+  "gui.no_overdev": "No overdev run in this project. Run `schematize overdev start` (or /eng-overdev) in the project folder.",
+  "gui.no_graph": "No index yet. Run /eng-index in the project to build the graph (it goes to <project>_archive/index/).",
   "gui.search": "search",
   "gui.fit": "fit",
   "gui.graph_nodes": "nodes",
@@ -124,7 +124,6 @@
   "gui.cat_language": "Languages",
   "gui.cat_external": "External tools",
   "gui.by": "by",
-  "gui.tab_skills": "Skills",
   "gui.tab_status": "Status",
   "gui.blog": "Blog",
   "gui.site": "Website",
@@ -133,5 +132,7 @@
   "gui.all_uptodate": "everything up to date.",
   "gui.n_pending": "{n} item(s) with updates/installs pending.",
   "open.unknown": "unknown target: {name} (try: site, blog, github)",
-  "agent.update_failed": "Update failed"
+  "agent.update_failed": "Update failed",
+  "gui.col_author": "Author",
+  "gui.verified": "Verified — official / vetted partner"
 }

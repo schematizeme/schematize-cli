@@ -98,7 +98,7 @@
   "gui.tab_overdev": "Overdev",
   "gui.tab_graph": "Grafo",
   "gui.project": "Projeto:",
-  "gui.no_project": "selecione um projeto",
+  "gui.no_project": "Selecione um projeto acima (cole o caminho ou use 'pasta atual').",
   "gui.use_cwd": "pasta atual",
   "gui.reload": "recarregar",
   "gui.project_hint": "cole o caminho de um projeto",
@@ -107,8 +107,8 @@
   "gui.export_obsidian": "exportar Obsidian",
   "gui.open_editor": "abrir no editor",
   "gui.no_loc": "sem arquivo:linha no index",
-  "gui.no_overdev": "sem run de overdev neste projeto",
-  "gui.no_graph": "sem index — rode /eng-index",
+  "gui.no_overdev": "Sem run de overdev neste projeto. Rode `schematize overdev start` (ou /eng-overdev) na pasta do projeto.",
+  "gui.no_graph": "Sem index ainda. Rode /eng-index no projeto pra gerar o grafo (fica em <projeto>_archive/index/).",
   "gui.search": "buscar",
   "gui.fit": "ajustar",
   "gui.graph_nodes": "nós",
@@ -124,7 +124,6 @@
   "gui.cat_language": "Linguagens",
   "gui.cat_external": "Ferramentas externas",
   "gui.by": "por",
-  "gui.tab_skills": "Skills",
   "gui.tab_status": "Status",
   "gui.blog": "Blog",
   "gui.site": "Site",
@@ -133,5 +132,7 @@
   "gui.all_uptodate": "tudo atualizado.",
   "gui.n_pending": "{n} item(ns) com atualizações/instalações pendentes.",
   "open.unknown": "alvo desconhecido: {name} (tente: site, blog, github)",
-  "agent.update_failed": "Falha na atualização"
+  "agent.update_failed": "Falha na atualização",
+  "gui.col_author": "Autor",
+  "gui.verified": "Verificado — oficial / parceiro vetado"
 }

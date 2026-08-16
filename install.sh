@@ -75,6 +75,18 @@ gui_build_deps() {
     *) die "GUI do fonte: instale manualmente as libs de X11/Wayland/GL da sua distro." ;;
   esac
 }
+# Fontes de cobertura ampla (CJK/árabe/devanagari) — pra GUI não mostrar "quadradinhos"
+# nos idiomas não-latinos. Best-effort (nomes variam por distro).
+ensure_fonts() {
+  case "$FAMILY" in
+    debian) pkg_install fonts-noto-core fonts-noto-cjk fonts-dejavu-core >/dev/null 2>&1 || true ;;
+    rpm)    if command -v zypper >/dev/null; then
+              $SUDO zypper --non-interactive install -y noto-sans-fonts noto-sans-cjk-fonts dejavu-fonts >/dev/null 2>&1 || true
+            else
+              $SUDO dnf install -y google-noto-sans-fonts google-noto-sans-cjk-fonts dejavu-sans-fonts >/dev/null 2>&1 || true
+            fi ;;
+  esac
+}
 ensure_rust() {
   if ! command -v cargo >/dev/null; then
     log "instalando Rust (rustup)"; curl -fsSL https://sh.rustup.rs | sh -s -- -y --profile minimal
@@ -121,7 +133,7 @@ post_config() {
 }
 
 install_binary() {
-  ensure_runtime_deps; gui_runtime_deps
+  ensure_runtime_deps; gui_runtime_deps; ensure_fonts
   local DL; DL="$(resolve_dl)"
   local dst; if [ -n "$SUDO" ] || [ -w /usr/local/bin ]; then dst="/usr/local/bin"; else dst="$HOME/.local/bin"; fi
   mkdir -p "$dst" 2>/dev/null || $SUDO mkdir -p "$dst"
@@ -136,7 +148,7 @@ install_binary() {
   post_config
 }
 install_deb() {
-  ensure_runtime_deps
+  ensure_runtime_deps; ensure_fonts
   local DL; DL="$(resolve_dl)"
   local t; t="$(mktemp --suffix=.deb)"; log "baixando .deb (CLI + GUI)"; curl -fSL -o "$t" "$DL/schematize_amd64.deb"
   chmod 644 "$t"   # deixa o _apt (sandbox de download) ler o arquivo — sem o aviso de permissão
@@ -144,13 +156,14 @@ install_deb() {
   rm -f "$t"; post_config
 }
 install_rpm() {
+  ensure_fonts
   local DL; DL="$(resolve_dl)"
   local t; t="$(mktemp --suffix=.rpm)"; log "baixando .rpm (CLI + GUI)"; curl -fSL -o "$t" "$DL/schematize.x86_64.rpm"; chmod 644 "$t"
   if command -v zypper >/dev/null; then $SUDO zypper --non-interactive install -y --allow-unsigned-rpm "$t"; else $SUDO dnf install -y "$t"; fi
   rm -f "$t"; post_config
 }
 install_source() {
-  ensure_runtime_deps; ensure_rust; gui_build_deps
+  ensure_runtime_deps; ensure_rust; gui_build_deps; ensure_fonts
   . "$HOME/.cargo/env" 2>/dev/null || true
   local d; d="$(mktemp -d)"
   log "clonando + compilando CLI + GUI do fonte (release/LTO — leva alguns minutos na 1ª vez)"
