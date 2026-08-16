@@ -45,6 +45,91 @@ pub fn status_brief() -> (bool, Option<String>) {
         _ => (false, None),
     }
 }
+// ---------------------------------------------------------------------------
+// Acessores PATH-AWARE (consumidos por agentrun::run_attached e pela GUI, que
+// monitoram um projeto que NÃO é o cwd do processo). As funções acima operam no
+// `.overdev` relativo ao cwd (contrato dos hooks Stop/PreToolUse); estas leem o
+// `.overdev` de um `root` explícito, sem efeito colateral.
+// ---------------------------------------------------------------------------
+
+/// `<root>/.overdev`.
+fn dir_at(root: &Path) -> PathBuf {
+    root.join(".overdev")
+}
+
+/// Carrega o state.json de um projeto arbitrário (None se ausente/ilegível).
+fn load_at(root: &Path) -> Option<OverState> {
+    fs::read_to_string(dir_at(root).join("state.json")).ok().and_then(|s| serde_json::from_str(&s).ok())
+}
+
+/// Snapshot do progresso de um run (peça pública, path-aware, sem efeito colateral).
+/// Consumido pelo monitor do `run_attached` e pela GUI (barra de progresso + contagem).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Progress {
+    /// `active` | `stopped` | `done` | `blocked`; vazio se não há run.
+    pub mode: String,
+    /// Itens de MÁQUINA abertos (`- [ ]`) — o que trava a conclusão.
+    pub open: usize,
+    /// Feitos totais (máquina `- [x]` + humano `- [H x]`).
+    pub done: usize,
+    /// On-hold (`- [~]`, pergunta parkeada).
+    pub hold: usize,
+    /// Humanos abertos (`- [H ]`) — só a pessoa fecha.
+    pub human: usize,
+    /// Ciclos já gastos (arquivo `iterations`).
+    pub iterations: u64,
+    /// Teto de ciclos do run.
+    pub max_iters: u64,
+}
+
+impl Progress {
+    /// `true` quando não há mais trabalho de MÁQUINA nem o run está parado —
+    /// critério de término do `run_attached` junto com `mode == "stopped"`.
+    pub fn finished(&self) -> bool {
+        self.mode == "stopped" || (self.mode == "active" && self.open == 0)
+    }
+}
+
+/// Lê o progresso do run em `<root>/.overdev` (state.json + CHECKLIST.md + iterations).
+pub fn progress_at(root: &Path) -> Progress {
+    let d = dir_at(root);
+    let st = load_at(root);
+    let c = count_str(&fs::read_to_string(d.join("CHECKLIST.md")).unwrap_or_default());
+    let it = fs::read_to_string(d.join("iterations")).ok().and_then(|s| s.trim().parse().ok()).unwrap_or(0);
+    Progress {
+        mode: st.as_ref().map(|s| s.mode.clone()).unwrap_or_default(),
+        open: c.open,
+        done: c.done(),
+        hold: c.hold,
+        human: c.human,
+        iterations: it,
+        max_iters: st.as_ref().map(|s| s.max_iters).unwrap_or(0),
+    }
+}
+
+/// Itens de MÁQUINA abertos (`- [ ]`) do CHECKLIST de `<root>` (até `limit`).
+/// É a lista que o auto-continue reenvia ao agente ocioso.
+pub fn open_items_at(root: &Path, limit: usize) -> Vec<String> {
+    items_with_marker(&fs::read_to_string(dir_at(root).join("CHECKLIST.md")).unwrap_or_default(), "- [ ]", limit)
+}
+
+/// Objetivo do run pra montar o prompt inicial do agente: prioriza o campo
+/// `objetivo` do state.json; se vazio, a 1ª linha útil de `.overdev/OBJETIVO.md`
+/// (ignora linhas em branco e comentários `#`). None se nada disso existir.
+pub fn objetivo_at(root: &Path) -> Option<String> {
+    if let Some(st) = load_at(root) {
+        let o = st.objetivo.trim();
+        if !o.is_empty() {
+            return Some(o.to_string());
+        }
+    }
+    let txt = fs::read_to_string(dir_at(root).join("OBJETIVO.md")).ok()?;
+    txt.lines()
+        .map(str::trim)
+        .find(|l| !l.is_empty() && !l.starts_with('#'))
+        .map(String::from)
+}
+
 fn save(st: &OverState) -> Result<(), String> {
     fs::create_dir_all(dir()).map_err(|e| e.to_string())?;
     fs::write(state_file(), serde_json::to_string_pretty(st).map_err(|e| e.to_string())?)

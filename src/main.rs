@@ -4,10 +4,11 @@
 //! Onde: ponto de entrada; despacha pros módulos da lib `schematize`.
 
 use clap::{Parser, Subcommand};
+use schematize::agentrun::AgentRunner;
 use schematize::i18n::{t, tf};
 use schematize::{
-    agent, autostart, debug, doctor, environments, i18n, links, news, overdev, panel, registry,
-    skilledit, skills, sshkeys, status, upgrade, util,
+    agent, agentrun, autostart, debug, doctor, environments, i18n, links, news, overdev, panel,
+    registry, skilledit, skills, sshkeys, status, upgrade, util,
 };
 use std::io::{self, BufRead, Write};
 
@@ -283,6 +284,15 @@ enum Over {
     },
     /// End the run (hooks become inert again).
     Stop,
+    /// Run overdev with an attached `claude` agent in a PTY (monitors + auto-continue).
+    Run {
+        /// Max number of `continue` nudges injected when the agent goes idle.
+        #[arg(long)]
+        max: Option<u64>,
+        /// Skip the confirmation prompt (the agent WILL touch this project).
+        #[arg(long)]
+        yes: bool,
+    },
 }
 
 fn resolve(cat: &[registry::Item], names: &[String], all: bool) -> Vec<registry::Item> {
@@ -320,6 +330,24 @@ fn lang_cmd(code: Option<String>, list: bool) -> Result<(), String> {
             Ok(())
         }
     }
+}
+
+/// `schematize overdev run [--max N] [--yes]` — dispara o `claude` acoplado no
+/// diretório atual e monitora (auto-continue). Guardrail: mostra o comando do
+/// agente e confirma antes (o agente MEXE no projeto), a menos de `--yes`.
+fn overdev_run(max: Option<u64>, yes: bool) -> Result<(), String> {
+    let project = std::env::current_dir().map_err(|e| format!("cwd inacessível: {e}"))?;
+    let max = max.unwrap_or(agentrun::DEFAULT_MAX_NUDGES);
+    let objetivo = overdev::objetivo_at(&project).unwrap_or_default();
+    let runner = agentrun::ClaudeRunner;
+    println!("Vai disparar o agente acoplado neste projeto:");
+    println!("  projeto: {}", project.display());
+    println!("  comando: {}", runner.command_line(&objetivo));
+    println!("  auto-continue: até {max} nudge(s) quando o agente ficar ocioso com item aberto.");
+    if !yes && !confirm("Disparar o agente `claude` acoplado neste projeto? [s/N]") {
+        return Err("cancelado.".to_string());
+    }
+    agentrun::run_attached(&project, &runner, max)
 }
 
 /// Confirmação interativa (y/N). Falha fechada: erro/EOF/qualquer coisa ≠ sim = não.
@@ -580,6 +608,7 @@ fn main() {
             }
             Over::Note { texto, kind } => overdev::note(&kind, &texto.join(" ")),
             Over::Stop => overdev::stop(),
+            Over::Run { max, yes } => overdev_run(max, yes),
         },
         Cmd::Panel => panel::open(),
         Cmd::Graph { sub } => match sub {
