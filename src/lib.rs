@@ -19,6 +19,7 @@ pub mod registry;
 pub mod selfupdate;
 pub mod settings;
 pub mod skills;
+pub mod sshkeys;
 pub mod status;
 pub mod upgrade;
 pub mod util;

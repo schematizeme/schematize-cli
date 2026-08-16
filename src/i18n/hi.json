@@ -196,5 +196,17 @@
   "gui.mp_with_env": "{lang} एनवायरनमेंट भी इंस्टॉल करें (रनटाइम + टूल्स)",
   "gui.mp_env_note": "एनवायरनमेंट आपकी मशीन को बदलता है और आपकी पुष्टि के साथ टर्मिनल में चलता है।",
   "gui.mp_confirm": "इंस्टॉल करें",
-  "gui.mp_cancel": "रद्द करें"
+  "gui.mp_cancel": "रद्द करें",
+  "ssh.generated": "{name} बनाई गई ({kind}) ~/.ssh में",
+  "ssh.fingerprint": "फ़िंगरप्रिंट: {fp}",
+  "ssh.agent_ok": "ssh-agent में जोड़ी गई।",
+  "ssh.agent_fail": "ssh-agent में नहीं जोड़ पाए (क्या वह चल रहा है?).",
+  "ssh.github_ok": "{name} आपके GitHub खाते में जोड़ी गई।",
+  "ssh.list_empty": "~/.ssh में कोई SSH कुंजी नहीं।",
+  "ssh.list_header": "SSH कुंजियाँ (~/.ssh):",
+  "ssh.copied": "सार्वजनिक कुंजी क्लिपबोर्ड पर कॉपी की गई।",
+  "ssh.copy_fail": "कॉपी नहीं कर पाए (wl-copy या xclip इंस्टॉल करें).",
+  "ssh.confirm_rm": "कुंजी '{name}' हटाएँ (निजी + सार्वजनिक)? [y/N]",
+  "ssh.aborted": "रद्द किया गया।",
+  "ssh.removed": "कुंजी हटाई गई: {name}"
 }

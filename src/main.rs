@@ -7,8 +7,9 @@ use clap::{Parser, Subcommand};
 use schematize::i18n::{t, tf};
 use schematize::{
     agent, autostart, debug, doctor, environments, i18n, links, news, overdev, panel, registry,
-    skills, status, upgrade, util,
+    skills, sshkeys, status, upgrade, util,
 };
+use std::io::{self, BufRead, Write};
 
 #[derive(Parser)]
 #[command(name = "schematize", version, about = "Ecosystem manager for Claude — skills, overdev, and more (Linux-first).")]
@@ -95,6 +96,46 @@ enum Cmd {
     },
     /// Open the graphical window (same software as the CLI — just the GUI face).
     Gui,
+    /// SSH keys: generate, list, export and manage keys in ~/.ssh (never leaks the private key).
+    Ssh {
+        #[command(subcommand)]
+        sub: SshCmd,
+    },
+}
+
+#[derive(Subcommand)]
+enum SshCmd {
+    /// Generate a key pair (ed25519 by default; --rsa = rsa 4096) into ~/.ssh/<name>.
+    Gen {
+        name: String,
+        /// Use RSA 4096 instead of the recommended ed25519.
+        #[arg(long)]
+        rsa: bool,
+        /// Comment embedded in the key (default: schematize:<user>@<host>).
+        #[arg(long)]
+        comment: Option<String>,
+        /// Also add the public key to your GitHub account (gh must be authenticated).
+        #[arg(long)]
+        github: bool,
+        /// Also load the key into the ssh-agent (ssh-add).
+        #[arg(long)]
+        agent: bool,
+        /// Overwrite an existing key with the same name.
+        #[arg(long)]
+        force: bool,
+    },
+    /// List keys in ~/.ssh (name, type, fingerprint, comment). Never reads the private key.
+    List,
+    /// Print the PUBLIC key (paste it on GitHub/servers); --copy sends it to the clipboard.
+    Export {
+        name: String,
+        #[arg(long)]
+        copy: bool,
+    },
+    /// Remove a key pair (private + public) with confirmation.
+    Rm { name: String },
+    /// Add an existing PUBLIC key to your GitHub account (gh must be authenticated).
+    Github { name: String },
 }
 
 #[derive(Subcommand)]
@@ -200,6 +241,82 @@ fn lang_cmd(code: Option<String>, list: bool) -> Result<(), String> {
             let c = i18n::current_code();
             let name = i18n::name_of(&c).unwrap_or("");
             println!("{}", tf("lang.current", &[("code", &c), ("langname", name)]));
+            Ok(())
+        }
+    }
+}
+
+/// Confirmação interativa (y/N). Falha fechada: erro/EOF/qualquer coisa ≠ sim = não.
+fn confirm(prompt: &str) -> bool {
+    print!("{prompt} ");
+    let _ = io::stdout().flush();
+    let mut line = String::new();
+    if io::stdin().lock().read_line(&mut line).is_err() {
+        return false;
+    }
+    matches!(line.trim().to_lowercase().as_str(), "y" | "yes" | "s" | "sim")
+}
+
+/// `schematize ssh <sub>` — gestão de chaves SSH. Nunca imprime a chave privada.
+fn ssh_cmd(sub: SshCmd) -> Result<(), String> {
+    match sub {
+        SshCmd::Gen { name, rsa, comment, github, agent, force } => {
+            let kind = if rsa { sshkeys::KeyKind::Rsa4096 } else { sshkeys::KeyKind::Ed25519 };
+            let info = sshkeys::generate(&name, kind, comment.as_deref(), None, force)?;
+            println!("{}", tf("ssh.generated", &[("name", &info.name), ("kind", &info.kind)]));
+            println!("{}", tf("ssh.fingerprint", &[("fp", &info.fingerprint)]));
+            if agent {
+                if sshkeys::add_to_agent(&name) {
+                    println!("{}", t("ssh.agent_ok"));
+                } else {
+                    println!("{}", t("ssh.agent_fail"));
+                }
+            }
+            if github {
+                match sshkeys::add_to_github(&name) {
+                    Ok(()) => println!("{}", tf("ssh.github_ok", &[("name", &name)])),
+                    Err(e) => eprintln!("{}", tf("err.prefix", &[("e", &e)])),
+                }
+            }
+            Ok(())
+        }
+        SshCmd::List => {
+            let keys = sshkeys::list();
+            if keys.is_empty() {
+                println!("{}", t("ssh.list_empty"));
+                return Ok(());
+            }
+            println!("{}", t("ssh.list_header"));
+            for k in keys {
+                println!("  {:<20} {:<8} {}  {}", k.name, k.kind, k.fingerprint, k.comment);
+            }
+            Ok(())
+        }
+        SshCmd::Export { name, copy } => {
+            let pubkey = sshkeys::export_public(&name)?;
+            println!("{pubkey}");
+            if copy {
+                if sshkeys::copy_to_clipboard(&pubkey) {
+                    println!("{}", t("ssh.copied"));
+                } else {
+                    eprintln!("{}", t("ssh.copy_fail"));
+                }
+            }
+            Ok(())
+        }
+        SshCmd::Rm { name } => {
+            sshkeys::valid_name(&name)?;
+            if !confirm(&tf("ssh.confirm_rm", &[("name", &name)])) {
+                println!("{}", t("ssh.aborted"));
+                return Ok(());
+            }
+            sshkeys::remove(&name)?;
+            println!("{}", tf("ssh.removed", &[("name", &name)]));
+            Ok(())
+        }
+        SshCmd::Github { name } => {
+            sshkeys::add_to_github(&name)?;
+            println!("{}", tf("ssh.github_ok", &[("name", &name)]));
             Ok(())
         }
     }
@@ -354,6 +471,7 @@ fn main() {
                 Err("esta build não inclui a janela — reinstale com --features gui (o install.sh já faz isso)".to_string())
             }
         }
+        Cmd::Ssh { sub } => ssh_cmd(sub),
     };
     if let Err(e) = r {
         eprintln!("{}", tf("err.prefix", &[("e", &e)]));

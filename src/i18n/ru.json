@@ -196,5 +196,17 @@
   "gui.mp_with_env": "также установить окружение {lang} (среда выполнения + инструменты)",
   "gui.mp_env_note": "окружение изменяет вашу машину и выполняется в терминале с вашим подтверждением.",
   "gui.mp_confirm": "Установить",
-  "gui.mp_cancel": "Отмена"
+  "gui.mp_cancel": "Отмена",
+  "ssh.generated": "{name} создан ({kind}) в ~/.ssh",
+  "ssh.fingerprint": "отпечаток: {fp}",
+  "ssh.agent_ok": "добавлен в ssh-agent.",
+  "ssh.agent_fail": "не удалось добавить в ssh-agent (он запущен?).",
+  "ssh.github_ok": "{name} добавлен в вашу учётную запись GitHub.",
+  "ssh.list_empty": "в ~/.ssh нет SSH-ключей.",
+  "ssh.list_header": "SSH-ключи (~/.ssh):",
+  "ssh.copied": "открытый ключ скопирован в буфер обмена.",
+  "ssh.copy_fail": "не удалось скопировать (установите wl-copy или xclip).",
+  "ssh.confirm_rm": "удалить ключ '{name}' (закрытый + открытый)? [y/N]",
+  "ssh.aborted": "отменено.",
+  "ssh.removed": "ключ удалён: {name}"
 }

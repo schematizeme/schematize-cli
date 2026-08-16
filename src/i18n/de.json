@@ -196,5 +196,17 @@
   "gui.mp_with_env": "auch die {lang}-Umgebung installieren (Runtime + Werkzeuge)",
   "gui.mp_env_note": "die Umgebung verändert Ihren Rechner und läuft in einem Terminal mit Ihrer Bestätigung.",
   "gui.mp_confirm": "Installieren",
-  "gui.mp_cancel": "Abbrechen"
+  "gui.mp_cancel": "Abbrechen",
+  "ssh.generated": "{name} erzeugt ({kind}) in ~/.ssh",
+  "ssh.fingerprint": "Fingerprint: {fp}",
+  "ssh.agent_ok": "zum ssh-agent hinzugefügt.",
+  "ssh.agent_fail": "konnte nicht zum ssh-agent hinzugefügt werden (läuft er?).",
+  "ssh.github_ok": "{name} zu deinem GitHub-Konto hinzugefügt.",
+  "ssh.list_empty": "keine SSH-Schlüssel in ~/.ssh.",
+  "ssh.list_header": "SSH-Schlüssel (~/.ssh):",
+  "ssh.copied": "öffentlicher Schlüssel in die Zwischenablage kopiert.",
+  "ssh.copy_fail": "Kopieren fehlgeschlagen (wl-copy oder xclip installieren).",
+  "ssh.confirm_rm": "Schlüssel '{name}' entfernen (privat + öffentlich)? [j/N]",
+  "ssh.aborted": "abgebrochen.",
+  "ssh.removed": "Schlüssel entfernt: {name}"
 }

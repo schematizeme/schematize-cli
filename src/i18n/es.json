@@ -196,5 +196,17 @@
   "gui.mp_with_env": "instalar también el entorno {lang} (runtime + herramientas)",
   "gui.mp_env_note": "el entorno modifica tu máquina y se ejecuta en una terminal con tu confirmación.",
   "gui.mp_confirm": "Instalar",
-  "gui.mp_cancel": "Cancelar"
+  "gui.mp_cancel": "Cancelar",
+  "ssh.generated": "{name} generada ({kind}) en ~/.ssh",
+  "ssh.fingerprint": "huella: {fp}",
+  "ssh.agent_ok": "añadida al ssh-agent.",
+  "ssh.agent_fail": "no se pudo añadir al ssh-agent (¿está en ejecución?).",
+  "ssh.github_ok": "{name} añadida a tu cuenta de GitHub.",
+  "ssh.list_empty": "no hay claves SSH en ~/.ssh.",
+  "ssh.list_header": "claves SSH (~/.ssh):",
+  "ssh.copied": "clave pública copiada al portapapeles.",
+  "ssh.copy_fail": "no se pudo copiar (instala wl-copy o xclip).",
+  "ssh.confirm_rm": "¿eliminar la clave '{name}' (privada + pública)? [s/N]",
+  "ssh.aborted": "cancelado.",
+  "ssh.removed": "clave eliminada: {name}"
 }
