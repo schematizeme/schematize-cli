@@ -266,6 +266,21 @@ enum Over {
     Hold { texto: Vec<String> },
     /// Park a question (log it in the base txt) and mark the item on-hold.
     Park { item: String, pergunta: Vec<String> },
+    /// Human closes a `- [H ]` item → `- [H x]`: by text and/or `--done <n>`.
+    Human {
+        /// Text that the human item must contain (optional if --done is given).
+        texto: Vec<String>,
+        /// Close the Nth open human item (1-based) instead of matching text.
+        #[arg(long)]
+        done: Option<usize>,
+    },
+    /// Attach a human note (correction prompt / per-task point) in .overdev/NOTAS.md.
+    Note {
+        texto: Vec<String>,
+        /// Note kind: correcao (correction prompt) | task (per-task point). Default: correcao.
+        #[arg(long, default_value = "correcao")]
+        kind: String,
+    },
     /// End the run (hooks become inert again).
     Stop,
 }
@@ -558,6 +573,12 @@ fn main() {
             }
             Over::Hold { texto } => overdev::hold(&texto.join(" ")),
             Over::Park { item, pergunta } => overdev::park(&item, &pergunta.join(" ")),
+            Over::Human { texto, done } => {
+                let t = texto.join(" ");
+                let sub = if t.trim().is_empty() { None } else { Some(t.as_str()) };
+                overdev::human_done(sub, done)
+            }
+            Over::Note { texto, kind } => overdev::note(&kind, &texto.join(" ")),
             Over::Stop => overdev::stop(),
         },
         Cmd::Panel => panel::open(),
