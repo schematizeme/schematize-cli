@@ -18,6 +18,11 @@ pub struct Config {
     /// descobre os projetos pelos marcadores. Caminhos absolutos.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub dev_dirs: Vec<String>,
+    /// Projetos FIXADOS manualmente (pin): sempre listados na varredura, mesmo sem
+    /// marcador git, e param a descida (um guarda-chuva pinado vira UM projeto).
+    /// Caminhos absolutos (canônicos quando o diretório existe no momento do pin).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub projects: Vec<String>,
 }
 
 /// Lê a config (vazia se não existir/ inválida).
@@ -79,6 +84,43 @@ pub fn remove_dev_dir(path: &str) {
     let before = c.dev_dirs.len();
     c.dev_dirs.retain(|p| p != path);
     if c.dev_dirs.len() != before {
+        let _ = save(&c);
+    }
+}
+
+/// Projetos fixados (pin), na ordem de cadastro.
+pub fn projects() -> Vec<String> {
+    load().projects
+}
+
+/// Fixa um projeto (pin). Canonicaliza se o diretório existir; dedup exato. Persiste.
+/// Torna a pasta um projeto de primeira classe na varredura, sem depender de
+/// heurística de `.git`/marcador (ideal pra listar um guarda-chuva como UM projeto).
+pub fn pin_project(path: &str) {
+    let canon = std::fs::canonicalize(path)
+        .ok()
+        .and_then(|p| p.to_str().map(String::from))
+        .unwrap_or_else(|| path.to_string());
+    let mut c = load();
+    if !c.projects.iter().any(|p| p == &canon) {
+        c.projects.push(canon);
+        let _ = save(&c);
+    }
+}
+
+/// Desafixa um projeto (unpin). Remove por match do caminho canônico OU literal
+/// (assim funciona mesmo se o pin foi salvo canônico e o usuário passa o relativo,
+/// ou vice-versa). Persiste se removeu algo.
+pub fn unpin_project(path: &str) {
+    let canon = std::fs::canonicalize(path)
+        .ok()
+        .and_then(|p| p.to_str().map(String::from));
+    let mut c = load();
+    let before = c.projects.len();
+    c.projects.retain(|p| {
+        p != path && canon.as_deref() != Some(p.as_str())
+    });
+    if c.projects.len() != before {
         let _ = save(&c);
     }
 }

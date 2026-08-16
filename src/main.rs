@@ -7,8 +7,8 @@ use clap::{Parser, Subcommand};
 use schematize::agentrun::AgentRunner;
 use schematize::i18n::{t, tf};
 use schematize::{
-    agent, agentrun, autostart, debug, doctor, environments, i18n, links, news, overdev, panel,
-    registry, skilledit, skills, sshkeys, status, upgrade, util,
+    agent, agentrun, autostart, config, debug, doctor, environments, i18n, links, news, overdev,
+    panel, projects, registry, skilledit, skills, sshkeys, status, upgrade, util,
 };
 use std::io::{self, BufRead, Write};
 
@@ -112,6 +112,11 @@ enum Cmd {
         #[command(subcommand)]
         sub: SshCmd,
     },
+    /// Projects: list detected/pinned projects, pin/unpin, or drop a `.schematize` marker.
+    Projects {
+        #[command(subcommand)]
+        sub: ProjectsCmd,
+    },
 }
 
 /// Gestão de SKILLS — uma funcionalidade do app, agrupada sob `schematize skills`.
@@ -198,6 +203,22 @@ enum SshCmd {
     Rm { name: String },
     /// Add an existing PUBLIC key to your GitHub account (gh must be authenticated).
     Github { name: String },
+}
+
+/// Gestão de PROJETOS — listar, fixar/desafixar (pin) e marcar pastas como projeto.
+#[derive(Subcommand)]
+enum ProjectsCmd {
+    /// List every project (pinned + detected from the dev dirs), flagging the pinned.
+    List,
+    /// Pin a folder as a first-class project (always listed, even without a git marker).
+    Add { path: String },
+    /// Unpin a previously pinned folder.
+    Remove { path: String },
+    /// Drop a `.schematize` marker file in the folder (default: cwd) → a project that
+    /// stops the scan from descending (turns an umbrella into ONE project).
+    Mark { path: Option<String> },
+    /// Remove the `.schematize` marker from the folder (default: cwd).
+    Unmark { path: Option<String> },
 }
 
 #[derive(Subcommand)]
@@ -421,6 +442,66 @@ fn ssh_cmd(sub: SshCmd) -> Result<(), String> {
         SshCmd::Github { name } => {
             sshkeys::add_to_github(&name)?;
             println!("{}", tf("ssh.github_ok", &[("name", &name)]));
+            Ok(())
+        }
+    }
+}
+
+/// Canonicaliza um caminho (relativo → absoluto); fallback: o próprio literal.
+fn canon_or(path: &str) -> String {
+    std::fs::canonicalize(path)
+        .ok()
+        .and_then(|p| p.to_str().map(String::from))
+        .unwrap_or_else(|| path.to_string())
+}
+
+/// `schematize projects <sub>` — lista/fixa/marca projetos.
+fn projects_cmd(sub: ProjectsCmd) -> Result<(), String> {
+    match sub {
+        ProjectsCmd::List => {
+            let dev_dirs = config::dev_dirs();
+            let pinned = config::projects();
+            let projs = projects::scan_with_pins(&dev_dirs, &pinned);
+            if projs.is_empty() {
+                println!("Nenhum projeto encontrado (cadastre dev_dirs ou fixe com `projects add`).");
+                return Ok(());
+            }
+            println!("Projetos ({}):", projs.len());
+            for p in &projs {
+                let flag = if p.marker == "pinned" { "[fixado] " } else { "" };
+                println!("  {flag}{}  {}  ({})", p.name, p.path, p.marker);
+            }
+            Ok(())
+        }
+        ProjectsCmd::Add { path } => {
+            let canon = canon_or(&path);
+            config::pin_project(&path);
+            println!("Fixado: {canon}");
+            Ok(())
+        }
+        ProjectsCmd::Remove { path } => {
+            config::unpin_project(&path);
+            println!("Desafixado: {}", canon_or(&path));
+            Ok(())
+        }
+        ProjectsCmd::Mark { path } => {
+            let dir = path.unwrap_or_else(|| ".".to_string());
+            let dir = canon_or(&dir);
+            let marker = std::path::Path::new(&dir).join(".schematize");
+            std::fs::write(&marker, "{}\n").map_err(|e| format!("falha ao criar marcador: {e}"))?;
+            println!("Marcado como projeto: {}", marker.display());
+            Ok(())
+        }
+        ProjectsCmd::Unmark { path } => {
+            let dir = path.unwrap_or_else(|| ".".to_string());
+            let dir = canon_or(&dir);
+            let marker = std::path::Path::new(&dir).join(".schematize");
+            if marker.exists() {
+                std::fs::remove_file(&marker).map_err(|e| format!("falha ao remover marcador: {e}"))?;
+                println!("Marcador removido: {}", marker.display());
+            } else {
+                println!("Sem marcador em {}", marker.display());
+            }
             Ok(())
         }
     }
@@ -659,6 +740,7 @@ fn main() {
             }
         }
         Cmd::Ssh { sub } => ssh_cmd(sub),
+        Cmd::Projects { sub } => projects_cmd(sub),
     };
     if let Err(e) = r {
         eprintln!("{}", tf("err.prefix", &[("e", &e)]));

@@ -84,13 +84,33 @@ fn basename(p: &Path) -> String {
 }
 
 /// Varre recursivamente `dir` (na profundidade `depth`), acumulando projetos em `out`
-/// e deduplicando por caminho canônico via `seen`.
-fn walk(dir: &Path, depth: usize, out: &mut Vec<Project>, seen: &mut HashSet<PathBuf>) {
+/// e deduplicando por caminho canônico via `seen`. `pins` é o conjunto de caminhos
+/// canônicos FIXADOS: um diretório nele é tratado como projeto (marcador "pinned")
+/// e PARA a descida — igual a um marcador — pra o guarda-chuva aparecer como UM projeto.
+fn walk(
+    dir: &Path,
+    depth: usize,
+    out: &mut Vec<Project>,
+    seen: &mut HashSet<PathBuf>,
+    pins: &HashSet<PathBuf>,
+) {
     if !dir.is_dir() {
         return;
     }
     // Caminho canônico pra dedup e pra registrar o projeto de forma estável.
     let canon = std::fs::canonicalize(dir).unwrap_or_else(|_| dir.to_path_buf());
+
+    // Pin tem prioridade sobre marcador: um dir pinado é projeto "pinned" e para de descer.
+    if pins.contains(&canon) {
+        if seen.insert(canon.clone()) {
+            out.push(Project {
+                name: basename(&canon),
+                path: canon.to_string_lossy().into_owned(),
+                marker: "pinned".to_string(),
+            });
+        }
+        return;
+    }
 
     if let Some(marker) = marker_of(&canon) {
         if seen.insert(canon.clone()) {
@@ -129,18 +149,49 @@ fn walk(dir: &Path, depth: usize, out: &mut Vec<Project>, seen: &mut HashSet<Pat
         .collect();
     children.sort();
     for child in children {
-        walk(&child, depth + 1, out, seen);
+        walk(&child, depth + 1, out, seen, pins);
     }
 }
 
 /// Descobre os projetos em todos os diretórios de desenvolvimento cadastrados.
 /// Dedup por caminho canônico; saída determinística (ordem dos dev_dirs + nome).
 pub fn scan(dev_dirs: &[String]) -> Vec<Project> {
+    scan_with_pins(dev_dirs, &[])
+}
+
+/// Como `scan`, mas os projetos FIXADOS (`pinned`) SEMPRE entram na lista, mesmo
+/// sem marcador git, e um dir pinado encontrado durante o walk vira UM projeto que
+/// para de descer (não despeja os sub-repos dele). Dedup por caminho canônico; o
+/// label "pinned" tem prioridade. Saída determinística.
+pub fn scan_with_pins(dev_dirs: &[String], pinned: &[String]) -> Vec<Project> {
+    // Conjunto de pins canônicos (dir precisa existir pra virar projeto listado).
+    let pins: HashSet<PathBuf> = pinned
+        .iter()
+        .filter_map(|p| std::fs::canonicalize(p).ok())
+        .collect();
+
     let mut out = Vec::new();
     let mut seen = HashSet::new();
+
+    // 1) Os pins válidos entram primeiro, garantidamente listados como "pinned".
+    //    Ordenados pra saída determinística.
+    let mut pin_list: Vec<PathBuf> = pins.iter().cloned().collect();
+    pin_list.sort();
+    for canon in &pin_list {
+        if canon.is_dir() && seen.insert(canon.clone()) {
+            out.push(Project {
+                name: basename(canon),
+                path: canon.to_string_lossy().into_owned(),
+                marker: "pinned".to_string(),
+            });
+        }
+    }
+
+    // 2) Varredura normal dos dev_dirs (dedup contra os pins já inseridos; um dir
+    //    pinado alcançado no walk para de descer sem re-listar).
     for d in dev_dirs {
         let root = PathBuf::from(d);
-        walk(&root, 0, &mut out, &mut seen);
+        walk(&root, 0, &mut out, &mut seen, &pins);
     }
     out
 }
@@ -238,6 +289,49 @@ mod tests {
         // Mesmo dev_dir cadastrado duas vezes → projeto aparece uma vez só.
         let projs = scan(&[s.clone(), s]);
         assert_eq!(projs.len(), 1);
+        fs::remove_dir_all(&root).ok();
+    }
+
+    #[test]
+    fn pin_de_dir_sem_marcador_aparece() {
+        let root = tmp();
+        // Uma pasta comum, SEM nenhum marcador de projeto.
+        let plain = root.join("solto");
+        fs::create_dir_all(&plain).unwrap();
+        let canon = fs::canonicalize(&plain).unwrap();
+
+        // Sem pin: não aparece. Com pin: aparece como "pinned".
+        let sem = scan_with_pins(&[root.to_string_lossy().into_owned()], &[]);
+        assert!(sem.is_empty(), "sem marcador e sem pin não deveria listar: {sem:?}");
+
+        let com = scan_with_pins(
+            &[root.to_string_lossy().into_owned()],
+            &[plain.to_string_lossy().into_owned()],
+        );
+        assert_eq!(com.len(), 1);
+        assert_eq!(com[0].marker, "pinned");
+        assert_eq!(com[0].path, canon.to_string_lossy());
+        fs::remove_dir_all(&root).ok();
+    }
+
+    #[test]
+    fn pin_de_guarda_chuva_lista_ele_e_nao_os_sub_repos() {
+        let root = tmp();
+        // Um guarda-chuva com vários sub-repos com marcador dentro.
+        let umbrella = root.join("workspace");
+        fs::create_dir_all(&umbrella).unwrap();
+        mkproj(&umbrella, "svc-a", ".git");
+        mkproj(&umbrella, "svc-b", ".git");
+        mkproj(&umbrella, "svc-c", ".overdev");
+
+        // Fixando o guarda-chuva: ele vira UM projeto e os sub-repos NÃO aparecem.
+        let projs = scan_with_pins(
+            &[root.to_string_lossy().into_owned()],
+            &[umbrella.to_string_lossy().into_owned()],
+        );
+        assert_eq!(projs.len(), 1, "deveria listar só o guarda-chuva: {projs:?}");
+        assert_eq!(projs[0].name, "workspace");
+        assert_eq!(projs[0].marker, "pinned");
         fs::remove_dir_all(&root).ok();
     }
 
