@@ -141,5 +141,13 @@
   "gui.dev_dirs": "أدلة التطوير",
   "gui.remove": "إزالة",
   "gui.dev_dirs_empty": "لا توجد أدلة تطوير بعد. أضف واحدًا (مثل مجلد PROJETOS) — يعثر schematize على المشاريع تلقائيًا عبر العلامات .overdev/.schematize/.git.",
-  "gui.add_dev_dir": "إضافة دليل تطوير…"
+  "gui.add_dev_dir": "إضافة دليل تطوير…",
+  "gui.theme_light": "سمة فاتحة",
+  "gui.theme_dark": "سمة داكنة",
+  "gui.installing": "جارٍ التثبيت…",
+  "gui.removing": "جارٍ الإزالة…",
+  "gui.coming_soon": "قريبًا",
+  "gui.col_actions": "إجراءات",
+  "gui.verified_badge": "موثّق",
+  "gui.batch_done": "{ok} تمّت · {err} خطأ"
 }

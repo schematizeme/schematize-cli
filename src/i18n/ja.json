@@ -141,5 +141,13 @@
   "gui.dev_dirs": "開発ディレクトリ",
   "gui.remove": "削除",
   "gui.dev_dirs_empty": "開発ディレクトリはまだありません。追加してください（例：PROJETOS フォルダー）。schematize は .overdev/.schematize/.git マーカーからプロジェクトを自動的に検出します。",
-  "gui.add_dev_dir": "開発ディレクトリを追加…"
+  "gui.add_dev_dir": "開発ディレクトリを追加…",
+  "gui.theme_light": "ライトテーマ",
+  "gui.theme_dark": "ダークテーマ",
+  "gui.installing": "インストール中…",
+  "gui.removing": "削除中…",
+  "gui.coming_soon": "近日公開",
+  "gui.col_actions": "操作",
+  "gui.verified_badge": "検証済み",
+  "gui.batch_done": "{ok} 完了 · {err} 件エラー"
 }

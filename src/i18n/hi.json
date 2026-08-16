@@ -141,5 +141,13 @@
   "gui.dev_dirs": "डेवलपमेंट डायरेक्ट्रीज़",
   "gui.remove": "हटाएँ",
   "gui.dev_dirs_empty": "अभी तक कोई डेवलपमेंट डायरेक्ट्री नहीं। एक जोड़ें (जैसे आपका PROJETOS फ़ोल्डर) — schematize .overdev/.schematize/.git मार्कर से प्रोजेक्ट खुद ढूँढ लेता है।",
-  "gui.add_dev_dir": "डेवलपमेंट डायरेक्ट्री जोड़ें…"
+  "gui.add_dev_dir": "डेवलपमेंट डायरेक्ट्री जोड़ें…",
+  "gui.theme_light": "लाइट थीम",
+  "gui.theme_dark": "डार्क थीम",
+  "gui.installing": "इंस्टॉल हो रहा…",
+  "gui.removing": "हटाया जा रहा…",
+  "gui.coming_soon": "जल्द आ रहा है",
+  "gui.col_actions": "क्रियाएँ",
+  "gui.verified_badge": "सत्यापित",
+  "gui.batch_done": "{ok} पूर्ण · {err} त्रुटि"
 }

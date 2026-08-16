@@ -141,5 +141,13 @@
   "gui.dev_dirs": "Diretórios de desenvolvimento",
   "gui.add_dev_dir": "Adicionar diretório de desenvolvimento…",
   "gui.dev_dirs_empty": "Nenhum diretório de desenvolvimento ainda. Cadastre um (ex.: sua pasta PROJETOS) — o schematize acha os projetos sozinho pelos marcadores .overdev/.schematize/.git.",
-  "gui.remove": "remover"
+  "gui.remove": "remover",
+  "gui.theme_light": "Tema claro",
+  "gui.theme_dark": "Tema escuro",
+  "gui.installing": "instalando…",
+  "gui.removing": "removendo…",
+  "gui.coming_soon": "em breve",
+  "gui.col_actions": "Ações",
+  "gui.verified_badge": "Verificado",
+  "gui.batch_done": "{ok} concluída(s) · {err} com erro"
 }

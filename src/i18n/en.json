@@ -141,5 +141,13 @@
   "gui.dev_dirs": "Development directories",
   "gui.add_dev_dir": "Add development directory…",
   "gui.dev_dirs_empty": "No development directories yet. Add one (e.g. your PROJETOS folder) — schematize finds the projects on its own via the .overdev/.schematize/.git markers.",
-  "gui.remove": "remove"
+  "gui.remove": "remove",
+  "gui.theme_light": "Light theme",
+  "gui.theme_dark": "Dark theme",
+  "gui.installing": "installing…",
+  "gui.removing": "removing…",
+  "gui.coming_soon": "coming soon",
+  "gui.col_actions": "Actions",
+  "gui.verified_badge": "Verified",
+  "gui.batch_done": "{ok} done · {err} error(s)"
 }

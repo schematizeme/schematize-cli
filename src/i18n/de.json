@@ -141,5 +141,13 @@
   "gui.dev_dirs": "Entwicklungsverzeichnisse",
   "gui.remove": "entfernen",
   "gui.dev_dirs_empty": "Noch keine Entwicklungsverzeichnisse. Fügen Sie eines hinzu (z. B. Ihren PROJETOS-Ordner) — schematize findet die Projekte selbst über die Marker .overdev/.schematize/.git.",
-  "gui.add_dev_dir": "Entwicklungsverzeichnis hinzufügen…"
+  "gui.add_dev_dir": "Entwicklungsverzeichnis hinzufügen…",
+  "gui.theme_light": "Helles Thema",
+  "gui.theme_dark": "Dunkles Thema",
+  "gui.installing": "installiere…",
+  "gui.removing": "entferne…",
+  "gui.coming_soon": "demnächst",
+  "gui.col_actions": "Aktionen",
+  "gui.verified_badge": "Verifiziert",
+  "gui.batch_done": "{ok} erledigt · {err} Fehler"
 }

@@ -141,5 +141,13 @@
   "gui.dev_dirs": "开发目录",
   "gui.remove": "移除",
   "gui.dev_dirs_empty": "尚无开发目录。添加一个（例如你的 PROJETOS 文件夹）——schematize 会通过 .overdev/.schematize/.git 标记自动找到项目。",
-  "gui.add_dev_dir": "添加开发目录…"
+  "gui.add_dev_dir": "添加开发目录…",
+  "gui.theme_light": "浅色主题",
+  "gui.theme_dark": "深色主题",
+  "gui.installing": "正在安装…",
+  "gui.removing": "正在删除…",
+  "gui.coming_soon": "即将推出",
+  "gui.col_actions": "操作",
+  "gui.verified_badge": "已验证",
+  "gui.batch_done": "{ok} 完成 · {err} 个错误"
 }
