@@ -22,3 +22,6 @@ pub mod skills;
 pub mod status;
 pub mod upgrade;
 pub mod util;
+
+#[cfg(feature = "gui")]
+pub mod gui;

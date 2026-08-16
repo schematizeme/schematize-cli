@@ -93,6 +93,8 @@ enum Cmd {
         #[command(subcommand)]
         sub: EnvCmd,
     },
+    /// Open the graphical window (same software as the CLI — just the GUI face).
+    Gui,
 }
 
 #[derive(Subcommand)]
@@ -340,6 +342,18 @@ fn main() {
                 environments::remove(&lang, method, dry_run)
             }
         },
+        Cmd::Gui => {
+            // Mesma aplicação, outra face: `schematize gui` abre a janela. A GUI só
+            // existe na build com --features gui (o install.sh source-first já usa).
+            #[cfg(feature = "gui")]
+            {
+                schematize::gui::run().map_err(|e| e.to_string())
+            }
+            #[cfg(not(feature = "gui"))]
+            {
+                Err("esta build não inclui a janela — reinstale com --features gui (o install.sh já faz isso)".to_string())
+            }
+        }
     };
     if let Err(e) = r {
         eprintln!("{}", tf("err.prefix", &[("e", &e)]));

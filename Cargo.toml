@@ -16,7 +16,7 @@ path = "src/main.rs"
 # GUI (janela egui) — só compila com --features gui (precisa de libs X11/Wayland/GL).
 [[bin]]
 name = "schematize-gui"
-path = "src/gui.rs"
+path = "src/bin/schematize-gui.rs"
 required-features = ["gui"]
 
 [dependencies]

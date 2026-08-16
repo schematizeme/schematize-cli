@@ -101,7 +101,7 @@ Type=Application
 Name=schematize
 GenericName=Gerenciador de skills
 Comment=Gerenciar skills e overdev do schematize
-Exec=schematize-gui
+Exec=schematize gui
 Terminal=false
 Categories=Development;Utility;
 Keywords=schematize;skills;overdev;claude;
@@ -128,7 +128,7 @@ post_config() {
   echo; ok "pronto. Próximos passos:"
   echo "    schematize install --all      # instala as skills"
   echo "    schematize overdev enable     # liga o modo overdev"
-  echo "    schematize-gui &              # abre a janela (o & libera o terminal; ou use o menu de apps)"
+  echo "    schematize gui                # abre a janela (o & libera o terminal; ou use o menu de apps)"
   echo "    schematize list               # versões instaladas vs latest"
 }
 

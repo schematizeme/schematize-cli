@@ -3,15 +3,14 @@
 //! (2) Overdev — o run do projeto (objetivo, checklist, decisões, plano, perguntas), NATIVO;
 //! (3) Grafo — a tela de grafos do index (force-directed estilo Obsidian), NATIVA, nós
 //! linkados a arquivo:linha. Tudo dentro do app, persistente (nada de aba de navegador que
-//! some). Onde: binário separado (feature `gui`); usa a lib `schematize`.
-#![cfg_attr(all(target_os = "windows", not(debug_assertions)), windows_subsystem = "windows")]
+//! some). Onde: módulo do lib (feature `gui`), aberto por `schematize gui` ou pelo atalho `schematize-gui`.
 
 use eframe::egui;
 use eframe::egui::IconData;
 use notify_rust::Notification;
-use schematize::i18n::{self, t, tf};
-use schematize::registry::Item;
-use schematize::{config, links, panel, projects, registry, selfupdate, skills, util};
+use crate::i18n::{self, t, tf};
+use crate::registry::Item;
+use crate::{config, links, panel, projects, registry, selfupdate, skills, util};
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -1111,8 +1110,8 @@ impl App {
     }
 }
 
-fn main() -> eframe::Result<()> {
-    let (rgba, w, h) = schematize::appicon::rgba(256);
+pub fn run() -> eframe::Result<()> {
+    let (rgba, w, h) = crate::appicon::rgba(256);
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_inner_size([900.0, 620.0])
