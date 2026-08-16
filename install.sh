@@ -101,17 +101,28 @@ ensure_rust() {
 }
 install_gui_launcher() {
   local app="$HOME/.local/share/applications"; mkdir -p "$app"
-  cat > "$app/schematize-gui.desktop" <<'EOF'
+  # CAMINHO ABSOLUTO do schematize-gui (o Slint recém-instalado) — o `Exec=schematize gui`
+  # dependia do PATH do ambiente gráfico, que muitas vezes NÃO tem ~/.cargo/bin; aí o DE
+  # abria o schematize-gui do pacote em /usr/bin (egui, layout velho). Absoluto mata isso.
+  local guibin; guibin="$(command -v schematize-gui 2>/dev/null || echo "$HOME/.cargo/bin/schematize-gui")"
+  cat > "$app/schematize-gui.desktop" <<EOF
 [Desktop Entry]
 Type=Application
 Name=schematize
-GenericName=Gerenciador de skills
-Comment=Gerenciar skills e overdev do schematize
-Exec=schematize gui
+GenericName=Ecossistema schematize
+Comment=Skills, overdev e mais — schematize
+Exec=$guibin
 Terminal=false
 Categories=Development;Utility;
 Keywords=schematize;skills;overdev;claude;
 EOF
+  update-desktop-database "$app" 2>/dev/null || true
+  # No modo fonte, remove o lançador DUPLICADO do pacote (Exec=schematize-gui, que pode cair
+  # no egui do /usr/bin) pra o DE usar só este (absoluto → Slint).
+  if [ "${MODE:-source}" = source ] && [ -f /usr/share/applications/schematize-gui.desktop ]; then
+    $SUDO rm -f /usr/share/applications/schematize-gui.desktop 2>/dev/null || true
+    update-desktop-database /usr/share/applications 2>/dev/null || true
+  fi
 }
 
 post_config() {
