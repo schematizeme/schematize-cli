@@ -1,5 +1,5 @@
 {
-  "_comment": "Índice do catálogo de skills do schematize. A CLI/GUI leem este arquivo (raw main) — skill nova = adicionar entrada e commitar; NÃO recompila a CLI. category = grupo na GUI (base|language|external). sponsor = co-autor/patrocinador da skill: name, url e doc (CPF de pessoa ou CNPJ de empresa, pra credibilidade). PREENCHER os `doc` com os números reais (não invente): Lucassa=CPF, Hextorn=CNPJ, Basilisk Offsec=CNPJ.",
+  "_comment": "Índice do catálogo de skills do schematize. A CLI/GUI leem este arquivo (raw main) — skill nova = adicionar entrada e commitar; NÃO recompila a CLI. category = grupo na GUI (base|language|external). sponsor = a PESSOA/ORGANIZAÇÃO por trás da skill (o que passa credibilidade): name + url (clicável na GUI). O campo doc é OPCIONAL — CNPJ de empresa parceira adiciona verificabilidade pública; pessoa física normalmente deixa null. NUNCA inventar documento.",
   "skills": [
     { "slug": "engineering", "skill_dir": "schematize-engineering", "repo": "skill-engineering", "zip": "skill-engineering.zip", "category": "base", "sponsor": { "name": "Lucassa", "url": "https://lucassa.me", "doc": null } },
     { "slug": "web", "skill_dir": "schematize-web", "repo": "skill-web", "zip": "skill-web.zip", "category": "base", "sponsor": { "name": "Lucassa", "url": "https://lucassa.me", "doc": null } },
