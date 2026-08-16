@@ -460,15 +460,23 @@ fn main() {
             }
         },
         Cmd::Gui => {
-            // Mesma aplicação, outra face: `schematize gui` abre a janela. A GUI só
-            // existe na build com --features gui (o install.sh source-first já usa).
-            #[cfg(feature = "gui")]
-            {
-                schematize::gui::run().map_err(|e| e.to_string())
-            }
-            #[cfg(not(feature = "gui"))]
-            {
-                Err("esta build não inclui a janela — reinstale com --features gui (o install.sh já faz isso)".to_string())
+            // Mesma aplicação, outra face. A face gráfica DEFAULT é o binário
+            // `schematize-gui` (Slint), instalado à parte pelo install.sh; executa-o.
+            // Se ele não estiver no PATH (ex.: build do Slint falhou), cai na GUI egui
+            // EMBUTIDA (fallback) — a virada é segura: nunca fica sem janela.
+            match std::process::Command::new("schematize-gui").status() {
+                Ok(st) if st.success() => Ok(()),
+                Ok(st) => Err(format!("schematize-gui saiu com {st}")),
+                Err(_) => {
+                    #[cfg(feature = "gui")]
+                    {
+                        schematize::gui::run().map_err(|e| e.to_string())
+                    }
+                    #[cfg(not(feature = "gui"))]
+                    {
+                        Err("GUI indisponível — reinstale (o install.sh instala o schematize-gui).".to_string())
+                    }
+                }
             }
         }
         Cmd::Ssh { sub } => ssh_cmd(sub),

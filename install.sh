@@ -59,20 +59,21 @@ resolve_dl() {
 # libs de runtime da GUI — só para o modo binário (o pacote resolve sozinho).
 gui_runtime_deps() {
   case "$FAMILY" in
-    debian) pkg_install libx11-6 libxcursor1 libxrandr2 libxi6 libxkbcommon0 libwayland-client0 libgl1 || true ;;
-    rpm)    pkg_install libX11-6 libXcursor1 libXrandr2 libXi6 libxkbcommon0 libwayland-client0 Mesa-libGL1 || true ;;
+    debian) pkg_install libx11-6 libxcursor1 libxrandr2 libxi6 libxkbcommon0 libwayland-client0 libgl1 libfontconfig1 || true ;;
+    rpm)    pkg_install libX11-6 libXcursor1 libXrandr2 libXi6 libxkbcommon0 libwayland-client0 Mesa-libGL1 fontconfig || true ;;
   esac
 }
 # libs de BUILD — só para --from-source.
 gui_build_deps() {
-  log "instalando libs de build da GUI (X11/Wayland/GL)"
+  log "instalando libs de build da GUI (X11/Wayland/GL + fontconfig p/ o Slint)"
   case "$FAMILY" in
+    # libfontconfig1-dev: o Slint 1.17 (fontique no núcleo) LINKA a libfontconfig no build.
     debian) pkg_install build-essential pkg-config libx11-dev libxcursor-dev libxrandr-dev libxi-dev \
               libxkbcommon-dev libwayland-dev libgl1-mesa-dev libxcb1-dev libxcb-render0-dev \
-              libxcb-shape0-dev libxcb-xfixes0-dev ;;
+              libxcb-shape0-dev libxcb-xfixes0-dev libfontconfig1-dev ;;
     rpm)    pkg_install gcc gcc-c++ make pkg-config libX11-devel libXcursor-devel libXrandr-devel \
-              libXi-devel libxkbcommon-devel wayland-devel Mesa-libGL-devel libxcb-devel ;;
-    *) die "GUI do fonte: instale manualmente as libs de X11/Wayland/GL da sua distro." ;;
+              libXi-devel libxkbcommon-devel wayland-devel Mesa-libGL-devel libxcb-devel fontconfig-devel ;;
+    *) die "GUI do fonte: instale manualmente as libs de X11/Wayland/GL/fontconfig da sua distro." ;;
   esac
 }
 # Fontes de cobertura ampla (CJK/árabe/devanagari/tailandês/bengali) — pra GUI não
@@ -171,11 +172,21 @@ install_source() {
   ensure_runtime_deps; ensure_rust; gui_build_deps; ensure_fonts
   . "$HOME/.cargo/env" 2>/dev/null || true
   local d; d="$(mktemp -d)"
-  log "clonando + compilando CLI + GUI do fonte (release/LTO — leva alguns minutos na 1ª vez)"
+  log "clonando + compilando o CLI do fonte (release/LTO — leva alguns minutos na 1ª vez)"
   git clone --depth 1 "https://github.com/$REPO.git" "$d/src"
-  # cargo install põe schematize + schematize-gui em ~/.cargo/bin (com --features gui os dois entram).
+  # CLI: instala `schematize` + a GUI egui como `schematize-gui` (fallback).
   ( cd "$d/src" && cargo install --path . --features gui --force )
   export PATH="$HOME/.cargo/bin:$PATH"; hash -r 2>/dev/null || true
+  # GUI DEFAULT = Slint (repo próprio, dep no lib via git). Instala como `schematize-gui`,
+  # SOBRESCREVENDO o egui. Se o build do Slint falhar, o egui permanece como fallback
+  # (a janela nunca some). `schematize gui` executa esse binário.
+  log "compilando a GUI (Slint) — schematize-gui"
+  if git clone --depth 1 "https://github.com/schematizeme/schematize_gui_slint.git" "$d/gui" 2>/dev/null \
+     && ( cd "$d/gui" && cargo install --path . --force ); then
+    ok "GUI Slint instalada (schematize-gui)."
+  else
+    warn "build da GUI Slint falhou — a GUI egui fica como schematize-gui (fallback). Rode o install de novo depois."
+  fi
   install_gui_launcher
   rm -rf "$d"; post_config
 }
