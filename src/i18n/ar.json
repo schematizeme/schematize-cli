@@ -183,5 +183,18 @@
   "env.remove_no_method": "لا يوجد ‎--method‎ وتعذّر اكتشاف كيفية تثبيت {lang}. حدِّد بـ ‎--method‎.",
   "env.docker_usage": "لاستخدام الصورة، نفِّذ في مشروعك:",
   "env.mise_bootstrap": "mise غير موجود — سيُثبَّت أولًا عبر https://mise.run (curl | sh).",
-  "env.caveat": "ملاحظة:"
+  "env.caveat": "ملاحظة:",
+  "gui.tab_environments": "البيئات",
+  "gui.env_intro": "بيئات تشغيل اللغات + الأدوات. التثبيت/الإزالة يعمل في الطرفية — ترى الأمر الدقيق وتؤكّده (قد يطلب كلمة المرور).",
+  "gui.env_method": "الطريقة:",
+  "gui.env_no_methods": "لا توجد طريقة متاحة على هذا الجهاز",
+  "gui.env_terminal_opened": "فتحت طرفية لتشغيل الأمر (قد يطلب كلمة المرور).",
+  "gui.env_no_terminal": "لم يتم العثور على طرفية رسومية؛ نفّذ في الطرفية: {cmd}",
+  "gui.mp_install_title": "تثبيت {slug}",
+  "gui.mp_recommends_note": "توصي هذه المهارة بالمهارة الأساسية:",
+  "gui.mp_with_recommended": "تثبيت {slug} (الأساسية) أيضًا",
+  "gui.mp_with_env": "تثبيت بيئة {lang} أيضًا (بيئة التشغيل + الأدوات)",
+  "gui.mp_env_note": "البيئة تُعدّل جهازك وتعمل في الطرفية بعد تأكيدك.",
+  "gui.mp_confirm": "تثبيت",
+  "gui.mp_cancel": "إلغاء"
 }

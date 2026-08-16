@@ -12,9 +12,14 @@ pub mod detect;
 
 use crate::i18n::{t, tf};
 use crate::util;
-use defs::{Env, Method, Recipe, Step};
+use defs::{Env, Recipe, Step};
 use detect::Family;
 use std::io::{self, BufRead, Write};
+
+// Re-exporta `Method` no nível do módulo (traz pra escopo interno E expõe como
+// `environments::Method` pra consumidores externos, ex.: a GUI).
+pub use defs::Method;
+
 
 /// Snapshot do que a máquina oferece — calculado uma vez por comando.
 struct Machine {
@@ -69,12 +74,56 @@ fn installed_method(env: &Env, m: &Machine) -> Option<Method> {
     None
 }
 
+// ---------------------------------------------------------------------------
+// API de DADOS pública (aditiva): o status estruturado de cada environment nesta
+// máquina — pra a GUI consumir SEM parsear texto. O `list()` também passa a
+// consumir isto (fonte única; nada de duplicar a detecção). O egui não usa.
+// ---------------------------------------------------------------------------
+
+/// Status estruturado de UM environment nesta máquina.
+pub struct LangEnv {
+    /// slug curto ("go", "rust", ...).
+    pub lang: &'static str,
+    /// nome de exibição ("Go", "C# / .NET", ...).
+    pub display: &'static str,
+    /// métodos utilizáveis NESTA máquina (docker só com docker; distro só com família).
+    pub methods_available: Vec<Method>,
+    /// método de instalação DETECTADO (docker/mise), quando rastreável; None caso contrário.
+    pub installed: Option<Method>,
+    /// runtime já presente no PATH (cobre distro/official, cujo método não é rastreável).
+    pub runtime_present: bool,
+}
+
+impl LangEnv {
+    /// A GUI/tabela consideram "instalado" se há método detectado OU o runtime no PATH.
+    pub fn is_installed(&self) -> bool {
+        self.installed.is_some() || self.runtime_present
+    }
+}
+
+/// Status de TODOS os environments nesta máquina (sonda a máquina UMA vez).
+/// Reaproveita exatamente a detecção que o `list()` usa; é a fonte única.
+pub fn status() -> Vec<LangEnv> {
+    let m = Machine::probe();
+    let available = m.available();
+    defs::ENVS
+        .iter()
+        .map(|env| LangEnv {
+            lang: env.lang,
+            display: env.display,
+            methods_available: available.clone(),
+            installed: installed_method(env, &m),
+            runtime_present: detect::has_bin(env.bin),
+        })
+        .collect()
+}
+
 /// Texto de status pra a tabela: instalado por qual método, ou só "instalado", ou não.
-fn status_text(env: &Env, m: &Machine) -> String {
-    if let Some(method) = installed_method(env, m) {
+fn status_text(le: &LangEnv) -> String {
+    if let Some(method) = le.installed {
         return tf("env.installed_via", &[("method", method.slug())]);
     }
-    if detect::has_bin(env.bin) {
+    if le.runtime_present {
         return t("env.installed");
     }
     t("env.not_installed")
@@ -82,8 +131,7 @@ fn status_text(env: &Env, m: &Machine) -> String {
 
 /// `schematize env list` — tabela: linguagem, métodos disponíveis aqui, e status.
 pub fn list() {
-    let m = Machine::probe();
-    let avail: Vec<&str> = m.available().iter().map(|x| x.slug()).collect();
+    let envs = status();
     println!("{}", t("env.header"));
     println!(
         "  {:<12} {:<32} {}",
@@ -91,15 +139,14 @@ pub fn list() {
         t("env.col_methods"),
         t("env.col_status")
     );
-    for env in defs::ENVS {
-        // métodos disponíveis são os mesmos pra a máquina; mostramos por linha por clareza.
-        let methods = avail.join(", ");
-        println!(
-            "  {:<12} {:<32} {}",
-            env.display,
-            methods,
-            status_text(env, &m)
-        );
+    for le in &envs {
+        let methods = le
+            .methods_available
+            .iter()
+            .map(|x| x.slug())
+            .collect::<Vec<_>>()
+            .join(", ");
+        println!("  {:<12} {:<32} {}", le.display, methods, status_text(le));
     }
 }
 

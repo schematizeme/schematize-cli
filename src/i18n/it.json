@@ -183,5 +183,18 @@
   "env.remove_no_method": "senza --method e impossibile rilevare come {lang} è stato installato. scegli con --method.",
   "env.docker_usage": "per usare l'immagine, esegui nel tuo progetto:",
   "env.mise_bootstrap": "mise non trovato — sarà installato prima via https://mise.run (curl | sh).",
-  "env.caveat": "nota:"
+  "env.caveat": "nota:",
+  "gui.tab_environments": "Ambienti",
+  "gui.env_intro": "Runtime dei linguaggi + strumenti. Installa/rimuovi viene eseguito in un terminale — vedi il comando esatto e confermi (potrebbe chiedere la password).",
+  "gui.env_method": "Metodo:",
+  "gui.env_no_methods": "nessun metodo disponibile su questa macchina",
+  "gui.env_terminal_opened": "Ho aperto un terminale per eseguire il comando (potrebbe chiedere la password).",
+  "gui.env_no_terminal": "nessun terminale grafico trovato; esegui in un terminale: {cmd}",
+  "gui.mp_install_title": "Installa {slug}",
+  "gui.mp_recommends_note": "Questa skill raccomanda la skill di base:",
+  "gui.mp_with_recommended": "installa anche {slug} (base)",
+  "gui.mp_with_env": "installa anche l'ambiente {lang} (runtime + strumenti)",
+  "gui.mp_env_note": "l'ambiente modifica la tua macchina e viene eseguito in un terminale con la tua conferma.",
+  "gui.mp_confirm": "Installa",
+  "gui.mp_cancel": "Annulla"
 }

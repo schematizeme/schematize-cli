@@ -183,5 +183,18 @@
   "env.remove_no_method": "--method नहीं और {lang} कैसे इंस्टॉल हुआ पता नहीं चला। --method से चुनें।",
   "env.docker_usage": "इमेज उपयोग करने के लिए, अपने प्रोजेक्ट में चलाएँ:",
   "env.mise_bootstrap": "mise नहीं मिला — पहले https://mise.run (curl | sh) से इंस्टॉल होगा।",
-  "env.caveat": "नोट:"
+  "env.caveat": "नोट:",
+  "gui.tab_environments": "एनवायरनमेंट",
+  "gui.env_intro": "भाषा रनटाइम + टूल्स। इंस्टॉल/हटाना एक टर्मिनल में चलता है — आप सटीक कमांड देखते हैं और पुष्टि करते हैं (पासवर्ड माँगा जा सकता है)।",
+  "gui.env_method": "तरीका:",
+  "gui.env_no_methods": "इस मशीन पर कोई तरीका उपलब्ध नहीं",
+  "gui.env_terminal_opened": "कमांड चलाने के लिए एक टर्मिनल खोला (पासवर्ड माँगा जा सकता है)।",
+  "gui.env_no_terminal": "कोई ग्राफ़िकल टर्मिनल नहीं मिला; टर्मिनल में चलाएँ: {cmd}",
+  "gui.mp_install_title": "{slug} इंस्टॉल करें",
+  "gui.mp_recommends_note": "यह skill बेस skill की सिफ़ारिश करती है:",
+  "gui.mp_with_recommended": "{slug} (बेस) भी इंस्टॉल करें",
+  "gui.mp_with_env": "{lang} एनवायरनमेंट भी इंस्टॉल करें (रनटाइम + टूल्स)",
+  "gui.mp_env_note": "एनवायरनमेंट आपकी मशीन को बदलता है और आपकी पुष्टि के साथ टर्मिनल में चलता है।",
+  "gui.mp_confirm": "इंस्टॉल करें",
+  "gui.mp_cancel": "रद्द करें"
 }

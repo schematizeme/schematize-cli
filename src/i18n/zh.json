@@ -183,5 +183,18 @@
   "env.remove_no_method": "缺少 --method，且无法检测 {lang} 的安装方式。请用 --method 指定。",
   "env.docker_usage": "使用该镜像，请在项目中运行：",
   "env.mise_bootstrap": "未找到 mise — 将先通过 https://mise.run（curl | sh）安装。",
-  "env.caveat": "注意："
+  "env.caveat": "注意：",
+  "gui.tab_environments": "环境",
+  "gui.env_intro": "语言运行时 + 工具。安装/卸载在终端中执行——你可以看到确切的命令并确认（可能需要输入密码）。",
+  "gui.env_method": "方式：",
+  "gui.env_no_methods": "此机器上没有可用的方式",
+  "gui.env_terminal_opened": "已打开终端来运行该命令（可能需要输入密码）。",
+  "gui.env_no_terminal": "未找到图形终端；请在终端中运行：{cmd}",
+  "gui.mp_install_title": "安装 {slug}",
+  "gui.mp_recommends_note": "此技能推荐基础技能：",
+  "gui.mp_with_recommended": "同时安装 {slug}（基础）",
+  "gui.mp_with_env": "同时安装 {lang} 环境（运行时 + 工具）",
+  "gui.mp_env_note": "环境会改动你的机器，并在你确认后于终端中执行。",
+  "gui.mp_confirm": "安装",
+  "gui.mp_cancel": "取消"
 }

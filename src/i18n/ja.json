@@ -183,5 +183,18 @@
   "env.remove_no_method": "--method がなく、{lang} のインストール方法を検出できません。--method で指定してください。",
   "env.docker_usage": "イメージを使うには、プロジェクトで実行:",
   "env.mise_bootstrap": "mise が見つかりません — 先に https://mise.run（curl | sh）で導入します。",
-  "env.caveat": "注意:"
+  "env.caveat": "注意:",
+  "gui.tab_environments": "環境",
+  "gui.env_intro": "言語ランタイムとツール。インストール/削除はターミナルで実行され、正確なコマンドを確認して承認できます（パスワードを求められる場合があります）。",
+  "gui.env_method": "方法:",
+  "gui.env_no_methods": "このマシンで利用できる方法がありません",
+  "gui.env_terminal_opened": "コマンドを実行するためにターミナルを開きました（パスワードを求められる場合があります）。",
+  "gui.env_no_terminal": "グラフィカルなターミナルが見つかりません。ターミナルで実行してください: {cmd}",
+  "gui.mp_install_title": "{slug} をインストール",
+  "gui.mp_recommends_note": "このスキルはベーススキルを推奨します:",
+  "gui.mp_with_recommended": "{slug}（ベース）も一緒にインストール",
+  "gui.mp_with_env": "{lang} 環境（ランタイム + ツール）も一緒にインストール",
+  "gui.mp_env_note": "環境はマシンを変更し、確認のうえターミナルで実行されます。",
+  "gui.mp_confirm": "インストール",
+  "gui.mp_cancel": "キャンセル"
 }
