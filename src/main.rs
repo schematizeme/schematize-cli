@@ -8,8 +8,8 @@ use schematize::agentrun::AgentRunner;
 use schematize::i18n::{t, tf};
 use schematize::{
     account, agent, agentrun, autostart, config, debug, doctor, environments, githist, i18n, links,
-    news, notifications, overdev, overdevdb, panel, projects, registry, skilledit, skills, sshkeys,
-    status, upgrade, util,
+    market, news, notifications, overdev, overdevdb, panel, projects, registry, skilledit, skills,
+    sshkeys, status, upgrade, util,
 };
 use std::io::{self, BufRead, Write};
 use std::time::Duration;
@@ -213,11 +213,32 @@ enum SshCmd {
     /// List keys in ~/.ssh (name, type, fingerprint, comment). Never reads the private key.
     List,
     /// Print the PUBLIC key (paste it on GitHub/servers); --copy sends it to the clipboard.
+    /// With --bitwarden, export the key to Bitwarden instead (item in the vault if `bw` is
+    /// unlocked, else a mode-600 import JSON) — the PRIVATE key never hits stdout.
     Export {
         name: String,
         #[arg(long)]
         copy: bool,
+        /// Export to Bitwarden (vault item via `bw`, or a mode-600 import JSON as fallback).
+        #[arg(long)]
+        bitwarden: bool,
+        /// Import-JSON output path (only with --bitwarden fallback). Default ~/.schematize/bw-import-<name>.json.
+        #[arg(long)]
+        out: Option<String>,
     },
+    /// Deploy WITHOUT pasting the key: `ssh -i <managed key> user@host [-- <remote cmd...>]`.
+    /// Inherits the terminal, never prints the private key. No command = interactive session.
+    /// Ex.: schematize ssh run deploy root@host -- 'cd /srv/app && git pull && ./deploy.sh'
+    Run {
+        name: String,
+        target: String,
+        /// Remote command to run (everything after `--`). Empty = interactive shell.
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        command: Vec<String>,
+    },
+    /// Install the PUBLIC key into the remote host's ~/.ssh/authorized_keys (bootstrap access).
+    /// Requires you already have access to the host (another key/agent/password).
+    Authorize { name: String, target: String },
     /// Remove a key pair (private + public) with confirmation.
     Rm { name: String },
     /// Add an existing PUBLIC key to your GitHub account (gh must be authenticated).
@@ -533,6 +554,11 @@ fn ssh_cmd(sub: SshCmd) -> Result<(), String> {
             let info = sshkeys::generate(&name, kind, comment.as_deref(), None, force)?;
             println!("{}", tf("ssh.generated", &[("name", &info.name), ("kind", &info.kind)]));
             println!("{}", tf("ssh.fingerprint", &[("fp", &info.fingerprint)]));
+            // Prova de entropia: nível de segurança + linha do ssh-keygen -l (bits + tipo).
+            println!("entropia: {}", sshkeys::entropy_note(kind));
+            if let Ok(proof) = sshkeys::proof_line(&name) {
+                println!("prova (ssh-keygen -l): {proof}");
+            }
             if agent {
                 if sshkeys::add_to_agent(&name) {
                     println!("{}", t("ssh.agent_ok"));
@@ -560,7 +586,14 @@ fn ssh_cmd(sub: SshCmd) -> Result<(), String> {
             }
             Ok(())
         }
-        SshCmd::Export { name, copy } => {
+        SshCmd::Export { name, copy, bitwarden, out } => {
+            // --bitwarden: exporta pro cofre/arquivo (NUNCA imprime a privada).
+            if bitwarden {
+                let out_path = out.as_deref().map(std::path::Path::new);
+                let msg = sshkeys::export_bitwarden(&name, out_path)?;
+                println!("{msg}");
+                return Ok(());
+            }
             let pubkey = sshkeys::export_public(&name)?;
             println!("{pubkey}");
             if copy {
@@ -570,6 +603,20 @@ fn ssh_cmd(sub: SshCmd) -> Result<(), String> {
                     eprintln!("{}", t("ssh.copy_fail"));
                 }
             }
+            Ok(())
+        }
+        SshCmd::Run { name, target, command } => {
+            // Deploy sem chave inline: usa a privada gerenciada só via `-i` (nunca a imprime).
+            let code = sshkeys::run_ssh(&name, &target, &command)?;
+            if code != 0 {
+                std::process::exit(code);
+            }
+            Ok(())
+        }
+        SshCmd::Authorize { name, target } => {
+            sshkeys::authorize(&name, &target)?;
+            println!("chave pública '{name}' instalada em {target}:~/.ssh/authorized_keys");
+            println!("teste o acesso: schematize ssh run {name} {target} -- 'echo ok'");
             Ok(())
         }
         SshCmd::Rm { name } => {
@@ -893,12 +940,20 @@ fn skills_update(names: &[String], all: bool) -> Result<(), String> {
     Ok(())
 }
 
-/// Lista skills: instaladas vs última disponível.
+/// Lista skills: instaladas vs última disponível. Se houver rede, anexa a nota do marketplace
+/// (uma única request pra todas as linhas) — offline não trava: o mapa vem vazio e a nota some.
 fn skills_list() -> Result<(), String> {
     let st = skills::load_state();
+    let ratings = market::market_ratings_all(); // vazio se offline; não bloqueia a listagem
     println!("{}", t("skills.header"));
     for it in &registry::catalog() {
-        println!("  {}", skills::status_line(it, &st, true));
+        let line = skills::status_line(it, &st, true);
+        let nota = market::format_rating(ratings.get(&it.slug).copied());
+        if nota.is_empty() {
+            println!("  {line}");
+        } else {
+            println!("  {line}  {nota}");
+        }
     }
     Ok(())
 }

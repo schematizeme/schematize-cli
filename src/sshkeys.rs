@@ -182,6 +182,8 @@ pub fn generate(
     force: bool,
 ) -> Result<KeyInfo, String> {
     valid_name(name)?;
+    // Piso de entropia: ed25519 (256-bit CSPRNG) sempre ok; RSA só >= 4096 bits.
+    validate_entropy(kind)?;
     let dir = ensure_ssh_dir()?;
     let priv_p = dir.join(name);
     let pub_p = dir.join(format!("{name}.pub"));
@@ -340,6 +342,322 @@ pub fn add_to_github(name: &str) -> Result<(), String> {
     .map_err(|e| format!("gh ssh-key add falhou: {e}"))
 }
 
+// ------------------------------------------------------------------------------------------------
+// ENTROPIA — piso de segurança na geração.
+// ------------------------------------------------------------------------------------------------
+
+/// Bits mínimos aceitos para RSA (deny-by-default: nada abaixo disso).
+pub const RSA_MIN_BITS: u32 = 4096;
+
+/// Nota (legível) sobre o NÍVEL de entropia/segurança de um tipo de chave — pra mostrar como
+/// prova ao usuário. Toda geração usa o CSPRNG do `ssh-keygen` (getrandom do kernel).
+pub fn entropy_note(kind: KeyKind) -> String {
+    match kind {
+        KeyKind::Ed25519 =>
+            "ed25519 (Curve25519): chave de 256 bits do CSPRNG do ssh-keygen (getrandom do kernel), \
+             ~128 bits de segurança efetiva — o padrão recomendado da casa."
+                .to_string(),
+        KeyKind::Rsa4096 => format!(
+            "RSA {RSA_MIN_BITS} bits do CSPRNG do ssh-keygen, ~140+ bits de segurança efetiva — \
+             só para hosts/dispositivos legados que ainda não falam ed25519."
+        ),
+    }
+}
+
+/// Valida o PISO de entropia do pedido (falha fechada). ed25519 é sempre aceito (256-bit fixo,
+/// CSPRNG); RSA só com bits >= `RSA_MIN_BITS`. Chamado por `generate` antes de invocar o ssh-keygen.
+pub fn validate_entropy(kind: KeyKind) -> Result<(), String> {
+    match kind {
+        KeyKind::Ed25519 => Ok(()),
+        KeyKind::Rsa4096 => {
+            let bits = kind.bits().unwrap_or(0);
+            if bits < RSA_MIN_BITS {
+                Err(format!(
+                    "RSA com {bits} bits é fraco — o piso da casa é {RSA_MIN_BITS} bits \
+                     (prefira ed25519, o default)"
+                ))
+            } else {
+                Ok(())
+            }
+        }
+    }
+}
+
+/// Linha de PROVA da chave: `ssh-keygen -l -f <pub>` → "bits SHA256:… comentário (TIPO)".
+/// Mostra bits + fingerprint + tipo de uma vez (o usuário confere a força visualmente).
+/// Best-effort: erro claro se a pública some ou o ssh-keygen falha.
+pub fn proof_line(name: &str) -> Result<String, String> {
+    let pub_p = public_path(name)?;
+    if !pub_p.exists() {
+        return Err(format!("chave pública '{name}' não encontrada em ~/.ssh"));
+    }
+    util::run("ssh-keygen", &["-l", "-f", &pub_p.to_string_lossy()])
+        .map(|s| s.trim().to_string())
+        .map_err(|e| format!("ssh-keygen -l falhou: {e}"))
+}
+
+// ------------------------------------------------------------------------------------------------
+// DEPLOY sem chave inline — usar a chave gerenciada pra logar/rodar comando remoto, e instalar a
+// PÚBLICA no host. A privada NUNCA vai pra stdout/log: só é referenciada pelo caminho (`ssh -i`).
+// ------------------------------------------------------------------------------------------------
+
+/// Caminho da chave PRIVADA gerenciada (`~/.ssh/<name>`), com o nome já validado (allow-list).
+/// Público pra a GUI/deploy referenciarem a chave por caminho, SEM nunca ler seu conteúdo.
+pub fn key_path(name: &str) -> Result<PathBuf, String> {
+    private_path(name)
+}
+
+/// Valida um alvo `user@host` (ou `host`) do ssh. Falha fechada: não-vazio, sem espaço e
+/// SEM começar por `-` (senão o ssh interpretaria como opção — injeção de flag).
+fn valid_target(target: &str) -> Result<(), String> {
+    let t = target.trim();
+    if t.is_empty() || t.starts_with('-') || t.chars().any(|c| c.is_whitespace()) {
+        return Err(format!("alvo ssh inválido: {target:?} (use user@host)"));
+    }
+    Ok(())
+}
+
+/// Roda `ssh -i <privada gerenciada> <alvo> [comando...]` HERDANDO o terminal (stdin/out/err).
+/// Sem comando → sessão interativa. A chave é referenciada só pelo CAMINHO (`-i`): o conteúdo da
+/// privada NUNCA é lido nem impresso. `IdentitiesOnly=yes` força usar só a nossa chave;
+/// `StrictHostKeyChecking=accept-new` aceita host novo sem prompt (mas trava se a fingerprint mudar).
+/// Retorna o exit code do ssh (128+sinal se morto por sinal).
+pub fn run_ssh(name: &str, target: &str, args: &[String]) -> Result<i32, String> {
+    use std::process::Command;
+    let key = key_path(name)?;
+    if !key.exists() {
+        return Err(format!(
+            "chave privada '{name}' não encontrada em ~/.ssh — gere com `schematize ssh gen {name}`"
+        ));
+    }
+    valid_target(target)?;
+    let mut cmd = Command::new("ssh");
+    cmd.arg("-i").arg(&key)
+        .arg("-o").arg("IdentitiesOnly=yes")
+        .arg("-o").arg("StrictHostKeyChecking=accept-new")
+        .arg(target);
+    // `--` não vai: o ssh já trata tudo após o alvo como o comando remoto.
+    for a in args {
+        cmd.arg(a);
+    }
+    let status = cmd.status().map_err(|e| format!("falha ao executar ssh: {e}"))?;
+    // code() é None quando morto por sinal — reporta 128+sinal (convenção shell) ou 1.
+    Ok(status.code().unwrap_or(1))
+}
+
+/// Instala a chave PÚBLICA no `~/.ssh/authorized_keys` do host remoto (bootstrap de acesso).
+/// Requer que você JÁ tenha acesso ao host (outra chave/senha/agent). Usa `ssh-copy-id -i <pub>`
+/// se existir (melhor: lida com prompt de senha), senão faz append por ssh (pública via stdin).
+/// Só a PÚBLICA é enviada — a privada nunca sai.
+pub fn authorize(name: &str, target: &str) -> Result<(), String> {
+    use std::io::Write;
+    use std::process::{Command, Stdio};
+    let pub_p = public_path(name)?;
+    if !pub_p.exists() {
+        return Err(format!("chave pública '{name}' não encontrada em ~/.ssh"));
+    }
+    valid_target(target)?;
+
+    // Caminho feliz: ssh-copy-id (herda o terminal pra pedir senha de bootstrap se preciso).
+    if in_path("ssh-copy-id") {
+        let status = Command::new("ssh-copy-id")
+            .arg("-i").arg(&pub_p)
+            .arg("-o").arg("StrictHostKeyChecking=accept-new")
+            .arg(target)
+            .status()
+            .map_err(|e| format!("falha ao executar ssh-copy-id: {e}"))?;
+        return if status.success() {
+            Ok(())
+        } else {
+            Err(format!("ssh-copy-id falhou (exit {})", status.code().unwrap_or(-1)))
+        };
+    }
+
+    // Fallback: append remoto por ssh, com a pública entrando pelo stdin (umask 077).
+    let pubkey = fs::read_to_string(&pub_p)
+        .map_err(|e| format!("não consegui ler a pública: {e}"))?;
+    let remote = "umask 077; mkdir -p ~/.ssh && cat >> ~/.ssh/authorized_keys";
+    let mut child = Command::new("ssh")
+        .arg("-o").arg("StrictHostKeyChecking=accept-new")
+        .arg(target)
+        .arg(remote)
+        .stdin(Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("falha ao executar ssh: {e}"))?;
+    if let Some(mut stdin) = child.stdin.take() {
+        stdin
+            .write_all(pubkey.trim_end().as_bytes())
+            .and_then(|_| stdin.write_all(b"\n"))
+            .map_err(|e| format!("falha ao enviar a pública: {e}"))?;
+    }
+    let status = child.wait().map_err(|e| format!("ssh não finalizou: {e}"))?;
+    if status.success() {
+        Ok(())
+    } else {
+        Err(format!("append remoto falhou (exit {})", status.code().unwrap_or(-1)))
+    }
+}
+
+/// `true` se um binário está no PATH (via `which`). Best-effort.
+fn in_path(bin: &str) -> bool {
+    std::process::Command::new("which")
+        .arg(bin)
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false)
+}
+
+// ------------------------------------------------------------------------------------------------
+// EXPORT pro Bitwarden — via CLI `bw` (se destravado) OU arquivo de IMPORT (fallback).
+// A chave PRIVADA só vai pro cofre/arquivo (mode 600) — NUNCA pro stdout/log.
+// ------------------------------------------------------------------------------------------------
+
+/// Roda um comando alimentando `input` pelo stdin e capturando o stdout. Usado pelo fluxo do `bw`
+/// (`bw encode`). Erro traz o stderr. A privada passa por aqui só rumo ao `bw` (nunca é impressa).
+fn run_with_stdin(cmd: &str, args: &[&str], input: &str) -> Result<String, String> {
+    use std::io::Write;
+    use std::process::{Command, Stdio};
+    let mut child = Command::new(cmd)
+        .args(args)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("falha ao executar {cmd}: {e}"))?;
+    if let Some(mut stdin) = child.stdin.take() {
+        stdin
+            .write_all(input.as_bytes())
+            .map_err(|e| format!("falha ao escrever no stdin de {cmd}: {e}"))?;
+    }
+    let out = child
+        .wait_with_output()
+        .map_err(|e| format!("{cmd} não finalizou: {e}"))?;
+    if out.status.success() {
+        Ok(String::from_utf8_lossy(&out.stdout).into_owned())
+    } else {
+        Err(format!(
+            "{cmd} falhou: {}",
+            String::from_utf8_lossy(&out.stderr).trim()
+        ))
+    }
+}
+
+/// O `bw` está no PATH e DESTRAVADO? (`bw status` traz `"status":"unlocked"`.) Só então
+/// criamos item direto no cofre; caso contrário caímos no arquivo de import.
+fn bw_unlocked() -> bool {
+    if !in_path("bw") {
+        return false;
+    }
+    match util::run("bw", &["status"]) {
+        Ok(s) => s.contains("\"status\":\"unlocked\""),
+        Err(_) => false,
+    }
+}
+
+/// Monta o corpo (notas) legível do item — inclui a privada. NUNCA é impresso em stdout;
+/// só entra no item do cofre / arquivo de import.
+fn bw_notes(name: &str, kind: &str, fingerprint: &str, pubkey: &str, privkey: &str) -> String {
+    format!(
+        "Chave SSH gerenciada pelo schematize\n\
+         nome: {name}\n\
+         tipo: {kind}\n\
+         fingerprint: {fingerprint}\n\n\
+         --- CHAVE PÚBLICA ---\n{pubkey}\n\n\
+         --- CHAVE PRIVADA (secreta) ---\n{privkey}\n"
+    )
+}
+
+/// JSON de UM item de cofre (secure note, type 2) pro `bw encode | bw create item`.
+/// Campos: public_key + fingerprint (visíveis) e private_key (oculto, type 1).
+fn bw_item_json(name: &str, notes: &str, pubkey: &str, fingerprint: &str, privkey: &str) -> String {
+    let item = serde_json::json!({
+        "type": 2,
+        "name": format!("SSH schematize:{name}"),
+        "notes": notes,
+        "secureNote": { "type": 0 },
+        "fields": [
+            { "name": "public_key",  "value": pubkey,      "type": 0 },
+            { "name": "fingerprint", "value": fingerprint, "type": 0 },
+            { "name": "private_key", "value": privkey,     "type": 1 }
+        ]
+    });
+    item.to_string()
+}
+
+/// JSON no formato de IMPORT do Bitwarden (`{items:[...]}`) — o fallback quando o `bw` não está
+/// destravado. Mesma modelagem do item (secure note com os campos), envelopado em `items`.
+fn bw_import_json(name: &str, notes: &str, pubkey: &str, fingerprint: &str, privkey: &str) -> String {
+    let doc = serde_json::json!({
+        "items": [ serde_json::from_str::<serde_json::Value>(
+            &bw_item_json(name, notes, pubkey, fingerprint, privkey)
+        ).unwrap_or(serde_json::Value::Null) ]
+    });
+    serde_json::to_string_pretty(&doc).unwrap_or_else(|_| "{}".into())
+}
+
+/// Caminho default do arquivo de import (`~/.schematize/bw-import-<name>.json`).
+fn bw_import_path(name: &str) -> PathBuf {
+    util::home().join(".schematize").join(format!("bw-import-{name}.json"))
+}
+
+/// Exporta a chave `name` pro Bitwarden. Se o `bw` estiver destravado, cria um item (secure note)
+/// no cofre com nome/tipo/fingerprint/pública/PRIVADA. Senão, grava um JSON no formato de import
+/// (default `~/.schematize/bw-import-<name>.json`, mode 600) e instrui a importar. A privada é lida
+/// do arquivo e SÓ vai pro cofre/arquivo — NUNCA pro stdout/log. Retorna uma mensagem do que ocorreu.
+pub fn export_bitwarden(name: &str, out: Option<&Path>) -> Result<String, String> {
+    valid_name(name)?;
+    let info = read_info(name)?;
+    let priv_p = private_path(name)?;
+    if !priv_p.exists() {
+        return Err(format!("chave privada '{name}' não encontrada em ~/.ssh"));
+    }
+    let privkey = fs::read_to_string(&priv_p)
+        .map_err(|e| format!("não consegui ler a privada de '{name}': {e}"))?;
+    let privkey = privkey.trim_end().to_string();
+    let pubkey = export_public(name)?;
+    let notes = bw_notes(name, &info.kind, &info.fingerprint, &pubkey, &privkey);
+
+    // Caminho feliz: cofre destravado → cria o item direto (bw encode | bw create item).
+    if bw_unlocked() {
+        let item_json = bw_item_json(name, &notes, &pubkey, &info.fingerprint, &privkey);
+        let encoded = run_with_stdin("bw", &["encode"], &item_json)?;
+        // `bw create item` lê o base64 pelo stdin.
+        match run_with_stdin("bw", &["create", "item"], encoded.trim()) {
+            Ok(_) => {
+                return Ok(format!(
+                    "item 'SSH schematize:{name}' criado no seu cofre Bitwarden \
+                     (pública + fingerprint + privada oculta). A privada não foi impressa."
+                ));
+            }
+            // Falhou no cofre: não perde a exportação — cai no arquivo de import.
+            Err(e) => {
+                eprintln!("(aviso: bw create item falhou: {e} — gerando arquivo de import)");
+            }
+        }
+    }
+
+    // Fallback: arquivo de import (mode 600).
+    let target = match out {
+        Some(p) => p.to_path_buf(),
+        None => bw_import_path(name),
+    };
+    if let Some(dir) = target.parent() {
+        fs::create_dir_all(dir).map_err(|e| format!("falha ao criar {}: {e}", dir.display()))?;
+        let _ = fs::set_permissions(dir, fs::Permissions::from_mode(0o700));
+    }
+    let body = bw_import_json(name, &notes, &pubkey, &info.fingerprint, &privkey);
+    fs::write(&target, body).map_err(|e| format!("falha ao gravar {}: {e}", target.display()))?;
+    let _ = fs::set_permissions(&target, fs::Permissions::from_mode(0o600));
+    Ok(format!(
+        "arquivo de import do Bitwarden gravado (mode 600) em {}\n\
+         importe em: Bitwarden → Tools → Import data → formato 'Bitwarden (json)'.\n\
+         Apague o arquivo depois de importar (ele contém a chave privada).",
+        target.display()
+    ))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -417,5 +735,66 @@ mod tests {
         let c = default_comment();
         assert!(c.starts_with("schematize:"), "comentário: {c}");
         assert!(c.contains('@'));
+    }
+
+    #[test]
+    fn entropia_ed25519_sempre_ok_rsa_no_piso() {
+        // ed25519 é aceito e a nota cita 256/128 bits.
+        assert!(validate_entropy(KeyKind::Ed25519).is_ok());
+        let n = entropy_note(KeyKind::Ed25519);
+        assert!(n.contains("256"));
+        assert!(n.contains("128"));
+        // RSA do rol é 4096 (>= piso) → aceito; a nota cita 4096.
+        assert!(validate_entropy(KeyKind::Rsa4096).is_ok());
+        assert!(entropy_note(KeyKind::Rsa4096).contains("4096"));
+        assert_eq!(RSA_MIN_BITS, 4096);
+    }
+
+    #[test]
+    fn alvo_ssh_valido_recusa_injecao_de_flag() {
+        assert!(valid_target("root@host").is_ok());
+        assert!(valid_target("host.local").is_ok());
+        assert!(valid_target("deploy@10.0.0.1").is_ok());
+        // Falha fechada: vazio, começando por '-' (flag), ou com espaço.
+        assert!(valid_target("").is_err());
+        assert!(valid_target("-oProxyCommand=evil").is_err());
+        assert!(valid_target("user@host extra").is_err());
+    }
+
+    #[test]
+    fn key_path_valida_nome_e_fica_em_ssh() {
+        let p = key_path("deploy").expect("nome válido");
+        assert!(p.ends_with("deploy"));
+        assert!(p.to_string_lossy().contains(".ssh"));
+        // Nome que escaparia de ~/.ssh é recusado.
+        assert!(key_path("../evil").is_err());
+    }
+
+    #[test]
+    fn bw_item_json_tem_secure_note_e_campos() {
+        let notes = bw_notes("deploy", "ED25519", "SHA256:abc", "ssh-ed25519 AAA c", "PRIV");
+        let j = bw_item_json("deploy", &notes, "ssh-ed25519 AAA c", "SHA256:abc", "PRIV");
+        let v: serde_json::Value = serde_json::from_str(&j).unwrap();
+        assert_eq!(v["type"], 2); // secure note
+        assert_eq!(v["secureNote"]["type"], 0);
+        assert_eq!(v["name"], "SSH schematize:deploy");
+        // Campos: public_key/fingerprint visíveis, private_key oculto (type 1).
+        let fields = v["fields"].as_array().unwrap();
+        assert!(fields.iter().any(|f| f["name"] == "public_key" && f["type"] == 0));
+        assert!(fields.iter().any(|f| f["name"] == "fingerprint" && f["type"] == 0));
+        assert!(fields.iter().any(|f| f["name"] == "private_key" && f["type"] == 1));
+        // A privada está presente no item (vai pro cofre), mas o notes também a carrega.
+        assert!(notes.contains("PRIV"));
+    }
+
+    #[test]
+    fn bw_import_json_envelopa_em_items() {
+        let notes = bw_notes("k", "RSA", "SHA256:z", "ssh-rsa AAA", "PRIV");
+        let j = bw_import_json("k", &notes, "ssh-rsa AAA", "SHA256:z", "PRIV");
+        let v: serde_json::Value = serde_json::from_str(&j).unwrap();
+        let items = v["items"].as_array().expect("items é array");
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0]["type"], 2);
+        assert_eq!(items[0]["name"], "SSH schematize:k");
     }
 }
