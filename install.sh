@@ -136,6 +136,25 @@ post_config() {
     hash -r 2>/dev/null || true
     BIN="$(command -v schematize || true)"
   fi
+  # No modo source (padrão), o .deb/.rpm do schematize (se existir) CONFLITA com a instalação de
+  # fonte: dois binários (/usr/bin vs ~/.cargo/bin), dois launchers e autostart duplicado — a causa
+  # dos conflitos de PATH no ambiente gráfico. Remove o pacote — a fonte é a verdade única.
+  if [ "$MODE" = source ]; then
+    if command -v dpkg >/dev/null && dpkg -l schematize 2>/dev/null | grep -q '^ii'; then
+      log "removendo o pacote .deb antigo do schematize (conflitava com a instalação de fonte)"
+      $SUDO apt-get remove -y schematize >/dev/null 2>&1 || $SUDO dpkg -r schematize >/dev/null 2>&1 || \
+        warn "não removi o .deb automaticamente — rode: sudo apt remove schematize"
+    elif command -v rpm >/dev/null && rpm -q schematize >/dev/null 2>&1; then
+      log "removendo o pacote .rpm antigo do schematize (conflitava com a instalação de fonte)"
+      { command -v zypper >/dev/null && $SUDO zypper -n rm schematize; } >/dev/null 2>&1 \
+        || $SUDO dnf -y remove schematize >/dev/null 2>&1 \
+        || warn "não removi o .rpm automaticamente — rode: sudo zypper rm schematize (ou dnf remove)"
+    fi
+    # limpa launcher/autostart residuais do pacote, se sobrarem (o Exec do pacote cai no /usr/bin)
+    $SUDO rm -f /usr/share/applications/schematize-gui.desktop /etc/xdg/autostart/schematize-agent.desktop 2>/dev/null || true
+    hash -r 2>/dev/null || true
+    BIN="$(command -v schematize || true)"
+  fi
   [ -n "$BIN" ] || { log "reabra o shell (PATH) e rode: schematize --help"; return; }
   ok "schematize $($BIN --version 2>/dev/null | awk '{print $2}') em $BIN"
   if [ "$BIN" != "/usr/bin/schematize" ] && [ -x /usr/bin/schematize ]; then
