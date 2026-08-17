@@ -8,7 +8,8 @@ use schematize::agentrun::AgentRunner;
 use schematize::i18n::{t, tf};
 use schematize::{
     agent, agentrun, autostart, config, debug, doctor, environments, githist, i18n, links, news,
-    overdev, overdevdb, panel, projects, registry, skilledit, skills, sshkeys, status, upgrade, util,
+    notifications, overdev, overdevdb, panel, projects, registry, skilledit, skills, sshkeys,
+    status, upgrade, util,
 };
 use std::io::{self, BufRead, Write};
 
@@ -66,6 +67,8 @@ enum Cmd {
     },
     /// Show the latest posts from blog.schematize.net.
     News,
+    /// Show aggregated notifications (app update, blog posts, outdated skills), grouped by scope.
+    Notifications,
     /// Open the blog (blog.schematize.net) in the browser.
     Blog,
     /// Open a resource in the browser: site | blog | github.
@@ -173,6 +176,10 @@ enum SkillsCmd {
         #[arg(long)]
         set_from: Option<String>,
     },
+    /// Fork an OFFICIAL skill (stash its base) so it can be edited without losing the original.
+    Fork { slug: String },
+    /// Compare a forked skill against the latest official (files changed + unified diff).
+    Compare { slug: String },
 }
 
 #[derive(Subcommand)]
@@ -636,6 +643,41 @@ fn projects_cmd(sub: ProjectsCmd) -> Result<(), String> {
     }
 }
 
+/// `schematize notifications` — imprime as notificações agregadas, agrupadas por escopo.
+fn notifications_cmd() {
+    let all = notifications::collect();
+    if all.is_empty() {
+        println!("Sem notificações no momento.");
+        return;
+    }
+    let global: Vec<_> = all
+        .iter()
+        .filter(|n| matches!(n.scope, notifications::NotifScope::Global))
+        .collect();
+    let personal: Vec<_> = all
+        .iter()
+        .filter(|n| matches!(n.scope, notifications::NotifScope::Personal))
+        .collect();
+
+    let print_group = |titulo: &str, ns: &[&notifications::Notif]| {
+        if ns.is_empty() {
+            return;
+        }
+        println!("{titulo} ({}):", ns.len());
+        for n in ns {
+            println!("  • [{}] {}", n.kind, n.title);
+            if !n.body.trim().is_empty() {
+                println!("    {}", n.body);
+            }
+            if let Some(a) = &n.action {
+                println!("    → {a}");
+            }
+        }
+    };
+    print_group("Globais", &global);
+    print_group("Pessoais", &personal);
+}
+
 /// `schematize skills <sub>` — dispatcher da gestão de skills (a feature).
 fn skills_cmd(sub: SkillsCmd) -> Result<(), String> {
     match sub {
@@ -647,7 +689,38 @@ fn skills_cmd(sub: SkillsCmd) -> Result<(), String> {
         SkillsCmd::Remove { name } => skills_remove(&name),
         SkillsCmd::New { slug, name, desc, force } => skills_new(&slug, name, desc, force),
         SkillsCmd::Edit { slug, list, file, set_from } => skills_edit(&slug, list, file, set_from),
+        SkillsCmd::Fork { slug } => skills_fork(&slug),
+        SkillsCmd::Compare { slug } => skills_compare(&slug),
     }
+}
+
+/// `schematize skills fork <slug>` — força o fork de uma skill oficial (guarda a base no stash).
+fn skills_fork(slug: &str) -> Result<(), String> {
+    if !skills::is_official(slug) {
+        println!("skill {slug} não é oficial (do catálogo) — ela já edita livremente, sem fork.");
+        return Ok(());
+    }
+    skills::fork(slug)?;
+    println!("skill {slug} forkada: a pasta ativa é editável e a base oficial ficou guardada no stash.");
+    println!("compare depois com: schematize skills compare {slug}");
+    Ok(())
+}
+
+/// `schematize skills compare <slug>` — mostra o diff do fork ativo vs a nova oficial (latest).
+fn skills_compare(slug: &str) -> Result<(), String> {
+    let cmp = skills::compare_update(slug)?;
+    println!("Comparando fork de {slug}: base v{} → nova oficial v{}", cmp.base_version, cmp.new_version);
+    if cmp.files.is_empty() {
+        println!("  (nenhum arquivo — nada a comparar)");
+    }
+    for f in &cmp.files {
+        println!("  {:<10} {}", f.status, f.path);
+    }
+    if !cmp.diff_text.trim().is_empty() {
+        println!("\n--- diff unificado (fork ativo → nova oficial) ---");
+        print!("{}", cmp.diff_text);
+    }
+    Ok(())
 }
 
 /// `schematize skills new <slug>` — scaffolda o piso mínimo válido de uma skill nova.
@@ -730,11 +803,12 @@ fn skills_install(names: &[String], all: bool, with_recommended: bool) -> Result
     Ok(())
 }
 
-/// Atualiza skills instaladas pro latest (todas se não passar nome/--all).
+/// Atualiza skills instaladas pro latest (todas se não passar nome/--all). Skills FORKADAS
+/// não são sobrescritas — `skills::update` recusa e aponta o caminho comparar/mesclar.
 fn skills_update(names: &[String], all: bool) -> Result<(), String> {
     let cat = registry::catalog();
     for it in resolve(&cat, names, all) {
-        match skills::install(&it) {
+        match skills::update(&it) {
             Ok(v) => println!("✓ {}", tf("skills.updated", &[("name", &it.slug), ("v", &v)])),
             Err(e) => eprintln!("✗ {}: {e}", it.slug),
         }
@@ -788,6 +862,10 @@ fn main() {
         Cmd::Upgrade { force } => upgrade::run(force),
         Cmd::News => {
             news::show();
+            Ok(())
+        }
+        Cmd::Notifications => {
+            notifications_cmd();
             Ok(())
         }
         Cmd::Blog => links::open("blog"),
