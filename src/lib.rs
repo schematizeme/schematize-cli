@@ -2,6 +2,7 @@
 //! GUI (`schematize-gui`). O quê: expõe registry/skills/overdev/agent/autostart/settings,
 //! além de i18n (multi-idioma), config, doctor, upgrade, news, status e links.
 
+pub mod account;
 pub mod agent;
 pub mod agentrun;
 pub mod appicon;
