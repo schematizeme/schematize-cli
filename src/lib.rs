@@ -14,6 +14,7 @@ pub mod githist;
 pub mod i18n;
 pub mod links;
 pub mod news;
+pub mod notifications;
 pub mod overdev;
 pub mod overdevdb;
 pub mod panel;
