@@ -367,6 +367,8 @@ enum Over {
     Load,
     /// Inject `/eng-index` into a `claude` session to (re)index the project.
     Index,
+    /// Print the completion log (HH:MM:SS local + item) from .overdev/completions.json.
+    Log,
 }
 
 fn resolve(cat: &[registry::Item], names: &[String], all: bool) -> Vec<registry::Item> {
@@ -482,6 +484,51 @@ fn fmt_ts(ts: i64) -> String {
     let m = if mp < 10 { mp + 3 } else { mp - 9 };
     let y = if m <= 2 { y + 1 } else { y };
     format!("{y:04}-{m:02}-{d:02} {h:02}:{mi:02}")
+}
+
+/// Offset local em segundos (via `date +%z`, ex.: `-0300`). Fallback 0 (UTC) se
+/// o `date` falhar ou vier num formato inesperado.
+fn local_offset_secs() -> i64 {
+    let out = match std::process::Command::new("date").arg("+%z").output() {
+        Ok(o) if o.status.success() => o.stdout,
+        _ => return 0,
+    };
+    let s = String::from_utf8_lossy(&out);
+    let s = s.trim();
+    // Formato esperado: sinal + HHMM (ex.: "-0300", "+0530").
+    if s.len() < 5 {
+        return 0;
+    }
+    let sign: i64 = if s.starts_with('-') { -1 } else { 1 };
+    let digits: Vec<char> = s.chars().filter(|c| c.is_ascii_digit()).collect();
+    if digits.len() < 4 {
+        return 0;
+    }
+    let hh: i64 = format!("{}{}", digits[0], digits[1]).parse().unwrap_or(0);
+    let mm: i64 = format!("{}{}", digits[2], digits[3]).parse().unwrap_or(0);
+    sign * (hh * 3600 + mm * 60)
+}
+
+/// Hora local `HH:MM:SS` de um epoch (secs), dado o offset local. PURO/testável.
+fn fmt_hms(ts: i64, offset: i64) -> String {
+    let secs = (ts + offset).rem_euclid(86_400);
+    format!("{:02}:{:02}:{:02}", secs / 3600, (secs % 3600) / 60, secs % 60)
+}
+
+/// `schematize overdev log` — lista as conclusões (`- [x]`) do CHECKLIST com a hora
+/// local em que foram detectadas (lê `.overdev/completions.json`, sem gravar).
+fn overdev_log() {
+    let project = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+    let comps = overdev::completions(&project);
+    if comps.is_empty() {
+        println!("sem conclusões registradas ainda (.overdev/completions.json).");
+        return;
+    }
+    let off = local_offset_secs();
+    println!("conclusões ({}):", comps.len());
+    for c in &comps {
+        println!("  {}  {}", fmt_hms(c.ts, off), c.text);
+    }
 }
 
 /// `schematize overdev load|index` — dispara uma sessão `claude` one-shot no cwd
@@ -1034,6 +1081,10 @@ fn main() {
             Over::Restore { id } => overdev_restore(id),
             Over::Load => overdev_agent_cmd(overdev::load_cmd()),
             Over::Index => overdev_agent_cmd(overdev::index_cmd()),
+            Over::Log => {
+                overdev_log();
+                Ok(())
+            }
         },
         Cmd::GitLog { limit } => {
             git_log(limit);

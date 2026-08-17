@@ -130,6 +130,110 @@ pub fn objetivo_at(root: &Path) -> Option<String> {
         .map(String::from)
 }
 
+// ---------------------------------------------------------------------------
+// LOG DE CONCLUSÕES: cada `- [x]` (máquina) que aparece no CHECKLIST ganha a HORA
+// em que foi detectado. Como o Claude edita o CHECKLIST direto (às vezes POR FORA
+// do app), a detecção é por DIFF e é acionada no check() (Stop hook, a cada turno).
+// Registro em `.overdev/completions.json` (mapa text->ts, epoch secs).
+// ---------------------------------------------------------------------------
+
+/// Uma conclusão de item de MÁQUINA (`- [x]`) com a hora em que foi detectada.
+/// `text` = conteúdo do item sem o prefixo `- [x] `; `ts` = epoch secs.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Completion {
+    pub text: String,
+    pub ts: i64,
+}
+
+fn completions_file(root: &Path) -> PathBuf {
+    dir_at(root).join("completions.json")
+}
+
+/// Epoch (secs) agora, como i64.
+fn now_secs_i64() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0)
+}
+
+/// mtime (epoch secs) de um arquivo; None se indisponível.
+fn mtime_secs(p: &Path) -> Option<i64> {
+    let m = fs::metadata(p).ok()?.modified().ok()?;
+    Some(m.duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs() as i64).unwrap_or(0))
+}
+
+/// Texto de um item `- [x]` (máquina feito), sem o prefixo. None se a linha não
+/// for `- [x]`. NÃO casa `- [H x]` (humano): esse começa por `- [H`, não `- [x]`.
+fn done_item_text(line: &str) -> Option<String> {
+    let t = line.trim_start();
+    if t.starts_with("- [x]") || t.starts_with("- [X]") {
+        Some(t[5..].trim().to_string())
+    } else {
+        None
+    }
+}
+
+/// Ordena e materializa o mapa text->ts em `Vec<Completion>` (ts asc, nome desempata).
+fn sorted_completions(map: std::collections::BTreeMap<String, i64>) -> Vec<Completion> {
+    let mut out: Vec<Completion> = map.into_iter().map(|(text, ts)| Completion { text, ts }).collect();
+    out.sort_by(|a, b| a.ts.cmp(&b.ts).then_with(|| a.text.cmp(&b.text)));
+    out
+}
+
+/// Lê o registro `.overdev/completions.json` (mapa text->ts). Vazio se ausente/ilegível.
+fn read_completions_map(root: &Path) -> std::collections::BTreeMap<String, i64> {
+    fs::read_to_string(completions_file(root)).ok().and_then(|s| serde_json::from_str(&s).ok()).unwrap_or_default()
+}
+
+/// Detecta e REGISTRA (por DIFF) as conclusões de máquina do CHECKLIST de `<root>`.
+/// - Lê os `- [x]` do CHECKLIST e o registro `.overdev/completions.json`.
+/// - Para cada `- [x]` NOVO (fora do mapa) adiciona com `now`.
+/// - SEED: se o registro ainda não existe, popula os `- [x]` JÁ presentes com o
+///   mtime do CHECKLIST.md (aproxima "feito antes do log começar" em vez de perder).
+/// - Salva o JSON e retorna TODAS as conclusões ordenadas por `ts` asc.
+/// Best-effort: qualquer erro de IO é ignorado (nunca panica).
+pub fn record_completions(root: &Path) -> Vec<Completion> {
+    let checklist_path = dir_at(root).join("CHECKLIST.md");
+    let content = match fs::read_to_string(&checklist_path) {
+        Ok(c) => c,
+        Err(_) => return sorted_completions(read_completions_map(root)),
+    };
+    let done_texts: Vec<String> = content.lines().filter_map(done_item_text).collect();
+
+    let cf = completions_file(root);
+    let existed = cf.exists();
+    let mut map = read_completions_map(root);
+
+    // 1ª vez (sem registro): os `- [x]` já presentes recebem o mtime do CHECKLIST.
+    let seed_ts = if existed { 0 } else { mtime_secs(&checklist_path).unwrap_or_else(now_secs_i64) };
+    let now = now_secs_i64();
+
+    let mut changed = false;
+    for txt in done_texts {
+        if !map.contains_key(&txt) {
+            map.insert(txt, if existed { now } else { seed_ts });
+            changed = true;
+        }
+    }
+    // Grava sempre na 1ª vez (marca que o seed já ocorreu) ou quando houver item novo.
+    if changed || !existed {
+        if let Some(d) = cf.parent() {
+            let _ = fs::create_dir_all(d);
+        }
+        if let Ok(s) = serde_json::to_string_pretty(&map) {
+            let _ = fs::write(&cf, s);
+        }
+    }
+    sorted_completions(map)
+}
+
+/// Só LÊ o `.overdev/completions.json` (sem gravar), ordenado por `ts` asc —
+/// pra a GUI/poll ler barato, sem tocar no CHECKLIST.
+pub fn completions(root: &Path) -> Vec<Completion> {
+    sorted_completions(read_completions_map(root))
+}
+
 fn save(st: &OverState) -> Result<(), String> {
     fs::create_dir_all(dir()).map_err(|e| e.to_string())?;
     fs::write(state_file(), serde_json::to_string_pretty(st).map_err(|e| e.to_string())?)
@@ -311,6 +415,10 @@ pub fn check() {
         Some(s) if s.mode == "active" => s,
         _ => return, // inerte
     };
+    // LOG de conclusões (best-effort): detecta os `- [x]` novos por DIFF e registra
+    // a hora. Fica na trilha do Stop hook, então também pega run EXTERNO (fora do app).
+    // Não altera a decisão de parar.
+    let _ = record_completions(Path::new("."));
     // budget
     let mut it: u64 = fs::read_to_string(iters_file()).ok().and_then(|s| s.trim().parse().ok()).unwrap_or(0);
     it += 1;
@@ -500,6 +608,19 @@ pub fn status() {
             if nn > 0 {
                 println!("notas do humano: {nn} (ver .overdev/NOTAS.md)");
             }
+            // Tokens + modelo do run (parse do transcript do Claude), best-effort.
+            let proj = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+            let u = crate::usage::agent_usage(&proj);
+            if u.messages > 0 {
+                println!(
+                    "tokens: {} (in {} / out {} / cache-read {}) · modelo: {}",
+                    u.total,
+                    u.input,
+                    u.output,
+                    u.cache_read,
+                    u.main_model().unwrap_or("-")
+                );
+            }
         }
     }
 }
@@ -642,5 +763,71 @@ não é item
         assert!(note_block("correcao", "arrume X").contains("PROMPT DE CORREÇÃO"));
         assert!(note_block("task", "detalhe Y").contains("PONTO POR TASK"));
         assert!(note_block("correcao", "arrume X").contains("arrume X"));
+    }
+
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static SEQ: AtomicU64 = AtomicU64::new(0);
+
+    /// Cria um root de projeto temporário com `.overdev/CHECKLIST.md` = `body`.
+    fn fresh_root(body: &str) -> PathBuf {
+        let n = SEQ.fetch_add(1, Ordering::SeqCst);
+        let root = std::env::temp_dir().join(format!("schematize-comp-{}-{}", std::process::id(), n));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(root.join(".overdev")).unwrap();
+        fs::write(root.join(".overdev").join("CHECKLIST.md"), body).unwrap();
+        root
+    }
+
+    #[test]
+    fn done_item_text_ignora_humano_e_abertos() {
+        assert_eq!(done_item_text("- [x] feito A").as_deref(), Some("feito A"));
+        assert_eq!(done_item_text("  - [X] indentado").as_deref(), Some("indentado"));
+        assert_eq!(done_item_text("- [H x] humano feito"), None, "humano NÃO é máquina");
+        assert_eq!(done_item_text("- [ ] aberto"), None);
+        assert_eq!(done_item_text("- [~] on-hold"), None);
+    }
+
+    #[test]
+    fn record_seed_depois_detecta_novo() {
+        // SEED: 1ª chamada popula os `- [x]` já presentes (com o mtime do CHECKLIST).
+        let root = fresh_root("- [x] item feito antes\n- [ ] ainda aberto\n");
+        let seeded = record_completions(&root);
+        assert_eq!(seeded.len(), 1, "só o `- [x]` presente entra no seed");
+        assert_eq!(seeded[0].text, "item feito antes");
+        let seed_ts = seeded[0].ts;
+        assert!(seed_ts > 0, "seed usa o mtime do CHECKLIST (>0)");
+        assert!(completions_file(&root).exists(), "1ª chamada grava o registro");
+
+        // Agora o Claude fecha o item aberto POR FORA: vira `- [x]`.
+        fs::write(
+            root.join(".overdev").join("CHECKLIST.md"),
+            "- [x] item feito antes\n- [x] agora fechado\n",
+        )
+        .unwrap();
+        let after = record_completions(&root);
+        assert_eq!(after.len(), 2, "detecta o novo `- [x]` por diff");
+        let find = |t: &str| after.iter().find(|c| c.text == t).map(|c| c.ts);
+        let seed_now = find("item feito antes").expect("seed presente");
+        let novo = find("agora fechado").expect("novo item detectado");
+        // Está ordenado por ts asc (com desempate por nome).
+        assert!(after.windows(2).all(|w| w[0].ts <= w[1].ts), "ordenado por ts asc");
+        // O seed NÃO é reescrito (mantém o ts do mtime original).
+        assert_eq!(seed_now, seed_ts);
+        // O novo item nunca é anterior ao seed.
+        assert!(novo >= seed_now, "novo item tem ts >= o do seed");
+    }
+
+    #[test]
+    fn completions_so_le_sem_gravar() {
+        let root = fresh_root("- [x] a\n");
+        // Sem registro ainda: completions() lê vazio e NÃO cria o arquivo.
+        assert!(completions(&root).is_empty());
+        assert!(!completions_file(&root).exists(), "completions() não grava");
+        // Depois de record_completions, completions() lê o mesmo conteúdo.
+        let rec = record_completions(&root);
+        let read = completions(&root);
+        assert_eq!(rec, read);
+        assert_eq!(read.len(), 1);
+        assert_eq!(read[0].text, "a");
     }
 }
