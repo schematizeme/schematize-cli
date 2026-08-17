@@ -527,15 +527,22 @@ mod tests {
 
     #[test]
     fn prompt_inicial_liga_o_overdev() {
-        assert_eq!(initial_prompt("meu objetivo"), "/eng-overdev meu objetivo\n");
-        assert_eq!(initial_prompt("   "), "/eng-overdev\n", "objetivo vazio => comando puro");
+        // Prompt em linguagem NATURAL (não o slash): sempre cita o modo OVERDEV e o
+        // CHECKLIST; com objetivo, inclui o objetivo.
+        let com = overdev_prompt("meu objetivo");
+        assert!(com.contains("OVERDEV"));
+        assert!(com.contains("CHECKLIST"));
+        assert!(com.contains("meu objetivo"));
+        // Objetivo vazio => sem a cláusula "O objetivo é:".
+        let vazio = overdev_prompt("   ");
+        assert!(vazio.contains("OVERDEV"));
+        assert!(!vazio.contains("O objetivo é:"), "objetivo vazio não anexa alvo");
     }
 
     #[test]
     fn command_line_mostra_o_agente() {
         let cl = ClaudeRunner.command_line("obj X");
         assert!(cl.contains("claude"));
-        assert!(cl.contains("/eng-overdev obj X"));
         assert_eq!(ClaudeRunner.name(), "claude");
     }
 }
