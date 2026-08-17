@@ -29,6 +29,7 @@ pub mod skills;
 pub mod sshkeys;
 pub mod status;
 pub mod upgrade;
+pub mod usage;
 pub mod util;
 
 #[cfg(feature = "gui")]
