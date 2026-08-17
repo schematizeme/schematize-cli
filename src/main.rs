@@ -7,8 +7,8 @@ use clap::{Parser, Subcommand};
 use schematize::agentrun::AgentRunner;
 use schematize::i18n::{t, tf};
 use schematize::{
-    agent, agentrun, autostart, config, debug, doctor, environments, i18n, links, news, overdev,
-    panel, projects, registry, skilledit, skills, sshkeys, status, upgrade, util,
+    agent, agentrun, autostart, config, debug, doctor, environments, githist, i18n, links, news,
+    overdev, overdevdb, panel, projects, registry, skilledit, skills, sshkeys, status, upgrade, util,
 };
 use std::io::{self, BufRead, Write};
 
@@ -80,6 +80,11 @@ enum Cmd {
     Overdev {
         #[command(subcommand)]
         sub: Over,
+    },
+    /// Show recent git commits, flagging which are pushed (● pushed / ○ local).
+    GitLog {
+        #[arg(long, default_value = "20")]
+        limit: usize,
     },
     /// Open the auxiliary HTML panel (overdev + index graph) in the browser.
     Panel,
@@ -314,6 +319,19 @@ enum Over {
         #[arg(long)]
         yes: bool,
     },
+    /// Snapshot the `.overdev/` artifacts into the local DB (versioned backup).
+    Snapshot,
+    /// List the local DB snapshot history for this project (newest first).
+    History {
+        #[arg(long, default_value = "20")]
+        limit: usize,
+    },
+    /// Restore a snapshot (by id) back to its original path.
+    Restore { id: i64 },
+    /// Inject `/eng-load` into a `claude` session to load the engineering precepts.
+    Load,
+    /// Inject `/eng-index` into a `claude` session to (re)index the project.
+    Index,
 }
 
 fn resolve(cat: &[registry::Item], names: &[String], all: bool) -> Vec<registry::Item> {
@@ -369,6 +387,117 @@ fn overdev_run(max: Option<u64>, yes: bool) -> Result<(), String> {
         return Err("cancelado.".to_string());
     }
     agentrun::run_attached(&project, &runner, max)
+}
+
+/// cwd como raiz do projeto (erro claro se inacessível).
+fn cwd_project() -> Result<std::path::PathBuf, String> {
+    std::env::current_dir().map_err(|e| format!("cwd inacessível: {e}"))
+}
+
+/// `schematize overdev snapshot` — grava no DB local as versões novas dos artefatos.
+fn overdev_snapshot() -> Result<(), String> {
+    let project = cwd_project()?;
+    let n = overdevdb::snapshot(&project)?;
+    if n == 0 {
+        println!("nenhuma mudança — nada novo pra versionar.");
+    } else {
+        println!("{n} snapshot(s) novo(s) gravado(s) no DB local.");
+    }
+    Ok(())
+}
+
+/// `schematize overdev history [--limit N]` — tabela do histórico do projeto.
+fn overdev_history(limit: usize) -> Result<(), String> {
+    let project = cwd_project()?;
+    let hist = overdevdb::history(&project, limit)?;
+    if hist.is_empty() {
+        println!("sem snapshots pra este projeto ainda (rode `schematize overdev snapshot`).");
+        return Ok(());
+    }
+    println!("{:>6}  {:<19}  {:>8}  {}", "id", "quando", "bytes", "arquivo");
+    for m in hist {
+        println!("{:>6}  {:<19}  {:>8}  {}", m.id, fmt_ts(m.ts), m.size, m.file);
+    }
+    println!("(veja um: `schematize overdev restore <id>`)");
+    Ok(())
+}
+
+/// `schematize overdev restore <id>` — regrava o snapshot no caminho original.
+fn overdev_restore(id: i64) -> Result<(), String> {
+    let project = cwd_project()?;
+    let dest = overdevdb::restore(id, &project)?;
+    println!("snapshot {id} restaurado em {}", dest.display());
+    Ok(())
+}
+
+/// Formata um epoch secs em `AAAA-MM-DD HH:MM` (UTC, sem crate de data).
+fn fmt_ts(ts: i64) -> String {
+    // Cálculo civil a partir do epoch (algoritmo de Howard Hinnant), UTC.
+    let days = ts.div_euclid(86_400);
+    let secs = ts.rem_euclid(86_400);
+    let (h, mi) = (secs / 3600, (secs % 3600) / 60);
+    let z = days + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z - era * 146_097;
+    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
+    let y = yoe + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = doy - (153 * mp + 2) / 5 + 1;
+    let m = if mp < 10 { mp + 3 } else { mp - 9 };
+    let y = if m <= 2 { y + 1 } else { y };
+    format!("{y:04}-{m:02}-{d:02} {h:02}:{mi:02}")
+}
+
+/// `schematize overdev load|index` — dispara uma sessão `claude` one-shot no cwd
+/// com o comando dado. Se `claude` não estiver no PATH, só imprime a dica.
+fn overdev_agent_cmd(cmd: &str) -> Result<(), String> {
+    if !agentrun::claude_in_path() {
+        println!("`claude` não está no PATH. Rode manualmente na pasta do projeto: claude {cmd}");
+        return Ok(());
+    }
+    println!("disparando sessão `claude` no diretório atual com: {cmd}");
+    match std::process::Command::new("claude").arg(cmd).status() {
+        Ok(st) if st.success() => Ok(()),
+        Ok(st) => {
+            println!("a sessão `claude` saiu com {st}. Se preciso, rode à mão: claude {cmd}");
+            Ok(())
+        }
+        Err(e) => {
+            println!("não consegui disparar `claude` ({e}). Rode à mão: claude {cmd}");
+            Ok(())
+        }
+    }
+}
+
+/// `schematize git-log [--limit N]` — commits recentes marcando push (●/○).
+fn git_log(limit: usize) {
+    let root = match std::env::current_dir() {
+        Ok(p) => p,
+        Err(e) => {
+            eprintln!("cwd inacessível: {e}");
+            return;
+        }
+    };
+    let cs = githist::commits(&root, limit);
+    if cs.is_empty() {
+        println!("sem commits (ou não é um repositório git).");
+        return;
+    }
+    for c in &cs {
+        let mark = if c.pushed { '●' } else { '○' };
+        println!("{mark} {}  {:<10}  {}  {}", c.short, c.date, c.author, c.subject);
+    }
+    match githist::upstream(&root) {
+        Some(u) => println!(
+            "\nbranch {} → {} (ahead {}, behind {})  [● pushado · ○ local]",
+            u.branch,
+            u.remote.as_deref().unwrap_or("?"),
+            u.ahead,
+            u.behind
+        ),
+        None => println!("\nbranch sem upstream (nenhum commit pushado)  [○ local]"),
+    }
 }
 
 /// Confirmação interativa (y/N). Falha fechada: erro/EOF/qualquer coisa ≠ sim = não.
@@ -690,7 +819,16 @@ fn main() {
             Over::Note { texto, kind } => overdev::note(&kind, &texto.join(" ")),
             Over::Stop => overdev::stop(),
             Over::Run { max, yes } => overdev_run(max, yes),
+            Over::Snapshot => overdev_snapshot(),
+            Over::History { limit } => overdev_history(limit),
+            Over::Restore { id } => overdev_restore(id),
+            Over::Load => overdev_agent_cmd(overdev::load_cmd()),
+            Over::Index => overdev_agent_cmd(overdev::index_cmd()),
         },
+        Cmd::GitLog { limit } => {
+            git_log(limit);
+            Ok(())
+        }
         Cmd::Panel => panel::open(),
         Cmd::Graph { sub } => match sub {
             GraphCmd::Obsidian { out } => panel::export_obsidian(out),
