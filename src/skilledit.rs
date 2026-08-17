@@ -222,8 +222,12 @@ pub fn read_file(slug: &str, rel: &str) -> Result<String, String> {
 
 /// Grava UM arquivo dentro da skill (caminho relativo à raiz, validado contra traversal).
 /// Cria os diretórios-pai se preciso. Recusa qualquer caminho que escape da raiz.
+/// Modelo de FORK: se o slug é uma skill OFICIAL e ainda não virou fork, forka ANTES de gravar
+/// (guarda a base oficial no stash) — assim a 1ª edição de uma skill da casa nunca perde o oficial.
 pub fn write_file(slug: &str, rel: &str, content: &str) -> Result<(), String> {
     let root = skill_root(slug)?;
+    // Gancho do fork (idempotente; no-op pra skills não-oficiais ou já forkadas).
+    crate::skills::fork_on_edit(slug)?;
     let p = resolve_within(&root, rel)?;
     if let Some(dir) = p.parent() {
         fs::create_dir_all(dir).map_err(|e| e.to_string())?;
