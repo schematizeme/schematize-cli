@@ -100,3 +100,59 @@ pub fn now_unix() -> u64 {
         .map(|d| d.as_secs())
         .unwrap_or(0)
 }
+
+/// Compara duas versões semver de forma SIMPLES (split por `.`), sem crate: `a < b`?
+/// O quê: quebra cada versão em números por `.`, ignora sufixos não-numéricos (ex.: `1.2.0-rc`
+/// vira 1,2,0), completa com zeros o mais curto e compara campo a campo. Onde: usado por
+/// `upgrade::app_update_available` e por `notifications` pra decidir "há versão mais nova?".
+/// Função PURA e determinística — testável sem rede.
+pub fn semver_lt(a: &str, b: &str) -> bool {
+    fn parts(v: &str) -> Vec<u64> {
+        v.trim()
+            .trim_start_matches('v')
+            .split('.')
+            .map(|p| {
+                // Pega só o prefixo de dígitos do campo (descarta `-rc1`, `+build`, etc.).
+                let digits: String = p.chars().take_while(|c| c.is_ascii_digit()).collect();
+                digits.parse::<u64>().unwrap_or(0)
+            })
+            .collect()
+    }
+    let (pa, pb) = (parts(a), parts(b));
+    let n = pa.len().max(pb.len());
+    for i in 0..n {
+        let x = pa.get(i).copied().unwrap_or(0);
+        let y = pb.get(i).copied().unwrap_or(0);
+        if x != y {
+            return x < y;
+        }
+    }
+    false
+}
+
+#[cfg(test)]
+mod tests {
+    use super::semver_lt;
+
+    #[test]
+    fn semver_lt_basico() {
+        assert!(semver_lt("0.25.0", "0.25.1"));
+        assert!(semver_lt("0.25.1", "0.26.0"));
+        assert!(semver_lt("1.0.0", "1.0.1"));
+        assert!(semver_lt("0.9.0", "0.10.0")); // numérico, não lexicográfico
+        // Iguais ou maiores → não é "<".
+        assert!(!semver_lt("0.25.1", "0.25.1"));
+        assert!(!semver_lt("0.26.0", "0.25.9"));
+        assert!(!semver_lt("2.0.0", "1.9.9"));
+    }
+
+    #[test]
+    fn semver_lt_tolera_prefixo_e_sufixo() {
+        assert!(semver_lt("v0.25.0", "v0.25.1"));
+        // Sufixo não-numérico é descartado (`1.2.3-rc` → 1,2,3).
+        assert!(semver_lt("1.2.3-rc", "1.2.4"));
+        // Comprimentos diferentes completam com zero.
+        assert!(semver_lt("1.2", "1.2.1"));
+        assert!(!semver_lt("1.2.0", "1.2"));
+    }
+}
