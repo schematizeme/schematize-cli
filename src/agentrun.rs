@@ -80,6 +80,12 @@ fn initial_prompt(objetivo: &str) -> String {
     }
 }
 
+/// `true` se o CLL `claude` está no `$PATH` (checagem barata pra a GUI/CLI
+/// decidirem entre disparar a sessão ou só imprimir a dica).
+pub fn claude_in_path() -> bool {
+    binary_in_path("claude")
+}
+
 /// `true` se `bin` é um arquivo em algum diretório do `$PATH` (checagem barata
 /// pra dar erro claro antes de tentar spawnar um agente inexistente).
 fn binary_in_path(bin: &str) -> bool {

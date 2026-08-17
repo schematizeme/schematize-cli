@@ -240,7 +240,20 @@ pub fn start(objetivo: &str, max_iters: Option<u64>) -> Result<(), String> {
     }
     println!("overdev ATIVO. Objetivo: {objetivo}");
     println!("Preencha .overdev/CHECKLIST.md (exaustivo). O agente não pode parar até fechar.");
+    // Snapshot inicial no DB local (best-effort: nunca quebra o start se o DB falhar).
+    let _ = crate::overdevdb::snapshot(Path::new("."));
     Ok(())
+}
+
+/// Comando que a GUI injeta na sessão do agente acoplado pra CARREGAR os preceitos
+/// de engenharia da casa no contexto (slash command da skill de engenharia).
+pub fn load_cmd() -> &'static str {
+    "/eng-load"
+}
+
+/// Comando que a GUI injeta pra (re)INDEXAR o conteúdo do projeto (grafo/MAPA §39).
+pub fn index_cmd() -> &'static str {
+    "/eng-index"
 }
 
 /// Veredito do Stop hook, decidido de forma PURA (testável) a partir das contagens.
@@ -410,6 +423,8 @@ pub fn human_done(substr: Option<&str>, index: Option<usize>) -> Result<(), Stri
     let s = fs::read_to_string(checklist()).map_err(|e| e.to_string())?;
     let (out, txt) = mark_human_str(&s, substr, index)?;
     fs::write(checklist(), out).map_err(|e| e.to_string())?;
+    // Versiona a mudança no DB local (best-effort).
+    let _ = crate::overdevdb::snapshot(Path::new("."));
     println!("item humano fechado: {txt}");
     Ok(())
 }
@@ -442,7 +457,10 @@ pub fn add_note(root: &Path, kind: &str, texto: &str) -> Result<(), String> {
     }
     let mut cur = fs::read_to_string(&f).unwrap_or_else(|_| "# OVERDEV — NOTAS do humano\n\n".to_string());
     cur.push_str(&note_block(kind, texto));
-    fs::write(&f, cur).map_err(|e| e.to_string())
+    fs::write(&f, cur).map_err(|e| e.to_string())?;
+    // Versiona a nota no DB local (best-effort).
+    let _ = crate::overdevdb::snapshot(root);
+    Ok(())
 }
 
 /// Lê as notas do humano (vazio se não houver) — consumível pela GUI.
