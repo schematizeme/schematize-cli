@@ -18,6 +18,7 @@
     { "slug": "mobile", "skill_dir": "schematize-mobile", "repo": "skill-mobile", "zip": "skill-mobile.zip", "category": "base", "verified": true, "sponsor": { "name": "Lucassa", "url": "https://lucassa.me" } },
     { "slug": "infra", "skill_dir": "schematize-infra", "repo": "skill-infra", "zip": "skill-infra.zip", "category": "base", "verified": true, "sponsor": { "name": "Lucassa", "url": "https://lucassa.me" } },
     { "slug": "docs", "skill_dir": "schematize-docs", "repo": "skill-docs", "zip": "skill-docs.zip", "category": "base", "verified": true, "sponsor": { "name": "Lucassa", "url": "https://lucassa.me" } },
-    { "slug": "scaffold", "skill_dir": "schematize-scaffold", "repo": "skill-scaffold", "zip": "skill-scaffold.zip", "category": "base", "verified": true, "sponsor": { "name": "Lucassa", "url": "https://lucassa.me" } }
+    { "slug": "scaffold", "skill_dir": "schematize-scaffold", "repo": "skill-scaffold", "zip": "skill-scaffold.zip", "category": "base", "verified": true, "sponsor": { "name": "Lucassa", "url": "https://lucassa.me" } },
+    { "slug": "overdev-context", "skill_dir": "schematize-overdev-context", "repo": "skill-overdev-context", "zip": "skill-overdev-context.zip", "category": "base", "verified": true, "recommends": ["engineering"], "sponsor": { "name": "Lucassa", "url": "https://lucassa.me" } }
   ]
 }
