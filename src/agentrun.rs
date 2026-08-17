@@ -69,15 +69,24 @@ pub fn nudge_message(open_items: &[String]) -> String {
     s
 }
 
-/// Prompt inicial escrito no PTY pra ligar o overdev no agente. Reusa o objetivo
-/// (do state.json ou do `.overdev/OBJETIVO.md`). PURA.
-fn initial_prompt(objetivo: &str) -> String {
+/// Prompt inicial passado como ARGUMENTO do `claude` (o claude interativo o submete sozinho).
+/// É linguagem NATURAL — não o slash `/eng-overdev` (que não dispara como arg). Dá o método do
+/// overdev direto e conta com o Stop hook pra impor o "não pare". PURA.
+pub fn overdev_prompt(objetivo: &str) -> String {
     let o = objetivo.trim();
-    if o.is_empty() {
-        "/eng-overdev\n".to_string()
+    let alvo = if o.is_empty() {
+        String::new()
     } else {
-        format!("/eng-overdev {o}\n")
-    }
+        format!(" O objetivo é: {o}.")
+    };
+    format!(
+        "Modo OVERDEV neste projeto.{alvo} Leia `.overdev/CHECKLIST.md` (e `.overdev/OBJETIVO.md`, \
+         `.overdev/PLAN.md`, `.overdev/DECISOES.md` se existirem) e TRABALHE cada item aberto \
+         `- [ ]` até fechar, marcando `- [x]` só COM PROVA (teste/comando/arquivo/gate que passa). \
+         Itens `- [H ]` são de humano — não os faça. NÃO pare enquanto houver `- [ ]` aberto (o Stop \
+         hook do overdev vai te barrar de qualquer forma). Se travar numa dúvida, use \
+         `schematize overdev park` e siga. Comece agora pelo primeiro item aberto."
+    )
 }
 
 /// `true` se o CLL `claude` está no `$PATH` (checagem barata pra a GUI/CLI
@@ -92,6 +101,98 @@ fn binary_in_path(bin: &str) -> bool {
     std::env::var_os("PATH")
         .map(|paths| std::env::split_paths(&paths).any(|dir| dir.join(bin).is_file()))
         .unwrap_or(false)
+}
+
+/// Marca `projects.<caminho>.hasTrustDialogAccepted = true` no `~/.claude.json` pra o
+/// `claude` NÃO exibir o "Is this a project you trust?" (que trava o run acoplado). Best-effort:
+/// qualquer erro é ignorado (no pior caso o agente só mostra o prompt, como antes). Preserva todo
+/// o resto do config (merge por campo). Não é campo de segurança do nosso lado — o usuário
+/// disparou o overdev no próprio projeto.
+fn pre_trust_project(project: &Path) {
+    let Some(home) = std::env::var_os("HOME") else { return };
+    let cfg = Path::new(&home).join(".claude.json");
+    let mut root: serde_json::Value = std::fs::read_to_string(&cfg)
+        .ok()
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or_else(|| serde_json::json!({}));
+    let Some(obj) = root.as_object_mut() else { return };
+    let key = project
+        .canonicalize()
+        .unwrap_or_else(|_| project.to_path_buf())
+        .to_string_lossy()
+        .to_string();
+    let projects = obj
+        .entry("projects")
+        .or_insert_with(|| serde_json::json!({}));
+    let Some(pobj) = projects.as_object_mut() else { return };
+    let entry = pobj.entry(key).or_insert_with(|| serde_json::json!({}));
+    if let Some(eo) = entry.as_object_mut() {
+        eo.insert("hasTrustDialogAccepted".into(), serde_json::Value::Bool(true));
+        let _ = std::fs::write(&cfg, serde_json::to_string_pretty(&root).unwrap_or_default());
+    }
+}
+
+/// Dispara o overdev num TERMINAL EXTERNO (processo próprio do `claude`, RAM dele — NÃO carrega o
+/// load dentro do app; some o inchaço tipo VSCode). O app só MONITORA o `.overdev/` depois. O
+/// "não pare" é imposto pelo Stop hook do overdev (não precisa injetar `continue`).
+///
+/// Escreve o prompt num arquivo (evita quoting de shell) + um wrapper `.overdev/run.sh`, pré-confia
+/// a pasta e abre o 1º terminal disponível rodando `claude --dangerously-skip-permissions "<prompt>"`.
+/// Devolve o nome do terminal usado. Erro se `claude` ou nenhum terminal estiver no PATH.
+pub fn launch_in_terminal(project: &Path, objetivo: &str) -> Result<String, String> {
+    if !binary_in_path("claude") {
+        return Err("o CLI `claude` não está no PATH — instale o Claude Code (claude.ai/code).".into());
+    }
+    pre_trust_project(project);
+    let od = project.join(".overdev");
+    std::fs::create_dir_all(&od).map_err(|e| format!("criar .overdev: {e}"))?;
+    let promptfile = od.join("run-prompt.txt");
+    std::fs::write(&promptfile, overdev_prompt(objetivo)).map_err(|e| format!("gravar prompt: {e}"))?;
+    let script = od.join("run.sh");
+    let sh = format!(
+        "#!/usr/bin/env bash\ncd {proj:?} || exit 1\nclaude --dangerously-skip-permissions \"$(cat {pf:?})\"\necho\nread -rp '[overdev encerrado — Enter para fechar] '\n",
+        proj = project,
+        pf = promptfile,
+    );
+    std::fs::write(&script, &sh).map_err(|e| format!("gravar wrapper: {e}"))?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755));
+    }
+    let terms = [
+        "konsole",
+        "gnome-terminal",
+        "xfce4-terminal",
+        "x-terminal-emulator",
+        "alacritty",
+        "kitty",
+        "xterm",
+    ];
+    let term = terms
+        .iter()
+        .find(|t| binary_in_path(t))
+        .ok_or_else(|| "nenhum terminal encontrado (konsole/gnome-terminal/xterm/…).".to_string())?;
+    let mut cmd = std::process::Command::new(term);
+    match *term {
+        // esses usam `--` pra separar o comando a executar
+        "gnome-terminal" | "xfce4-terminal" => {
+            cmd.arg("--").arg("bash").arg(&script);
+        }
+        _ => {
+            cmd.arg("-e").arg("bash").arg(&script);
+        }
+    }
+    cmd.stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null());
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+        cmd.process_group(0); // desacopla do app: o claude segue vivo se o app fechar
+    }
+    cmd.spawn().map_err(|e| format!("abrir terminal `{term}`: {e}"))?;
+    Ok((*term).to_string())
 }
 
 // ---------------------------------------------------------------------------
@@ -124,10 +225,15 @@ impl AgentRunner for ClaudeRunner {
     }
 
     fn command_line(&self, objetivo: &str) -> String {
-        format!("claude  (cwd = projeto)  ->  envia no PTY: {}", initial_prompt(objetivo).trim())
+        let _ = objetivo;
+        "claude --dangerously-skip-permissions \"<prompt do overdev>\"  (cwd = projeto)".to_string()
     }
 
     fn spawn(&self, project: &Path, objetivo: &str) -> Result<Session, String> {
+        // Pré-confia a pasta no ~/.claude.json (senão o claude para na tela "Is this a project
+        // you trust?" — que o `--dangerously-skip-permissions` NÃO pula, e o auto-continue não
+        // responde). O usuário disparou o overdev no próprio projeto, então confiar é implícito.
+        pre_trust_project(project);
         if !binary_in_path("claude") {
             return Err(
                 "o CLI `claude` não está no PATH. Instale o Claude Code (claude.ai/code) \
@@ -145,6 +251,10 @@ impl AgentRunner for ClaudeRunner {
         // permissão de ferramenta — o overdev roda AUTÔNOMO (o usuário disparou no próprio
         // projeto). Sem isso o agente trava na tela de confiança (o auto-continue não a responde).
         cmd.arg("--dangerously-skip-permissions");
+        // O prompt inicial vai como ARGUMENTO posicional (o claude interativo o submete sozinho).
+        // Digitar no PTY não funciona (bracketed paste). Comando natural, NÃO o slash `/eng-overdev`
+        // (que não dispara como arg). O laço "não pare" é imposto pelo Stop hook do overdev.
+        cmd.arg(overdev_prompt(objetivo));
         cmd.cwd(project);
         // Ambiente ROBUSTO: quando a GUI é aberta pelo lançador do desktop, o env é mínimo e o
         // `claude` (node) morre na hora (virava zumbi). Herda o env do pai e reforça os
@@ -210,8 +320,7 @@ impl AgentRunner for ClaudeRunner {
             _master: pair.master,
             _reader_thread: Some(reader_thread),
         };
-        // Liga o overdev no agente.
-        session.send(&initial_prompt(objetivo))?;
+        // O comando inicial já foi passado como ARGUMENTO (submete sozinho) — nada a digitar aqui.
         Ok(session)
     }
 }
