@@ -141,7 +141,38 @@ impl AgentRunner for ClaudeRunner {
             .map_err(|e| format!("falha ao abrir PTY: {e}"))?;
 
         let mut cmd = CommandBuilder::new("claude");
+        // `--dangerously-skip-permissions`: pula o "trust this folder?" e os prompts de
+        // permissão de ferramenta — o overdev roda AUTÔNOMO (o usuário disparou no próprio
+        // projeto). Sem isso o agente trava na tela de confiança (o auto-continue não a responde).
+        cmd.arg("--dangerously-skip-permissions");
         cmd.cwd(project);
+        // Ambiente ROBUSTO: quando a GUI é aberta pelo lançador do desktop, o env é mínimo e o
+        // `claude` (node) morre na hora (virava zumbi). Herda o env do pai e reforça os
+        // essenciais — HOME, TERM e um PATH com os bins de usuário (~/.local/bin, ~/.cargo/bin).
+        for (k, v) in std::env::vars() {
+            cmd.env(k, v);
+        }
+        if std::env::var_os("TERM").is_none() {
+            cmd.env("TERM", "xterm-256color");
+        }
+        if let Some(home) = std::env::var_os("HOME") {
+            let home = home.to_string_lossy().to_string();
+            let base = std::env::var("PATH").unwrap_or_default();
+            let mut parts: Vec<String> =
+                base.split(':').filter(|s| !s.is_empty()).map(String::from).collect();
+            for e in [
+                format!("{home}/.local/bin"),
+                format!("{home}/.cargo/bin"),
+                "/usr/local/bin".to_string(),
+                "/usr/bin".to_string(),
+                "/bin".to_string(),
+            ] {
+                if !parts.contains(&e) {
+                    parts.push(e);
+                }
+            }
+            cmd.env("PATH", parts.join(":"));
+        }
         let child = pair
             .slave
             .spawn_command(cmd)
