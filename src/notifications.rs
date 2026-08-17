@@ -7,7 +7,8 @@
 //! As funções `notif_*` são PURAS (montam um `Notif` a partir de dados já colhidos) pra serem
 //! testáveis sem rede; `collect` é a parte impura que faz as chamadas e delega a montagem a elas.
 
-use crate::{news, registry, skills, upgrade};
+use crate::{account, news, registry, skills, upgrade, util};
+use serde::Deserialize;
 
 /// Escopo de uma notificação: GLOBAL (vale pra todo mundo) ou PESSOAL (do ambiente do usuário).
 pub enum NotifScope {
@@ -64,9 +65,75 @@ fn notif_skill_outdated(slug: &str, installed: &str, latest: &str) -> Notif {
     }
 }
 
-/// Colhe TODAS as notificações locais (global + pessoal). Resiliente: cada fonte que falha
-/// (rede, skill ausente) é simplesmente pulada — nunca panica e sempre retorna uma lista.
-/// Custo de rede: resolve a versão de cada skill INSTALADA (a GUI chama isto numa thread).
+/// Forma bruta de uma notificação do servidor (marketplace). Campos ausentes viram default —
+/// catálogo/servidor antigo ainda parseia. `object` (url/id do alvo) vira a `action` da UI.
+#[derive(Deserialize)]
+struct ServerNotif {
+    #[serde(default)]
+    kind: String,
+    #[serde(default)]
+    title: String,
+    #[serde(default)]
+    body: String,
+    #[serde(default)]
+    object: Option<String>,
+}
+
+/// Página de `GET /me/notifications` (só o `data` interessa aqui).
+#[derive(Deserialize)]
+struct NotifPage {
+    #[serde(default)]
+    data: Vec<ServerNotif>,
+}
+
+/// Faz o parse PURO da página de notificações do servidor em `Notif` (escopo Pessoal).
+/// Testável sem rede. JSON inválido → lista vazia (best-effort, nunca panica).
+fn parse_notifs(json: &str) -> Vec<Notif> {
+    let page: NotifPage = match serde_json::from_str(json) {
+        Ok(p) => p,
+        Err(_) => return Vec::new(),
+    };
+    page.data
+        .into_iter()
+        .map(|s| Notif {
+            scope: NotifScope::Personal,
+            title: s.title,
+            body: s.body,
+            kind: if s.kind.trim().is_empty() {
+                "server".to_string()
+            } else {
+                s.kind
+            },
+            action: s.object.filter(|o| !o.trim().is_empty()),
+        })
+        .collect()
+}
+
+/// Busca as notificações do SERVIDOR (marketplace), se o usuário estiver logado. Best-effort:
+/// não logado, sem access token válido, ou falha de rede → lista vazia (só as locais aparecem).
+/// A parte impura (rede) fica aqui; a montagem delega a `parse_notifs` (pura, testável).
+fn server_notifs() -> Vec<Notif> {
+    if !account::is_logged_in() {
+        return Vec::new();
+    }
+    let Some(token) = account::access_token() else {
+        return Vec::new();
+    };
+    let url = format!("{}/me/notifications?unread=false&limit=20", account::api_base());
+    let auth = format!("Authorization: Bearer {token}");
+    match util::run(
+        "curl",
+        &["-sfL", "-m", "10", "-H", "User-Agent: schematize-cli", "-H", &auth, &url],
+    ) {
+        Ok(body) => parse_notifs(&body),
+        Err(_) => Vec::new(),
+    }
+}
+
+/// Colhe TODAS as notificações (locais global+pessoal + do servidor, se logado). Resiliente:
+/// cada fonte que falha (rede, skill ausente, não-logado) é simplesmente pulada — nunca panica
+/// e sempre retorna uma lista. Custo de rede: versão de cada skill INSTALADA + (se logado) o
+/// GET das notificações do servidor (a GUI chama isto numa thread).
 pub fn collect() -> Vec<Notif> {
     let mut out: Vec<Notif> = Vec::new();
 
@@ -96,6 +163,9 @@ pub fn collect() -> Vec<Notif> {
             out.push(notif_skill_outdated(slug, &installed, &latest));
         }
     }
+
+    // --- SERVIDOR: notificações do marketplace (só se logado; best-effort).
+    out.extend(server_notifs());
 
     out
 }
@@ -140,6 +210,33 @@ mod tests {
         assert_eq!(n.action.as_deref(), Some("skills update rust"));
         assert!(n.title.contains("rust"));
         assert!(n.body.contains("0.14.0") && n.body.contains("0.15.0"));
+    }
+
+    #[test]
+    fn parse_notifs_do_servidor() {
+        let j = r#"{
+            "data":[
+                {"id":"1","kind":"review_reply","title":"Alguém respondeu","body":"na sua review","object":"https://x/r/1","read":false,"created_at":"2026-08-16T00:00:00Z"},
+                {"id":"2","kind":"","title":"Sem kind","body":"","object":null,"read":true}
+            ],
+            "next_before":"2026-08-15T00:00:00Z"
+        }"#;
+        let ns = parse_notifs(j);
+        assert_eq!(ns.len(), 2);
+        assert!(matches!(ns[0].scope, NotifScope::Personal));
+        assert_eq!(ns[0].kind, "review_reply");
+        assert_eq!(ns[0].title, "Alguém respondeu");
+        assert_eq!(ns[0].action.as_deref(), Some("https://x/r/1"));
+        // kind vazio vira "server"; object null/ausente → action None.
+        assert_eq!(ns[1].kind, "server");
+        assert_eq!(ns[1].action, None);
+    }
+
+    #[test]
+    fn parse_notifs_invalido_vira_vazio() {
+        assert!(parse_notifs("não json").is_empty());
+        assert!(parse_notifs("{}").is_empty());
+        assert!(parse_notifs(r#"{"data":[]}"#).is_empty());
     }
 
     #[test]
