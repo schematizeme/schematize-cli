@@ -14,6 +14,10 @@ use std::path::{Path, PathBuf};
 const ORG: &str = "schematizeme";
 const REPO: &str = "schematize-cli";
 
+/// install.sh do main — usado pelo fallback de recompilação do fonte (source-first) quando
+/// não há binário pré-compilado compatível pra plataforma (ex.: openSUSE, glibc diferente).
+const INSTALL_SH: &str = "https://raw.githubusercontent.com/schematizeme/schematize-cli/main/install.sh";
+
 /// Nomes dos assets por plataforma (batem com o que o CI publica).
 fn asset_names() -> (&'static str, &'static str) {
     #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
@@ -80,7 +84,54 @@ fn writable(dir: &Path) -> bool {
 }
 
 fn download(url: &str, dest: &Path) -> Result<(), String> {
-    util::run("curl", &["-fSL", "-o", dest.to_str().ok_or("path inválido")?, url]).map(|_| ())
+    // `-fsSL`: falha em HTTP >=400 (o 404 do asset ausente), SEM a barra de progresso (que vazava
+    // como tabela `% Total % Received…` na mensagem de erro da GUI), mas ainda mostra o erro.
+    util::run("curl", &["-fsSL", "-o", dest.to_str().ok_or("path inválido")?, url]).map(|_| ())
+}
+
+/// Recompila o app do FONTE num TERMINAL EXTERNO (rustup/sudo podem pedir senha lá — a GUI/agente
+/// não têm TTY). É o fallback confiável quando não há binário pré-compilado pra a plataforma
+/// (openSUSE e cia.) ou quando o binário baixado não roda aqui (glibc incompatível). Evita brickar
+/// a instalação trocando por um binário que não executa. Devolve mensagem honesta.
+#[cfg(unix)]
+fn upgrade_from_source_in_terminal() -> Result<String, String> {
+    let script = format!(
+        "#!/usr/bin/env bash\nexport PATH=\"$HOME/.cargo/bin:$HOME/.local/bin:$PATH\"\ncurl -fsSL {INSTALL_SH} | bash -s -- --from-source\necho\nread -rp '[atualização encerrada — Enter para fechar] '\n"
+    );
+    let tmp = log_path().parent().unwrap_or(Path::new(".")).join("update-source.sh");
+    fs::write(&tmp, &script).map_err(|e| format!("gravar script de update: {e}"))?;
+    let _ = util::run("chmod", &["+x", tmp.to_str().unwrap_or_default()]);
+    let terms = [
+        "konsole", "gnome-terminal", "xfce4-terminal", "x-terminal-emulator",
+        "alacritty", "kitty", "xterm",
+    ];
+    let term = terms.iter().find(|t| which(t)).ok_or_else(|| {
+        format!(
+            "sem binário pré-compilado pra sua distro e nenhum terminal encontrado. \
+             Rode no terminal: curl -fsSL {INSTALL_SH} | bash -s -- --from-source"
+        )
+    })?;
+    let mut cmd = std::process::Command::new(term);
+    match *term {
+        "gnome-terminal" | "xfce4-terminal" => {
+            cmd.arg("--").arg("bash").arg(&tmp);
+        }
+        _ => {
+            cmd.arg("-e").arg("bash").arg(&tmp);
+        }
+    }
+    cmd.spawn().map_err(|e| format!("abrir terminal `{term}`: {e}"))?;
+    log(&format!("fallback: recompilação do fonte aberta em `{term}`"));
+    Ok("Sem binário pronto pra sua distro — abri um terminal recompilando do fonte \
+        (rustup/sudo podem pedir senha). Reabra o app quando terminar."
+        .into())
+}
+
+/// O binário baixado EXECUTA nesta máquina? (`<bin> --version` roda). Protege contra trocar por um
+/// binário de glibc incompatível (ex.: build do Debian num openSUSE Leap) que brickaria a instalação.
+#[cfg(unix)]
+fn binary_runs(bin: &Path) -> bool {
+    util::run(bin.to_str().unwrap_or_default(), &["--version"]).is_ok()
 }
 
 /// Executa a atualização. Retorna a mensagem de sucesso (versão) ou erro descritivo.
@@ -116,11 +167,23 @@ pub fn run() -> Result<String, String> {
         fs::create_dir_all(&tmp).map_err(|e| e.to_string())?;
         let cli_tmp = tmp.join(bin_filename(false));
         let gui_tmp = tmp.join(bin_filename(true));
-        download(&format!("{base}/{cli_asset}"), &cli_tmp)
-            .map_err(|e| format!("falha ao baixar o CLI: {e}"))?;
+        // Baixa o binário do CLI. Sem asset pré-compilado (404) → NÃO falha feio: recompila do
+        // fonte num terminal (openSUSE e qualquer distro sem release binário pronto).
+        if download(&format!("{base}/{cli_asset}"), &cli_tmp).is_err() {
+            let _ = fs::remove_dir_all(&tmp);
+            log(&format!("sem binário pré-compilado v{tag} (404) — fallback pro fonte"));
+            return upgrade_from_source_in_terminal();
+        }
+        let _ = util::run("chmod", &["+x", cli_tmp.to_str().unwrap()]);
+        // Binário baixado EXECUTA aqui? (glibc compatível). Se não, NÃO troca — recompila do fonte
+        // (evita trocar por um binário que não roda e brickar a instalação).
+        if !binary_runs(&cli_tmp) {
+            let _ = fs::remove_dir_all(&tmp);
+            log("binário baixado não executa (glibc incompatível?) — fallback pro fonte");
+            return upgrade_from_source_in_terminal();
+        }
         // A GUI é opcional: se o asset não existir, segue só com o CLI.
         let has_gui = download(&format!("{base}/{gui_asset}"), &gui_tmp).is_ok();
-        let _ = util::run("chmod", &["+x", cli_tmp.to_str().unwrap()]);
         if has_gui {
             let _ = util::run("chmod", &["+x", gui_tmp.to_str().unwrap()]);
         }
@@ -192,7 +255,7 @@ fn place(src: &Path, dst: &Path) -> Result<(), String> {
     Ok(())
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(unix)]
 fn which(cmd: &str) -> bool {
     util::run("sh", &["-c", &format!("command -v {cmd}")]).is_ok()
 }
