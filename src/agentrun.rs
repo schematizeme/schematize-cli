@@ -89,6 +89,18 @@ pub fn overdev_prompt(objetivo: &str) -> String {
     )
 }
 
+/// Prompt em linguagem NATURAL pra (RE)INDEXAR o projeto (o grafo/MAPA §39). NÃO é o
+/// slash `/eng-index` (que não dispara como argumento do `claude`) — dá a instrução direta
+/// pra a GUI/CLI dispararem via `launch_prompt_in_terminal`. PURA.
+pub fn reindex_prompt() -> String {
+    "Rode o índice deste projeto. Gere/atualize o MAPA (INDEX_GLOBAL.md + INDEX_FUNCTIONS.md) e a \
+     ADJACÊNCIA do grafo (arestas `A -> B`) em `<projeto>_archive/index/`, a partir dos doc-comments \
+     de cada função/módulo, seguindo a §39 da engenharia da casa. Cada nó deve ter uma descrição \
+     curta de uma linha (a coluna \"O quê\"). Confira contra o código para não deixar nó órfão nem \
+     função sem entrada. NÃO pare até o índice estar completo e consistente."
+        .to_string()
+}
+
 /// `true` se o CLL `claude` está no `$PATH` (checagem barata pra a GUI/CLI
 /// decidirem entre disparar a sessão ou só imprimir a dica).
 pub fn claude_in_path() -> bool {
@@ -140,6 +152,15 @@ fn pre_trust_project(project: &Path) {
 /// a pasta e abre o 1º terminal disponível rodando `claude --dangerously-skip-permissions "<prompt>"`.
 /// Devolve o nome do terminal usado. Erro se `claude` ou nenhum terminal estiver no PATH.
 pub fn launch_in_terminal(project: &Path, objetivo: &str) -> Result<String, String> {
+    launch_prompt_in_terminal(project, &overdev_prompt(objetivo))
+}
+
+/// Igual à [`launch_in_terminal`], mas dispara um PROMPT ARBITRÁRIO (linguagem natural) num
+/// terminal externo — reusada pelo (re)index ([`reindex_prompt`]) e por qualquer ação one-shot
+/// que a GUI/CLI queira delegar ao `claude` fora do processo do app. Escreve o prompt num arquivo
+/// (evita quoting de shell) + um wrapper `.overdev/run.sh` e abre o 1º terminal disponível.
+/// Devolve o nome do terminal usado. Erro se `claude` ou nenhum terminal estiver no PATH.
+pub fn launch_prompt_in_terminal(project: &Path, prompt: &str) -> Result<String, String> {
     if !binary_in_path("claude") {
         return Err("o CLI `claude` não está no PATH — instale o Claude Code (claude.ai/code).".into());
     }
@@ -147,7 +168,7 @@ pub fn launch_in_terminal(project: &Path, objetivo: &str) -> Result<String, Stri
     let od = project.join(".overdev");
     std::fs::create_dir_all(&od).map_err(|e| format!("criar .overdev: {e}"))?;
     let promptfile = od.join("run-prompt.txt");
-    std::fs::write(&promptfile, overdev_prompt(objetivo)).map_err(|e| format!("gravar prompt: {e}"))?;
+    std::fs::write(&promptfile, prompt).map_err(|e| format!("gravar prompt: {e}"))?;
     let script = od.join("run.sh");
     let sh = format!(
         "#!/usr/bin/env bash\ncd {proj:?} || exit 1\nclaude --dangerously-skip-permissions \"$(cat {pf:?})\"\necho\nread -rp '[overdev encerrado — Enter para fechar] '\n",

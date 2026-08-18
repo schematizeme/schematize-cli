@@ -8,7 +8,7 @@
 //! checklist+gate (overdev.rs); o painel só dá visão.
 
 use crate::util::open_url;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -212,6 +212,92 @@ pub fn parse_graph(dir: &Path) -> (Vec<Node>, Vec<Edge>) {
         })
         .collect();
     (nodes, edges)
+}
+
+/// Lê uma linha de tabela de índice e extrai (nó, descrição curta): o nome é a 1ª
+/// célula (mesma normalização de `parse_func_row`), a descrição é a 1ª célula
+/// seguinte que NÃO é um `arquivo:linha`, separador ou vazia (tipicamente a coluna
+/// "O quê"). Best-effort: None se não parecer uma linha de dado.
+fn parse_desc_row(l: &str) -> Option<(String, String)> {
+    if !l.contains('|') {
+        return None;
+    }
+    let cells: Vec<&str> = l.trim().trim_matches('|').split('|').map(|c| c.trim()).collect();
+    if cells.len() < 2 {
+        return None;
+    }
+    let name = cells[0].trim_matches('`').trim();
+    if name.is_empty()
+        || name.len() > 80
+        || name.starts_with("---")
+        || name.starts_with(":--")
+        || name.eq_ignore_ascii_case("função")
+        || name.eq_ignore_ascii_case("funcao")
+        || name.eq_ignore_ascii_case("repo/serviço")
+        || name.eq_ignore_ascii_case("origem")
+        || name.eq_ignore_ascii_case("pasta top-level")
+    {
+        return None;
+    }
+    let desc = cells[1..]
+        .iter()
+        .map(|c| c.trim_matches('`').trim())
+        .find(|c| !c.is_empty() && !looks_like_loc(c) && !c.starts_with("---") && !c.starts_with(":--"))?;
+    if desc.is_empty() || desc.len() > 240 {
+        return None;
+    }
+    Some((name.to_string(), desc.to_string()))
+}
+
+/// Lê uma linha de doc/hub `nó — descrição` (aceita bullet e `[[nó]]`); usa o
+/// em-dash como separador. None se não casar. Nunca trata aresta (`->`) como desc.
+fn parse_desc_line(l: &str) -> Option<(String, String)> {
+    let s = l.trim_start_matches(['-', '*', '>']).trim();
+    if s.is_empty() || s.contains("->") {
+        return None;
+    }
+    let i = s.find('—')?;
+    let left = s[..i].trim();
+    let right = s[i + '—'.len_utf8()..].trim().trim_matches('`').trim();
+    if left.is_empty() || right.is_empty() || right.len() > 240 {
+        return None;
+    }
+    let name = clean_node(left);
+    if name.is_empty() || name.len() > 80 {
+        return None;
+    }
+    Some((name, right.to_string()))
+}
+
+/// Descrição curta por NÓ do índice (mesma normalização de `parse_graph`): parseia
+/// o MAPA/índice em `<projeto>_archive/index/` e extrai, best-effort, a linha/descrição
+/// daquele nó — da coluna "O quê" de uma tabela ou de uma linha `nó — descrição`.
+/// Nó sem descrição fica ausente. Usado pelo clique no nó do grafo (bloco de texto).
+pub fn node_descriptions(root: &Path) -> HashMap<String, String> {
+    let mut out: HashMap<String, String> = HashMap::new();
+    let Some(dir) = find_index_dir(root) else {
+        return out;
+    };
+    if let Ok(rd) = fs::read_dir(&dir) {
+        for e in rd.flatten() {
+            let p = e.path();
+            if p.extension().and_then(|s| s.to_str()) != Some("md") {
+                continue;
+            }
+            let text = fs::read_to_string(&p).unwrap_or_default();
+            for line in text.lines() {
+                let l = line.trim();
+                if l.starts_with('|') {
+                    if let Some((name, desc)) = parse_desc_row(l) {
+                        out.entry(name).or_insert(desc);
+                    }
+                } else if let Some((name, desc)) = parse_desc_line(l) {
+                    out.entry(name).or_insert(desc);
+                }
+            }
+        }
+    }
+    out
 }
 
 // ---------------------------------------------------------------------------
