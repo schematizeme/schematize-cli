@@ -34,6 +34,67 @@ fn api_rate() -> Option<(i64, i64, i64)> {
     Some((c.get("remaining")?.as_i64()?, c.get("limit")?.as_i64()?, c.get("reset")?.as_i64()?))
 }
 
+/// Versão TEXTO (sem ANSI, sem cor) do diagnóstico essencial do updater — reusada pelo
+/// coletor de debug (`debugreport`). Best-effort: cada linha é independente e nunca panica.
+/// Cobre o núcleo: versão instalada/raw/API, rate-limit do GitHub e gravabilidade do exe.
+pub fn report_text() -> String {
+    use std::fmt::Write as _;
+    let mut o = String::new();
+    let cur = env!("CARGO_PKG_VERSION");
+
+    let _ = writeln!(o, "instalada (este bin): {cur}");
+    let src = skills::latest_version_raw("schematize-cli");
+    let _ = writeln!(o, "fonte (raw main): {}", src.as_deref().unwrap_or("? (raw indisponível)"));
+    match &src {
+        Some(s) if s == cur => {
+            let _ = writeln!(o, "veredito: atualizado");
+        }
+        Some(s) => {
+            let _ = writeln!(o, "veredito: DESATUALIZADO — fonte tem v{s} (rode: schematize upgrade)");
+        }
+        None => {
+            let _ = writeln!(o, "veredito: não deu pra comparar (raw indisponível — rede?)");
+        }
+    }
+    let _ = writeln!(
+        o,
+        "API releases/latest: {}",
+        skills::latest_release_tag("schematize-cli").as_deref().unwrap_or("? (rate limit? ver abaixo)")
+    );
+
+    match api_rate() {
+        Some((rem, lim, reset)) => {
+            let now = util::now_unix() as i64;
+            let _ = writeln!(
+                o,
+                "rate limit GitHub core: {rem}/{lim} (reseta em ~{} min){}",
+                ((reset - now).max(0)) / 60,
+                if rem == 0 { " — QUOTA ZERADA (a CLI usa raw, não a API, então não te trava)" } else { "" }
+            );
+        }
+        None => {
+            let _ = writeln!(o, "rate limit GitHub: não consegui ler (rede?)");
+        }
+    }
+
+    match std::env::current_exe() {
+        Ok(p) => {
+            let _ = writeln!(o, "current_exe: {}", p.display());
+            if let Some(d) = p.parent() {
+                let _ = writeln!(
+                    o,
+                    "dir do exe gravável?: {}",
+                    if dir_writable(d) { "sim (self-update troca no lugar)" } else { "não (usa pkexec ou ~/.local/bin)" }
+                );
+            }
+        }
+        Err(_) => {
+            let _ = writeln!(o, "current_exe: ?");
+        }
+    }
+    o
+}
+
 /// Roda o diagnóstico completo e imprime na tela.
 pub fn run() {
     let cur = env!("CARGO_PKG_VERSION");

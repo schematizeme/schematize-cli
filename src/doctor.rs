@@ -110,6 +110,83 @@ pub fn run(fix: bool) {
     }
 }
 
+/// Versão TEXTO (sem ANSI, sem --fix) dos checks do doctor — reusada pelo coletor de
+/// debug (`debugreport`). Só LÊ o ambiente (nunca repara). Best-effort: nunca panica.
+pub fn report_text() -> String {
+    use std::fmt::Write as _;
+    let mut o = String::new();
+    let ln = |lv: &str, label: &str, detail: &str, o: &mut String| {
+        if detail.is_empty() {
+            let _ = writeln!(o, "[{lv}] {label}");
+        } else {
+            let _ = writeln!(o, "[{lv}] {label} — {detail}");
+        }
+    };
+
+    // ~/.claude e skills dir.
+    ln(if util::claude_dir().is_dir() { "OK" } else { "WARN" }, "~/.claude", "", &mut o);
+    ln(if util::skills_dir().is_dir() { "OK" } else { "WARN" }, "skills dir", "", &mut o);
+
+    // settings.json válido.
+    match settings::settings_valid() {
+        Some(true) | None => ln("OK", "settings.json", "", &mut o),
+        Some(false) => ln("FAIL", "settings.json", "inválido", &mut o),
+    }
+
+    // overdev hooks + agente (informativo).
+    ln("OK", "overdev hooks", if settings::overdev_enabled() { "on" } else { "off" }, &mut o);
+    ln("OK", "agente residente", if autostart::is_active() { "ativo" } else { "inativo" }, &mut o);
+
+    // PATH shadow.
+    match shadowed() {
+        Some(p) => ln("WARN", "PATH", &format!("shadow: {p} sombreia /usr/bin/schematize"), &mut o),
+        None => ln("OK", "PATH", "", &mut o),
+    }
+
+    // Rede (GitHub).
+    ln(if github_reachable() { "OK" } else { "FAIL" }, "rede (GitHub)", "", &mut o);
+
+    // Versão do CLI vs latest.
+    let cur = env!("CARGO_PKG_VERSION");
+    match skills::latest_version_raw("schematize-cli") {
+        Some(l) if l != cur => ln("WARN", "versão CLI", &format!("{cur} → {l}"), &mut o),
+        _ => ln("OK", "versão CLI", cur, &mut o),
+    }
+
+    // GUI flavor (só leitura).
+    match find_gui_bin() {
+        Some(path) => match fs::read(&path) {
+            Ok(bytes) => {
+                let has = |needle: &[u8]| bytes.windows(needle.len()).any(|w| w == needle);
+                if has(b"slint") {
+                    ln("OK", "GUI (schematize-gui)", &format!("Slint — {}", path.display()), &mut o);
+                } else if has(b"eframe") || has(b"egui") {
+                    ln("WARN", "GUI (schematize-gui)", "GUI antiga (egui) — rode `schematize upgrade`", &mut o);
+                } else {
+                    ln("WARN", "GUI (schematize-gui)", "não parece o Slint", &mut o);
+                }
+            }
+            Err(e) => ln("WARN", "GUI (schematize-gui)", &format!("ilegível: {e}"), &mut o),
+        },
+        None => ln("OK", "GUI (schematize-gui)", "não instalado (usa a embutida)", &mut o),
+    }
+
+    // Lançador .desktop: Exec absoluto?
+    let desktop = util::home().join(".local/share/applications/schematize-gui.desktop");
+    if desktop.exists() {
+        if let Ok(content) = fs::read_to_string(&desktop) {
+            let exec = content.lines().find_map(|l| l.strip_prefix("Exec=")).map(str::trim).unwrap_or("");
+            if exec.starts_with('/') {
+                ln("OK", "Lançador .desktop", "Exec com caminho absoluto", &mut o);
+            } else {
+                ln("WARN", "Lançador .desktop", "Exec não-absoluto — `schematize doctor --fix`", &mut o);
+            }
+        }
+    }
+
+    o
+}
+
 /// Retorna o caminho do binário que sombreia /usr/bin/schematize, se houver.
 fn shadowed() -> Option<String> {
     let bin = util::run("bash", &["-lc", "command -v schematize"]).ok()?;

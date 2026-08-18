@@ -9,6 +9,7 @@ pub mod appicon;
 pub mod autostart;
 pub mod config;
 pub mod debug;
+pub mod debugreport;
 pub mod environments;
 pub mod doctor;
 pub mod githist;

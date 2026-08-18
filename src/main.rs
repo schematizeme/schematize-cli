@@ -7,9 +7,9 @@ use clap::{Parser, Subcommand};
 use schematize::agentrun::AgentRunner;
 use schematize::i18n::{t, tf};
 use schematize::{
-    account, agent, agentrun, autostart, config, debug, doctor, environments, githist, i18n, links,
-    market, news, notifications, overdev, overdevdb, panel, projects, registry, skilledit, skills,
-    sshkeys, status, upgrade, util,
+    account, agent, agentrun, autostart, config, debug, debugreport, doctor, environments, githist,
+    i18n, links, market, news, notifications, overdev, overdevdb, panel, projects, registry,
+    skilledit, skills, sshkeys, status, upgrade, util,
 };
 use std::io::{self, BufRead, Write};
 use std::time::Duration;
@@ -59,8 +59,22 @@ enum Cmd {
         #[arg(long)]
         fix: bool,
     },
-    /// Debug the updater/versioning (versão, rate limit, exe, shadows, catálogo, log).
-    Debug,
+    /// Debug the updater/versioning; or --collect a shareable, secret-safe debug report.
+    Debug {
+        /// Collect a FULL debug report (system, install, deps, config, skills, overdev, logs).
+        #[arg(long)]
+        collect: bool,
+        /// Where to write the report (default: ~/.schematize/debug-report-<epoch>.txt).
+        #[arg(long)]
+        out: Option<String>,
+        /// Print the whole report to stdout instead of writing a file (only with --collect).
+        #[arg(long)]
+        stdout: bool,
+        /// Include NETWORK diagnostics (updater/rate-limit, catalog reach, doctor's github check).
+        /// Off by default so the report is FAST even on a slow/blocked network.
+        #[arg(long)]
+        online: bool,
+    },
     /// Update schematize itself — atualiza o próprio schematize (o APP, o binário), não as skills.
     Upgrade {
         #[arg(long)]
@@ -554,6 +568,25 @@ fn overdev_agent_cmd(cmd: &str) -> Result<(), String> {
     }
 }
 
+/// `schematize debug [--collect] [--out <path>] [--stdout]`.
+/// Sem `--collect`: o debug do updater (comportamento atual). Com `--collect`: monta o
+/// relatório completo (secret-safe) e grava um arquivo modo 600 (ou imprime com `--stdout`).
+fn debug_cmd(collect: bool, out: Option<String>, stdout: bool, online: bool) -> Result<(), String> {
+    if !collect {
+        debug::run();
+        return Ok(());
+    }
+    if stdout {
+        print!("{}", debugreport::collect(online));
+        return Ok(());
+    }
+    let path = debugreport::write_report(out.as_deref().map(std::path::Path::new), online)?;
+    println!("Relatório de debug gravado em: {}", path.display());
+    println!("  {}", debugreport::short_summary());
+    println!("  (modo 600 — segredos redigidos automaticamente; revise antes de compartilhar.)");
+    Ok(())
+}
+
 /// `schematize git-log [--limit N]` — commits recentes marcando push (●/○).
 fn git_log(limit: usize) {
     let root = match std::env::current_dir() {
@@ -1036,10 +1069,7 @@ fn main() {
             doctor::run(fix);
             Ok(())
         }
-        Cmd::Debug => {
-            debug::run();
-            Ok(())
-        }
+        Cmd::Debug { collect, out, stdout, online } => debug_cmd(collect, out, stdout, online),
         Cmd::Upgrade { force } => upgrade::run(force),
         Cmd::News => {
             news::show();
