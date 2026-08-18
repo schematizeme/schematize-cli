@@ -7,8 +7,8 @@ use clap::{Parser, Subcommand};
 use schematize::agentrun::AgentRunner;
 use schematize::i18n::{t, tf};
 use schematize::{
-    account, agent, agentrun, autostart, config, debug, debugreport, doctor, environments, githist,
-    i18n, links, market, news, notifications, overdev, overdevdb, panel, projects, registry,
+    account, agent, agentrun, autostart, config, database, debug, debugreport, doctor, environments,
+    githist, i18n, links, market, news, notifications, overdev, overdevdb, panel, projects, registry,
     skilledit, skills, sshkeys, status, upgrade, util,
 };
 use std::io::{self, BufRead, Write};
@@ -110,6 +110,11 @@ enum Cmd {
     Graph {
         #[command(subcommand)]
         sub: GraphCmd,
+    },
+    /// Database builder backend: introspect a DB, emit SQL/migration, or print the schema graph.
+    Db {
+        #[command(subcommand)]
+        sub: DbCmd,
     },
     /// Check for updates once (with --notify, fire a desktop notification).
     Check {
@@ -311,6 +316,47 @@ enum GraphCmd {
         /// Output directory (default: <project>_archive/obsidian).
         #[arg(long)]
         out: Option<String>,
+    },
+}
+
+/// Backend do "database builder" — introspecta, gera SQL/migration e o grafo do schema.
+#[derive(Subcommand)]
+enum DbCmd {
+    /// Introspect a database (SQLite file or Postgres conn) and print a summary.
+    Introspect {
+        /// Path to a SQLite file to introspect.
+        #[arg(long)]
+        sqlite: Option<String>,
+        /// Postgres connection string (uses `psql` from PATH).
+        #[arg(long)]
+        postgres: Option<String>,
+        /// Also print the schema as pretty JSON (for the GUI / piping).
+        #[arg(long)]
+        json: bool,
+    },
+    /// Emit SQL (CREATE/ALTER/INDEX) — or a migration with --migration — from a schema source.
+    Sql {
+        /// Read the schema from a JSON file (as saved by the GUI).
+        #[arg(long)]
+        from: Option<String>,
+        /// Or introspect this SQLite file as the source.
+        #[arg(long)]
+        sqlite: Option<String>,
+        /// Or introspect this Postgres conn as the source.
+        #[arg(long)]
+        postgres: Option<String>,
+        /// Emit an expand-contract migration (up/down) instead of plain SQL.
+        #[arg(long)]
+        migration: bool,
+    },
+    /// Print the schema graph (nodes/edges: table = node, FK = edge) from a schema source.
+    Graph {
+        #[arg(long)]
+        from: Option<String>,
+        #[arg(long)]
+        sqlite: Option<String>,
+        #[arg(long)]
+        postgres: Option<String>,
     },
 }
 
@@ -1049,6 +1095,86 @@ fn skills_remove(name: &str) -> Result<(), String> {
     }
 }
 
+/// Resolve a fonte do schema pro `db sql|graph`: --from <json> | --sqlite | --postgres.
+fn db_source(
+    from: Option<String>,
+    sqlite: Option<String>,
+    postgres: Option<String>,
+) -> Result<database::Schema, String> {
+    if let Some(f) = from {
+        let s = std::fs::read_to_string(&f).map_err(|e| format!("ler {f}: {e}"))?;
+        return serde_json::from_str(&s).map_err(|e| format!("schema JSON inválido em {f}: {e}"));
+    }
+    if let Some(p) = sqlite {
+        return database::introspect_sqlite(std::path::Path::new(&p));
+    }
+    if let Some(c) = postgres {
+        return database::introspect_postgres(&c);
+    }
+    Err("informe a fonte do schema: --from <schema.json> | --sqlite <arquivo> | --postgres <conn>".into())
+}
+
+/// Imprime o resumo humano de um schema (tabelas, nº de colunas/FKs/índices + totais).
+fn db_print_summary(schema: &database::Schema) {
+    let mut cols = 0usize;
+    let mut fks = 0usize;
+    for t in &schema.tables {
+        cols += t.columns.len();
+        fks += t.fks.len();
+        let pk: Vec<&str> = t.columns.iter().filter(|c| c.pk).map(|c| c.name.as_str()).collect();
+        println!(
+            "  {} — {} coluna(s), {} FK(s), {} índice(s){}",
+            t.name,
+            t.columns.len(),
+            t.fks.len(),
+            t.indexes.len(),
+            if pk.is_empty() { String::new() } else { format!("; PK: {}", pk.join(", ")) }
+        );
+    }
+    println!("total: {} tabela(s), {cols} coluna(s), {fks} FK(s).", schema.tables.len());
+}
+
+/// `schematize db <sub>` — backend do database builder (introspect | sql | graph).
+fn db_cmd(sub: DbCmd) -> Result<(), String> {
+    match sub {
+        DbCmd::Introspect { sqlite, postgres, json } => {
+            let schema = db_source(None, sqlite, postgres)?;
+            println!("Schema ({} tabela(s)):", schema.tables.len());
+            db_print_summary(&schema);
+            if json {
+                let js = serde_json::to_string_pretty(&schema).map_err(|e| e.to_string())?;
+                println!("\n--- schema.json ---\n{js}");
+            }
+            Ok(())
+        }
+        DbCmd::Sql { from, sqlite, postgres, migration } => {
+            let schema = db_source(from, sqlite, postgres)?;
+            if migration {
+                print!("{}", database::to_migration(&schema));
+            } else {
+                print!("{}", database::to_sql(&schema));
+            }
+            Ok(())
+        }
+        DbCmd::Graph { from, sqlite, postgres } => {
+            let schema = db_source(from, sqlite, postgres)?;
+            let (nodes, edges) = database::to_graph(&schema);
+            println!("nós ({}):", nodes.len());
+            for n in &nodes {
+                println!("  {}", n.id);
+            }
+            println!("arestas ({}):", edges.len());
+            for e in &edges {
+                match &e.label {
+                    Some(l) => println!("  {} -> {} ({l})", e.from, e.to),
+                    None => println!("  {} -> {}", e.from, e.to),
+                }
+            }
+            Ok(())
+        }
+    }
+}
+
 fn main() {
     let cli = Cli::parse();
     let r: Result<(), String> = match cli.cmd {
@@ -1126,6 +1252,7 @@ fn main() {
         Cmd::Graph { sub } => match sub {
             GraphCmd::Obsidian { out } => panel::export_obsidian(out),
         },
+        Cmd::Db { sub } => db_cmd(sub),
         Cmd::Check { notify } => {
             agent::run_once(notify);
             Ok(())
