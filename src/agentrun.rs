@@ -107,6 +107,12 @@ pub fn claude_in_path() -> bool {
     binary_in_path("claude")
 }
 
+/// Caminho ABSOLUTO do `claude` resolvido pelo `$PATH` + dirs de fallback (o mesmo que o app usa
+/// pra spawnar). `None` se não achar. Exposto pro debug report não divergir do que o launch enxerga.
+pub fn claude_path() -> Option<std::path::PathBuf> {
+    resolve_bin("claude")
+}
+
 /// Diretórios onde ferramentas de usuário caem mas que o PATH de um processo
 /// aberto pelo LANÇADOR DO DESKTOP não inclui — o desktop não carrega
 /// `~/.profile`/`~/.bashrc`. Checar aqui (além do `$PATH`) é o que faz o app

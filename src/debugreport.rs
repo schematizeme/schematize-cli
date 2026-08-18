@@ -349,11 +349,18 @@ fn sec_path_env(o: &mut String) {
 fn sec_dependencias(o: &mut String) {
     hdr(o, "4. DEPENDÊNCIAS");
     kv(o, "claude no PATH?", if crate::agentrun::claude_in_path() { "sim" } else { "não" });
-    match which_all("claude").into_iter().next() {
-        Some(p) => kv(o, "claude (path)", &p.display().to_string()),
-        None => kv(o, "claude (path)", "—"),
+    // Resolve pelo mesmo caminho que o launch usa ($PATH + fallback ~/.local/bin etc.) pra o
+    // relatório não divergir (ex.: "no PATH? sim" mas "--version indisponível" sob PATH mínimo da GUI).
+    match crate::agentrun::claude_path() {
+        Some(p) => {
+            kv(o, "claude (path)", &p.display().to_string());
+            kv(o, "claude --version", &cmd_out(&p.display().to_string(), &["--version"]));
+        }
+        None => {
+            kv(o, "claude (path)", "—");
+            kv(o, "claude --version", "(claude não encontrado)");
+        }
     }
-    kv(o, "claude --version", &cmd_out("claude", &["--version"]));
 
     let terms = [
         "konsole",
