@@ -107,12 +107,46 @@ pub fn claude_in_path() -> bool {
     binary_in_path("claude")
 }
 
-/// `true` se `bin` é um arquivo em algum diretório do `$PATH` (checagem barata
-/// pra dar erro claro antes de tentar spawnar um agente inexistente).
+/// Diretórios onde ferramentas de usuário caem mas que o PATH de um processo
+/// aberto pelo LANÇADOR DO DESKTOP não inclui — o desktop não carrega
+/// `~/.profile`/`~/.bashrc`. Checar aqui (além do `$PATH`) é o que faz o app
+/// achar o `claude` mesmo quando foi aberto pelo menu de apps e não pelo terminal.
+fn fallback_bin_dirs() -> Vec<std::path::PathBuf> {
+    let home = std::env::var_os("HOME").map(std::path::PathBuf::from);
+    let mut dirs = Vec::new();
+    if let Some(h) = home {
+        dirs.push(h.join(".local/bin"));
+        dirs.push(h.join(".claude/local"));
+        dirs.push(h.join(".cargo/bin"));
+    }
+    dirs.push(std::path::PathBuf::from("/usr/local/bin"));
+    dirs.push(std::path::PathBuf::from("/usr/bin"));
+    dirs.push(std::path::PathBuf::from("/opt/homebrew/bin"));
+    dirs
+}
+
+/// Resolve o caminho ABSOLUTO de `bin`: primeiro nos diretórios do `$PATH` do
+/// processo, depois nos de fallback ([`fallback_bin_dirs`]). `None` se não achar
+/// em lugar nenhum. É o que permite achar/rodar o `claude` com o PATH mínimo da GUI.
+fn resolve_bin(bin: &str) -> Option<std::path::PathBuf> {
+    if let Some(paths) = std::env::var_os("PATH") {
+        for dir in std::env::split_paths(&paths) {
+            let p = dir.join(bin);
+            if p.is_file() {
+                return Some(p);
+            }
+        }
+    }
+    fallback_bin_dirs()
+        .into_iter()
+        .map(|dir| dir.join(bin))
+        .find(|p| p.is_file())
+}
+
+/// `true` se `bin` existe no `$PATH` OU nos diretórios de fallback — checagem
+/// barata pra dar erro claro antes de tentar spawnar um agente inexistente.
 fn binary_in_path(bin: &str) -> bool {
-    std::env::var_os("PATH")
-        .map(|paths| std::env::split_paths(&paths).any(|dir| dir.join(bin).is_file()))
-        .unwrap_or(false)
+    resolve_bin(bin).is_some()
 }
 
 /// Marca `projects.<caminho>.hasTrustDialogAccepted = true` no `~/.claude.json` pra o
@@ -161,18 +195,22 @@ pub fn launch_in_terminal(project: &Path, objetivo: &str) -> Result<String, Stri
 /// (evita quoting de shell) + um wrapper `.overdev/run.sh` e abre o 1º terminal disponível.
 /// Devolve o nome do terminal usado. Erro se `claude` ou nenhum terminal estiver no PATH.
 pub fn launch_prompt_in_terminal(project: &Path, prompt: &str) -> Result<String, String> {
-    if !binary_in_path("claude") {
-        return Err("o CLI `claude` não está no PATH — instale o Claude Code (claude.ai/code).".into());
-    }
+    let claude = resolve_bin("claude").ok_or_else(|| {
+        "o CLI `claude` não está no PATH — instale o Claude Code (claude.ai/code).".to_string()
+    })?;
     pre_trust_project(project);
     let od = project.join(".overdev");
     std::fs::create_dir_all(&od).map_err(|e| format!("criar .overdev: {e}"))?;
     let promptfile = od.join("run-prompt.txt");
     std::fs::write(&promptfile, prompt).map_err(|e| format!("gravar prompt: {e}"))?;
     let script = od.join("run.sh");
+    // O terminal roda `bash run.sh` (non-login): NÃO lê ~/.bashrc, então reforçamos o PATH com os
+    // dirs de usuário (o próprio claude, node e ripgrep resolvem daqui) e chamamos o claude pelo
+    // caminho ABSOLUTO — assim funciona mesmo com o app aberto pelo lançador do desktop.
     let sh = format!(
-        "#!/usr/bin/env bash\ncd {proj:?} || exit 1\nclaude --dangerously-skip-permissions \"$(cat {pf:?})\"\necho\nread -rp '[overdev encerrado — Enter para fechar] '\n",
+        "#!/usr/bin/env bash\nexport PATH=\"$HOME/.local/bin:$HOME/.cargo/bin:$HOME/.claude/local:$PATH\"\ncd {proj:?} || exit 1\n{claude:?} --dangerously-skip-permissions \"$(cat {pf:?})\"\necho\nread -rp '[overdev encerrado — Enter para fechar] '\n",
         proj = project,
+        claude = claude,
         pf = promptfile,
     );
     std::fs::write(&script, &sh).map_err(|e| format!("gravar wrapper: {e}"))?;
@@ -255,19 +293,19 @@ impl AgentRunner for ClaudeRunner {
         // you trust?" — que o `--dangerously-skip-permissions` NÃO pula, e o auto-continue não
         // responde). O usuário disparou o overdev no próprio projeto, então confiar é implícito.
         pre_trust_project(project);
-        if !binary_in_path("claude") {
-            return Err(
-                "o CLI `claude` não está no PATH. Instale o Claude Code (claude.ai/code) \
-                 e garanta que `claude` roda no terminal antes de usar `overdev run`."
-                    .to_string(),
-            );
-        }
+        let claude = resolve_bin("claude").ok_or_else(|| {
+            "o CLI `claude` não está no PATH. Instale o Claude Code (claude.ai/code) \
+             e garanta que `claude` roda no terminal antes de usar `overdev run`."
+                .to_string()
+        })?;
         let pty = native_pty_system();
         let pair = pty
             .openpty(PtySize { rows: 40, cols: 120, pixel_width: 0, pixel_height: 0 })
             .map_err(|e| format!("falha ao abrir PTY: {e}"))?;
 
-        let mut cmd = CommandBuilder::new("claude");
+        // Caminho ABSOLUTO do claude (o portable-pty resolve o binário na hora do spawn; com o PATH
+        // mínimo da GUI, "claude" nu não resolveria). O PATH do filho é reforçado logo abaixo.
+        let mut cmd = CommandBuilder::new(claude);
         // `--dangerously-skip-permissions`: pula o "trust this folder?" e os prompts de
         // permissão de ferramenta — o overdev roda AUTÔNOMO (o usuário disparou no próprio
         // projeto). Sem isso o agente trava na tela de confiança (o auto-continue não a responde).
@@ -565,5 +603,48 @@ mod tests {
         let cl = ClaudeRunner.command_line("obj X");
         assert!(cl.contains("claude"));
         assert_eq!(ClaudeRunner.name(), "claude");
+    }
+
+    #[test]
+    fn resolve_bin_acha_no_path_e_da_absoluto() {
+        // `sh` existe em toda máquina POSIX e está no $PATH: resolve pra caminho absoluto de arquivo.
+        let p = resolve_bin("sh").expect("sh resolve");
+        assert!(p.is_absolute() && p.is_file(), "resolve_bin deve dar arquivo absoluto: {p:?}");
+        // Binário inexistente não resolve (nem no PATH nem no fallback).
+        assert!(resolve_bin("binario-que-nao-existe-xyz").is_none());
+    }
+
+    #[test]
+    fn resolve_bin_acha_no_fallback_fora_do_path() {
+        // Simula o PATH mínimo da GUI (sem ~/.local/bin) e um bin plantado num dir de fallback:
+        // resolve_bin ainda acha porque varre os fallback_bin_dirs (via HOME).
+        use std::io::Write;
+        let tmp = std::env::temp_dir().join(format!("schz-resolve-{}", std::process::id()));
+        let localbin = tmp.join(".local/bin");
+        std::fs::create_dir_all(&localbin).unwrap();
+        let fake = localbin.join("claude-fake-xyz");
+        let mut f = std::fs::File::create(&fake).unwrap();
+        f.write_all(b"#!/bin/sh\n").unwrap();
+        drop(f);
+        let prev_home = std::env::var_os("HOME");
+        let prev_path = std::env::var_os("PATH");
+        // SAFETY: teste single-thread neste módulo; restauramos logo abaixo.
+        unsafe {
+            std::env::set_var("HOME", &tmp);
+            std::env::set_var("PATH", "/usr/bin:/bin"); // PATH mínimo, sem o fallback
+        }
+        let got = resolve_bin("claude-fake-xyz");
+        unsafe {
+            match prev_home {
+                Some(h) => std::env::set_var("HOME", h),
+                None => std::env::remove_var("HOME"),
+            }
+            match prev_path {
+                Some(p) => std::env::set_var("PATH", p),
+                None => std::env::remove_var("PATH"),
+            }
+        }
+        let _ = std::fs::remove_dir_all(&tmp);
+        assert_eq!(got.as_deref(), Some(fake.as_path()), "deve achar no fallback ~/.local/bin");
     }
 }
