@@ -91,6 +91,8 @@ fn builtin() -> Vec<Item> {
         mk("docs", "base", me(), &[]),
         mk("scaffold", "base", me(), &[]),
         mk("overdev-context", "base", me(), &["engineering"]),
+        mk("qa", "base", me(), &["engineering"]),
+        mk("institutional", "base", me(), &["web", "seo"]),
     ]
 }
 
