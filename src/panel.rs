@@ -53,8 +53,17 @@ impl Overdev {
 // Descoberta do index e parsing do grafo (best-effort, tolerante a formato).
 // ---------------------------------------------------------------------------
 
-/// Procura `<algo>_archive/index/` sob `root` (e no pai de root). None se não achar.
+/// Descobre o dir do grafo/index de `root`, por ORDEM DE PRIORIDADE:
+/// 1) `<root>/.schematize/grafos/` — o local OPERACIONAL vivo (grafo global + por serviço);
+/// 2) `<algo>_archive/index/` sob `root` ou seu pai — o espelho durável (layout §39 clássico);
+/// 3) `<root>/index/` direto. None se nada existir.
 pub fn find_index_dir(root: &Path) -> Option<PathBuf> {
+    // (1) dir operacional novo tem prioridade — é onde o reindex grava a versão viva.
+    let grafos = crate::paths::grafos_dir_at(root);
+    if grafos.is_dir() {
+        return Some(grafos);
+    }
+    // (2) espelho no archive (do próprio root ou do pai, p/ o caso projeto-dentro-de-umbrella).
     for base in [root.to_path_buf(), root.join("..")] {
         if let Ok(rd) = fs::read_dir(&base) {
             for e in rd.flatten() {
@@ -72,6 +81,7 @@ pub fn find_index_dir(root: &Path) -> Option<PathBuf> {
             }
         }
     }
+    // (3) fallback: `<root>/index/`.
     let direct = root.join("index");
     if direct.is_dir() {
         return Some(direct);
@@ -97,7 +107,15 @@ fn clean_node(s: &str) -> String {
 
 /// Tenta ler uma aresta `A -> B` (adjacência) ou `A -->|label| B` (mermaid).
 fn parse_edge(l: &str) -> Option<(String, String, Option<String>)> {
-    let s = l.replace("-->", "->").replace("-.->", "->").replace("==>", "->");
+    // Normaliza toda variante de seta pra `->`: mermaid (`-->`,`-.->`,`==>`) E unicode (`→`,`⟶`,`⇒`),
+    // que o índice às vezes grava na lista de adjacência pesquisável e que o parser antes ignorava.
+    let s = l
+        .replace("-->", "->")
+        .replace("-.->", "->")
+        .replace("==>", "->")
+        .replace('→', "->")
+        .replace('⟶', "->")
+        .replace('⇒', "->");
     let idx = s.find("->")?;
     let left = s[..idx].trim();
     let mut right = s[idx + 2..].trim().to_string();
@@ -147,6 +165,36 @@ fn looks_like_loc(c: &str) -> bool {
     false
 }
 
+/// Lê uma microfunção em BULLET do MAPA/§39: `- \`nome\` — descrição · arquivo:linha` (ou sem loc).
+/// Devolve `(nome, Option<loc>)`. None se não for um bullet com nome curto e um em-dash de descrição.
+/// NUNCA trata aresta (`->`) como função. É o que faz as microfunções em lista virarem nós do grafo.
+fn parse_func_bullet(l: &str) -> Option<(String, Option<String>)> {
+    // Precisa ser bullet (`-`/`*`) — evita casar linhas de texto corrido.
+    let t = l.trim_start();
+    if !(t.starts_with("- ") || t.starts_with("* ")) {
+        return None;
+    }
+    let s = t[2..].trim();
+    if s.is_empty() || s.contains("->") {
+        return None;
+    }
+    // Precisa do em-dash separando nome — descrição (mesma convenção de `parse_desc_line`).
+    let i = s.find('—')?;
+    let name = clean_node(s[..i].trim());
+    if name.is_empty() || name.len() > 80 || name.matches(' ').count() > 4 {
+        return None;
+    }
+    // Localização opcional: a última célula que parecer `arquivo.ext:linha` (após `·`, `—` ou espaço).
+    let rest = &s[i + '—'.len_utf8()..];
+    let loc = rest
+        .split(['·', '—', '|', '(', ')'])
+        .flat_map(|seg| seg.split_whitespace())
+        .map(|c| c.trim_matches('`').trim())
+        .find(|c| looks_like_loc(c))
+        .map(|c| c.to_string());
+    Some((name, loc))
+}
+
 /// Lê uma linha de tabela de índice `nome | ... | arquivo:linha` → (nome, loc).
 fn parse_func_row(l: &str) -> Option<(String, String)> {
     if !l.contains('|') {
@@ -170,23 +218,37 @@ fn parse_func_row(l: &str) -> Option<(String, String)> {
     Some((name.to_string(), loc.trim().to_string()))
 }
 
-/// Varre os `.md` do dir do index e monta (nós, arestas).
+/// Varre TODOS os `.md` do dir do index e monta (nós, arestas) — funde tudo (visão legada).
 pub fn parse_graph(dir: &Path) -> (Vec<Node>, Vec<Edge>) {
+    let mut files: Vec<PathBuf> = Vec::new();
+    if let Ok(rd) = fs::read_dir(dir) {
+        for e in rd.flatten() {
+            let p = e.path();
+            if p.extension().and_then(|s| s.to_str()) == Some("md") {
+                files.push(p);
+            }
+        }
+    }
+    files.sort();
+    parse_graph_files(&files)
+}
+
+/// Monta (nós, arestas) parseando SÓ os arquivos dados (ex.: apenas `GRAFO_GLOBAL.md`, ou um
+/// `<servico>.md`). Base compartilhada por [`parse_graph`], [`load_graph`] e [`load_service_graph`].
+pub fn parse_graph_files(files: &[PathBuf]) -> (Vec<Node>, Vec<Edge>) {
     let mut locs: BTreeMap<String, String> = BTreeMap::new();
     let mut edges: Vec<Edge> = Vec::new();
     let mut ids: BTreeSet<String> = BTreeSet::new();
     let mut seen_edge: BTreeSet<(String, String)> = BTreeSet::new();
-    if let Ok(rd) = fs::read_dir(dir) {
-        for e in rd.flatten() {
-            let p = e.path();
-            if p.extension().and_then(|s| s.to_str()) != Some("md") {
-                continue;
-            }
-            let text = fs::read_to_string(&p).unwrap_or_default();
+    {
+        for p in files {
+            let text = fs::read_to_string(p).unwrap_or_default();
             for line in text.lines() {
                 let l = line.trim();
-                // Arestas: linhas de adjacência/mermaid — nunca linhas de tabela (`|`).
-                if l.contains("->") && !l.starts_with('|') {
+                // Arestas: linhas de adjacência/mermaid (ASCII `->`/`-->` OU unicode `→`/`⟶`/`⇒`) —
+                // nunca linhas de tabela (`|`).
+                let has_arrow = l.contains("->") || l.contains('→') || l.contains('⟶') || l.contains('⇒');
+                if has_arrow && !l.starts_with('|') {
                     if let Some((a, b, lab)) = parse_edge(l) {
                         ids.insert(a.clone());
                         ids.insert(b.clone());
@@ -198,6 +260,13 @@ pub fn parse_graph(dir: &Path) -> (Vec<Node>, Vec<Edge>) {
                 if l.contains('|') {
                     if let Some((name, loc)) = parse_func_row(l) {
                         ids.insert(name.clone());
+                        locs.insert(name, loc);
+                    }
+                } else if let Some((name, loc)) = parse_func_bullet(l) {
+                    // Microfunção em bullet `- \`nome\` — desc · arquivo:linha` (formato comum do
+                    // MAPA §39) — vira nó com localização, senão essas funções nunca apareciam.
+                    ids.insert(name.clone());
+                    if let Some(loc) = loc {
                         locs.insert(name, loc);
                     }
                 }
@@ -307,7 +376,7 @@ pub fn node_descriptions(root: &Path) -> HashMap<String, String> {
 /// Lê o estado do overdev de `root` (objetivo, mode, itens, decisões, plano, perguntas).
 /// Consumido pela GUI (view nativa) e pelo HTML. Vazio/`inativo` se não houver run.
 pub fn load_overdev(root: &Path) -> Overdev {
-    let od = root.join(".overdev");
+    let od = crate::paths::overdev_dir_at(root);
     let state = fs::read_to_string(od.join("state.json"))
         .ok()
         .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok());
@@ -345,13 +414,39 @@ pub fn load_overdev(root: &Path) -> Overdev {
 }
 
 /// Carrega o grafo do index de `root`: (nós, arestas, dir do index se achou).
+///
+/// Se existir um `GRAFO_GLOBAL.md` no dir (layout novo `.schematize/grafos/`), parseia SÓ ele —
+/// a visão GLOBAL limpa da aplicação (serviços + funções principais + contratos), sem fundir os
+/// grafos por-serviço num amontoado (o que deixava o grafo "zoneado"). Sem o arquivo global,
+/// cai no comportamento legado: funde todos os `.md` do dir.
 pub fn load_graph(root: &Path) -> (Vec<Node>, Vec<Edge>, Option<PathBuf>) {
     match find_index_dir(root) {
         Some(dir) => {
-            let (n, e) = parse_graph(&dir);
+            let global = dir.join("GRAFO_GLOBAL.md");
+            let (n, e) = if global.is_file() {
+                parse_graph_files(&[global])
+            } else {
+                parse_graph(&dir)
+            };
             (n, e, Some(dir))
         }
         None => (Vec::new(), Vec::new(), None),
+    }
+}
+
+/// Carrega o grafo DETALHADO de UM microserviço `<servico>.md` do dir de grafos de `root`
+/// (drill-down do grafo global). `(nós, arestas)` vazio se o arquivo não existir.
+pub fn load_service_graph(root: &Path, servico: &str) -> (Vec<Node>, Vec<Edge>) {
+    let Some(dir) = find_index_dir(root) else {
+        return (Vec::new(), Vec::new());
+    };
+    // sanitiza pra basename (anti path-traversal) e casa `<servico>.md`.
+    let base = Path::new(servico).file_name().and_then(|s| s.to_str()).unwrap_or(servico);
+    let f = dir.join(format!("{base}.md"));
+    if f.is_file() {
+        parse_graph_files(&[f])
+    } else {
+        (Vec::new(), Vec::new())
     }
 }
 
@@ -394,8 +489,9 @@ pub fn render_html(root: &Path) -> (String, usize, usize, Option<PathBuf>) {
 /// Gera o HTML de `root` e abre no navegador. Retorna o caminho absoluto do arquivo.
 pub fn open_in_browser(root: &Path) -> Result<String, String> {
     let (html, _n, _e, _idx) = render_html(root);
-    let out = if root.join(".overdev").is_dir() {
-        root.join(".overdev").join("panel.html")
+    let od = crate::paths::overdev_dir_at(root);
+    let out = if od.is_dir() {
+        od.join("panel.html")
     } else {
         root.join("schematize-panel.html")
     };
@@ -520,4 +616,75 @@ pub fn export_obsidian(out: Option<String>) -> Result<(), String> {
     println!("vault Obsidian: {}", dir.display());
     println!("  Abra a pasta no Obsidian → Graph View.");
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+
+    /// Setas UNICODE (`→`) na adjacência viram arestas — antes o parser só via ASCII `->`/`-->`.
+    #[test]
+    fn parse_edge_aceita_seta_unicode() {
+        let (a, b, lab) = parse_edge("front → api (login)").expect("aresta unicode");
+        assert_eq!((a.as_str(), b.as_str()), ("front", "api"));
+        assert_eq!(lab.as_deref(), Some("login"));
+        // ASCII segue funcionando.
+        let (c, d, _) = parse_edge("api -> db").expect("aresta ascii");
+        assert_eq!((c.as_str(), d.as_str()), ("api", "db"));
+    }
+
+    /// Microfunção em BULLET vira nó com localização (`- \`nome\` — desc · arquivo:linha`).
+    #[test]
+    fn parse_func_bullet_extrai_no_e_loc() {
+        let (n, loc) = parse_func_bullet("- `login` — autentica o usuário · auth.rs:42").expect("bullet");
+        assert_eq!(n, "login");
+        assert_eq!(loc.as_deref(), Some("auth.rs:42"));
+        // Sem loc: nó sem localização.
+        let (n2, loc2) = parse_func_bullet("- `logout` — encerra a sessão").expect("bullet sem loc");
+        assert_eq!(n2, "logout");
+        assert!(loc2.is_none());
+        // Aresta não é função.
+        assert!(parse_func_bullet("- api -> db").is_none());
+        // Linha sem bullet não casa.
+        assert!(parse_func_bullet("login — algo").is_none());
+    }
+
+    /// `load_graph` prefere `GRAFO_GLOBAL.md` (visão global limpa) e ignora os demais `.md` do dir.
+    #[test]
+    fn load_graph_prioriza_grafo_global() {
+        let root = std::env::temp_dir().join(format!("schz-graph-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        let grafos = root.join(".schematize/grafos");
+        fs::create_dir_all(&grafos).unwrap();
+        // Global: só a fronteira entre serviços.
+        fs::write(grafos.join("GRAFO_GLOBAL.md"), "front -> api (login)\napi -> auth (token)\n").unwrap();
+        // Detalhe por serviço: NÃO deve entrar na visão global.
+        fs::write(grafos.join("api.md"), "handler -> repo\nrepo -> pg\n").unwrap();
+
+        let (nodes, edges, dir) = load_graph(&root);
+        assert!(dir.is_some());
+        let ids: std::collections::HashSet<&str> = nodes.iter().map(|n| n.id.as_str()).collect();
+        assert!(ids.contains("front") && ids.contains("api") && ids.contains("auth"));
+        assert!(!ids.contains("repo") && !ids.contains("pg"), "não pode fundir o grafo por-serviço no global");
+        assert_eq!(edges.len(), 2);
+
+        // Drill-down: o grafo detalhado do serviço é acessível à parte.
+        let (snodes, _sedges) = load_service_graph(&root, "api");
+        let sids: std::collections::HashSet<&str> = snodes.iter().map(|n| n.id.as_str()).collect();
+        assert!(sids.contains("repo") && sids.contains("pg"));
+
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    /// `find_index_dir` prioriza `.schematize/grafos/` sobre o `_archive/index/` legado.
+    #[test]
+    fn find_index_dir_prefere_schematize_grafos() {
+        let root = std::env::temp_dir().join(format!("schz-idxdir-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(root.join(".schematize/grafos")).unwrap();
+        fs::create_dir_all(root.join("proj_archive/index")).unwrap();
+        assert_eq!(find_index_dir(&root), Some(root.join(".schematize/grafos")));
+        let _ = fs::remove_dir_all(&root);
+    }
 }

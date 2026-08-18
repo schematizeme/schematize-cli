@@ -455,7 +455,7 @@ fn sec_overdev(o: &mut String) -> Vec<PathBuf> {
     }
     for root in &roots {
         let prog = overdev::progress_at(root);
-        let checklist = root.join(".overdev").join("CHECKLIST.md");
+        let checklist = crate::paths::overdev_dir_at(root).join("CHECKLIST.md");
         let mt = fs::metadata(&checklist)
             .ok()
             .and_then(|md| md.modified().ok())
@@ -492,7 +492,7 @@ fn sec_logs(o: &mut String, overdev_roots: &[PathBuf]) {
     let _ = writeln!(o, "{}", indent(&tail(&update_log, 40), "    "));
 
     for root in overdev_roots {
-        let plog = root.join(".overdev").join("premature-stops.log");
+        let plog = crate::paths::overdev_dir_at(root).join("premature-stops.log");
         if plog.exists() {
             let _ = writeln!(o, "  {} (últimas 40 linhas):", plog.display());
             let _ = writeln!(o, "{}", indent(&tail(&plog, 40), "    "));
@@ -694,7 +694,7 @@ fn overdev_roots() -> Vec<PathBuf> {
     let mut seen: BTreeSet<PathBuf> = BTreeSet::new();
     let mut out: Vec<PathBuf> = Vec::new();
     for c in cands {
-        if c.join(".overdev").join("state.json").is_file() && seen.insert(c.clone()) {
+        if crate::paths::overdev_dir_at(&c).join("state.json").is_file() && seen.insert(c.clone()) {
             out.push(c);
         }
     }

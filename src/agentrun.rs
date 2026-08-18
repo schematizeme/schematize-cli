@@ -59,7 +59,7 @@ pub fn should_nudge(idle_secs: u64, open_items: usize) -> bool {
 pub fn nudge_message(open_items: &[String]) -> String {
     let mut s = String::from("continue");
     if !open_items.is_empty() {
-        s.push_str("\nNÃO PARE — ainda há itens de máquina abertos no .overdev/CHECKLIST.md. Revise e feche estes:");
+        s.push_str("\nNÃO PARE — ainda há itens de máquina abertos no .schematize/overdev/CHECKLIST.md. Revise e feche estes:");
         for it in open_items {
             s.push('\n');
             s.push_str(it);
@@ -80,8 +80,8 @@ pub fn overdev_prompt(objetivo: &str) -> String {
         format!(" O objetivo é: {o}.")
     };
     format!(
-        "Modo OVERDEV neste projeto.{alvo} Leia `.overdev/CHECKLIST.md` (e `.overdev/OBJETIVO.md`, \
-         `.overdev/PLAN.md`, `.overdev/DECISOES.md` se existirem) e TRABALHE cada item aberto \
+        "Modo OVERDEV neste projeto.{alvo} Leia `.schematize/overdev/CHECKLIST.md` (e `.schematize/overdev/OBJETIVO.md`, \
+         `.schematize/overdev/PLAN.md`, `.schematize/overdev/DECISOES.md` se existirem) e TRABALHE cada item aberto \
          `- [ ]` até fechar, marcando `- [x]` só COM PROVA (teste/comando/arquivo/gate que passa). \
          Itens `- [H ]` são de humano — não os faça. NÃO pare enquanto houver `- [ ]` aberto (o Stop \
          hook do overdev vai te barrar de qualquer forma). Se travar numa dúvida, use \
@@ -93,11 +93,30 @@ pub fn overdev_prompt(objetivo: &str) -> String {
 /// slash `/eng-index` (que não dispara como argumento do `claude`) — dá a instrução direta
 /// pra a GUI/CLI dispararem via `launch_prompt_in_terminal`. PURA.
 pub fn reindex_prompt() -> String {
-    "Rode o índice deste projeto. Gere/atualize o MAPA (INDEX_GLOBAL.md + INDEX_FUNCTIONS.md) e a \
-     ADJACÊNCIA do grafo (arestas `A -> B`) em `<projeto>_archive/index/`, a partir dos doc-comments \
-     de cada função/módulo, seguindo a §39 da engenharia da casa. Cada nó deve ter uma descrição \
-     curta de uma linha (a coluna \"O quê\"). Confira contra o código para não deixar nó órfão nem \
-     função sem entrada. NÃO pare até o índice estar completo e consistente."
+    "Rode o índice/grafo deste projeto seguindo a §39 da engenharia da casa, gerando um GRAFO \
+     GLOBAL da aplicação (não um por microserviço solto). REGRAS OBRIGATÓRIAS:\n\
+     \n\
+     1) GRAFO GLOBAL — SEMPRE gere `.schematize/grafos/GRAFO_GLOBAL.md`. Se esta pasta for uma \
+     APLICAÇÃO multi-repo (umbrella com vários microserviços/sub-repos), o grafo global deve ter \
+     CADA microserviço como nó, mostrando suas FUNÇÕES PRINCIPAIS (entrypoints/APIs públicas), e as \
+     arestas de CONTRATO entre serviços (a saída de dados do serviço A para o B). Enumere TODOS os \
+     sub-repos — nenhum de fora. Se for um único serviço, o global traz esse serviço e as arestas \
+     que cruzam a fronteira dele.\n\
+     2) GRAFO POR MICROSERVIÇO — gere um arquivo detalhado por serviço em \
+     `.schematize/grafos/<servico>.md`: funções internas como nós, chamadas intra-serviço como \
+     arestas, cada nó com `arquivo:linha`.\n\
+     3) AUTO-REFERÊNCIA DE FRONTEIRA — quando uma função de um serviço produz saída de dados para \
+     OUTRO serviço, marque esse nó no grafo local como saída (`-> <outro-servico>`) apontando pro \
+     grafo global (a aresta que sai do grafo local).\n\
+     4) FORMATO (casar com o parser do app): arestas SEMPRE em ASCII `A -> B (contrato)` — NUNCA a \
+     seta unicode `→`. Nós de função em tabela pipe `nome | o quê | ... | arquivo:linha`. Cada nó \
+     tem uma descrição de uma linha (a coluna \"O quê\").\n\
+     5) ESPELHO no archive: copie `GRAFO_GLOBAL.md` + `INDEX_GLOBAL.md` + `INDEX_FUNCTIONS.md` \
+     também para `<projeto>_archive/index/` (registro durável). A versão OPERACIONAL viva é a de \
+     `.schematize/grafos/`.\n\
+     \n\
+     Confira contra o código: nenhum nó órfão, nenhuma função pública sem entrada. NÃO pare até o \
+     grafo global e os por-serviço estarem completos e consistentes."
         .to_string()
 }
 
@@ -205,8 +224,10 @@ pub fn launch_prompt_in_terminal(project: &Path, prompt: &str) -> Result<String,
         "o CLI `claude` não está no PATH — instale o Claude Code (claude.ai/code).".to_string()
     })?;
     pre_trust_project(project);
-    let od = project.join(".overdev");
-    std::fs::create_dir_all(&od).map_err(|e| format!("criar .overdev: {e}"))?;
+    // Control-plane operacional: `.schematize/overdev/` (cai no `.overdev/` legado se o projeto
+    // ainda estiver no layout antigo — resolvido pelo módulo `paths`).
+    let od = crate::paths::overdev_dir_at(project);
+    std::fs::create_dir_all(&od).map_err(|e| format!("criar .schematize/overdev: {e}"))?;
     let promptfile = od.join("run-prompt.txt");
     std::fs::write(&promptfile, prompt).map_err(|e| format!("gravar prompt: {e}"))?;
     let script = od.join("run.sh");
@@ -457,7 +478,7 @@ impl Session {
 pub fn run_attached(project: &Path, runner: &dyn AgentRunner, max: u64) -> Result<(), String> {
     let objetivo = overdev::objetivo_at(project).unwrap_or_default();
     println!("[schematize] disparando: {}", runner.command_line(&objetivo));
-    println!("[schematize] monitorando o progresso em {}/.overdev — ocioso {IDLE_THRESHOLD_SECS}s com item aberto => injeta `continue` (até {max}x).\n", project.display());
+    println!("[schematize] monitorando o progresso em {}/.schematize/overdev — ocioso {IDLE_THRESHOLD_SECS}s com item aberto => injeta `continue` (até {max}x).\n", project.display());
 
     let session = runner.spawn(project, &objetivo)?;
 

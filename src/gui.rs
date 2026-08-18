@@ -270,7 +270,7 @@ impl App {
         if let Some(p) = app.recent.first().cloned() {
             app.set_project(PathBuf::from(p));
         } else if let Ok(cwd) = std::env::current_dir() {
-            if cwd.join(".overdev").is_dir() || panel::find_index_dir(&cwd).is_some() {
+            if crate::paths::overdev_dir_at(&cwd).is_dir() || panel::find_index_dir(&cwd).is_some() {
                 app.set_project(cwd);
             }
         }

@@ -398,7 +398,7 @@ enum Over {
         #[arg(long)]
         done: Option<usize>,
     },
-    /// Attach a human note (correction prompt / per-task point) in .overdev/NOTAS.md.
+    /// Attach a human note (correction prompt / per-task point) in .schematize/overdev/NOTAS.md.
     Note {
         texto: Vec<String>,
         /// Note kind: correcao (correction prompt) | task (per-task point). Default: correcao.
@@ -416,7 +416,7 @@ enum Over {
         #[arg(long)]
         yes: bool,
     },
-    /// Snapshot the `.overdev/` artifacts into the local DB (versioned backup).
+    /// Snapshot the `.schematize/overdev/` artifacts into the local DB (versioned backup).
     Snapshot,
     /// List the local DB snapshot history for this project (newest first).
     History {
@@ -429,7 +429,7 @@ enum Over {
     Load,
     /// Inject `/eng-index` into a `claude` session to (re)index the project.
     Index,
-    /// Print the completion log (HH:MM:SS local + item) from .overdev/completions.json.
+    /// Print the completion log (HH:MM:SS local + item) from .schematize/overdev/completions.json.
     Log,
 }
 
@@ -583,7 +583,7 @@ fn overdev_log() {
     let project = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
     let comps = overdev::completions(&project);
     if comps.is_empty() {
-        println!("sem conclusões registradas ainda (.overdev/completions.json).");
+        println!("sem conclusões registradas ainda (.schematize/overdev/completions.json).");
         return;
     }
     let off = local_offset_secs();

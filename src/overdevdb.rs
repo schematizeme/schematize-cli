@@ -79,8 +79,11 @@ fn open() -> Result<Connection, String> {
 /// e state.json) mais o `PERGUNTAS-OVERDEV.txt` da raiz.
 fn collect_files(root: &Path) -> Vec<PathBuf> {
     let mut rels: Vec<PathBuf> = Vec::new();
-    let od_rel = Path::new(".overdev");
-    let od = root.join(od_rel);
+    // Dir de overdev resolvido (`.schematize/overdev` novo ou `.overdev` legado); o RELATIVO
+    // à raiz vira a chave armazenada no DB, então snapshots de projeto novo/legado ficam distintos.
+    let od = crate::paths::overdev_dir_at(root);
+    let od_rel = od.strip_prefix(root).unwrap_or(Path::new(".schematize/overdev")).to_path_buf();
+    let od_rel = od_rel.as_path();
 
     // Arquivos fixos de controle.
     for name in ["CHECKLIST.md", "PLAN.md", "DECISOES.md", "OBJETIVO.md", "NOTAS.md", "state.json"] {

@@ -22,6 +22,7 @@ pub mod notifications;
 pub mod overdev;
 pub mod overdevdb;
 pub mod panel;
+pub mod paths;
 pub mod projects;
 pub mod registry;
 pub mod selfupdate;

@@ -148,6 +148,26 @@ fn walk(
         })
         .collect();
     children.sort();
+
+    // UMBRELLA (aplicação multi-repo): um dir SEM marcador próprio mas com ≥2 filhos que SÃO
+    // projetos (marcador ou pinado) é a "aplicação" — selecionável no app pra o GRAFO GLOBAL
+    // (`.schematize/grafos/`), rodando o reindex na raiz do umbrella. Ao contrário de um marcador,
+    // NÃO para a descida: os sub-repos seguem listados pra os grafos POR microserviço.
+    let child_projects = children
+        .iter()
+        .filter(|c| {
+            let cc = std::fs::canonicalize(c).unwrap_or_else(|_| (*c).to_path_buf());
+            pins.contains(&cc) || marker_of(&cc).is_some()
+        })
+        .count();
+    if child_projects >= 2 && seen.insert(canon.clone()) {
+        out.push(Project {
+            name: basename(&canon),
+            path: canon.to_string_lossy().into_owned(),
+            marker: "umbrella".to_string(),
+        });
+    }
+
     for child in children {
         walk(&child, depth + 1, out, seen, pins);
     }
@@ -247,10 +267,17 @@ mod tests {
         // Ruído: pasta sem marcador não vira projeto.
         fs::create_dir_all(root.join("vazia")).unwrap();
 
-        let mut projs = scan(&[root.to_string_lossy().into_owned()]);
-        projs.sort_by(|a, b| a.name.cmp(&b.name));
-        let names: Vec<&str> = projs.iter().map(|p| p.name.as_str()).collect();
-        assert_eq!(names, vec!["alpha", "beta", "delta", "gama"]);
+        let projs = scan(&[root.to_string_lossy().into_owned()]);
+        let names: std::collections::HashSet<&str> = projs.iter().map(|p| p.name.as_str()).collect();
+        // Os 4 sub-repos aparecem, cada um com seu marcador...
+        for n in ["alpha", "beta", "delta", "gama"] {
+            assert!(names.contains(n), "faltou o sub-repo {n}: {projs:?}");
+        }
+        // ...e o guarda-chuva (dev_dir com ≥2 sub-projetos) aparece como UMA aplicação "umbrella",
+        // sem parar a descida (por isso os sub-repos seguem listados). Ruído "vazia" nunca vira projeto.
+        let umbrellas: Vec<&Project> = projs.iter().filter(|p| p.marker == "umbrella").collect();
+        assert_eq!(umbrellas.len(), 1, "esperava 1 umbrella: {projs:?}");
+        assert!(!names.contains("vazia"));
         fs::remove_dir_all(&root).ok();
     }
 

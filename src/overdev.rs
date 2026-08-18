@@ -21,8 +21,10 @@ struct OverState {
     started: u64,
 }
 
+/// Dir de overdev relativo ao cwd — agora `.schematize/overdev` (com fallback ao `.overdev`
+/// legado), resolvido pelo módulo central `paths`. Contrato dos hooks Stop/PreToolUse.
 fn dir() -> PathBuf {
-    PathBuf::from(".overdev")
+    crate::paths::overdev_dir_cwd()
 }
 fn state_file() -> PathBuf {
     dir().join("state.json")
@@ -52,9 +54,10 @@ pub fn status_brief() -> (bool, Option<String>) {
 // `.overdev` de um `root` explícito, sem efeito colateral.
 // ---------------------------------------------------------------------------
 
-/// `<root>/.overdev`.
+/// Dir de overdev de um `root` explícito — `.schematize/overdev` com fallback ao `.overdev`
+/// legado (regra "ler ambos" centralizada em `paths`).
 fn dir_at(root: &Path) -> PathBuf {
-    root.join(".overdev")
+    crate::paths::overdev_dir_at(root)
 }
 
 /// Carrega o state.json de um projeto arbitrário (None se ausente/ilegível).
@@ -321,6 +324,13 @@ fn print_block(reason: &str) {
 
 /// Inicia um run de overdev no diretório atual.
 pub fn start(objetivo: &str, max_iters: Option<u64>) -> Result<(), String> {
+    // Auto-migração do layout legado: se existir `.overdev/` e ainda não `.schematize/overdev/`,
+    // move o control-plane pro layout novo (o run passa a operar em `.schematize/overdev/`).
+    match crate::paths::migrate_legacy_overdev(Path::new(".")) {
+        Ok(true) => println!("migrado: .overdev/ → .schematize/overdev/"),
+        Ok(false) => {}
+        Err(e) => eprintln!("aviso: falha ao migrar .overdev/ → .schematize/overdev/: {e}"),
+    }
     fs::create_dir_all(dir()).map_err(|e| e.to_string())?;
     let st = OverState {
         mode: "active".into(),
@@ -336,14 +346,14 @@ pub fn start(objetivo: &str, max_iters: Option<u64>) -> Result<(), String> {
         );
         fs::write(checklist(), tpl).map_err(|e| e.to_string())?;
     }
-    // Garante gitignore do control-plane.
+    // Garante gitignore do control-plane operacional (`.schematize/`).
     let gi = Path::new(".gitignore");
     let cur = fs::read_to_string(gi).unwrap_or_default();
-    if !cur.contains(".overdev") {
-        let _ = fs::write(gi, format!("{cur}\n.overdev/\n"));
+    if !cur.contains(".schematize") {
+        let _ = fs::write(gi, format!("{cur}\n.schematize/\n"));
     }
     println!("overdev ATIVO. Objetivo: {objetivo}");
-    println!("Preencha .overdev/CHECKLIST.md (exaustivo). O agente não pode parar até fechar.");
+    println!("Preencha .schematize/overdev/CHECKLIST.md (exaustivo). O agente não pode parar até fechar.");
     // Snapshot inicial no DB local (best-effort: nunca quebra o start se o DB falhar).
     let _ = crate::overdevdb::snapshot(Path::new("."));
     Ok(())
@@ -394,7 +404,7 @@ fn decide_stop(
     // Sem trabalho de máquina em aberto. Gate ainda manda na máquina.
     if !gate_ok {
         return StopDecision::Block(format!(
-            "MODO OVERDEV — NÃO PARE. O checklist de máquina está todo marcado mas o gate (.overdev/gate.sh) FALHOU (ciclo {it}/{max}). Conserte o que o gate acusa e rode de novo. Só pare com o gate verde."
+            "MODO OVERDEV — NÃO PARE. O checklist de máquina está todo marcado mas o gate (.schematize/overdev/gate.sh) FALHOU (ciclo {it}/{max}). Conserte o que o gate acusa e rode de novo. Só pare com o gate verde."
         ));
     }
     if c.human > 0 {
@@ -443,7 +453,7 @@ pub fn guard() {
         return; // fora de overdev: libera normalmente
     }
     let reason = format!(
-        "VETADO em OVERDEV: nada de parar pra perguntar com pool bloqueante. Escreva a pergunta em ./{QUESTIONS_FILE} (na base do projeto), marque o item correspondente como '- [~]' (on-hold) no .overdev/CHECKLIST.md com `schematize overdev hold`, e CONTINUE os outros itens. As perguntas serão respondidas quando o usuário voltar."
+        "VETADO em OVERDEV: nada de parar pra perguntar com pool bloqueante. Escreva a pergunta em ./{QUESTIONS_FILE} (na base do projeto), marque o item correspondente como '- [~]' (on-hold) no .schematize/overdev/CHECKLIST.md com `schematize overdev hold`, e CONTINUE os outros itens. As perguntas serão respondidas quando o usuário voltar."
     );
     let v = serde_json::json!({
         "decision": "block",
@@ -543,7 +553,7 @@ pub fn human_done(substr: Option<&str>, index: Option<usize>) -> Result<(), Stri
 // ---------------------------------------------------------------------------
 
 fn notas_file(root: &Path) -> PathBuf {
-    root.join(".overdev").join("NOTAS.md")
+    crate::paths::overdev_dir_at(root).join("NOTAS.md")
 }
 
 /// Formata um bloco de nota (PURO). `kind`: "correcao" (prompt de correção do
@@ -579,7 +589,7 @@ pub fn read_notes(root: &Path) -> String {
 /// CLI: `schematize overdev note "<texto>" [--kind correcao|task]`.
 pub fn note(kind: &str, texto: &str) -> Result<(), String> {
     add_note(Path::new("."), kind, texto)?;
-    println!("nota registrada em .overdev/NOTAS.md ({kind}).");
+    println!("nota registrada em .schematize/overdev/NOTAS.md ({kind}).");
     Ok(())
 }
 
@@ -606,7 +616,7 @@ pub fn status() {
             let notas = read_notes(Path::new("."));
             let nn = notas.lines().filter(|l| l.starts_with("## [")).count();
             if nn > 0 {
-                println!("notas do humano: {nn} (ver .overdev/NOTAS.md)");
+                println!("notas do humano: {nn} (ver .schematize/overdev/NOTAS.md)");
             }
             // Tokens + modelo do run (parse do transcript do Claude), best-effort.
             let proj = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
