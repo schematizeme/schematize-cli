@@ -434,7 +434,11 @@ fn install_tool(tool: &Tool, method: Option<String>, dry_run: bool, yes: bool) -
     match run_steps(&steps, dry_run, consent, exec_step)? {
         PlanAction::DryRun => println!("{}", t("env.dry_run")),
         PlanAction::Aborted => println!("{}", t("env.aborted")),
-        PlanAction::Executed => println!("{}", tf("env.tool_done", &[("tool", tool.display)])),
+        PlanAction::Executed => {
+            println!("{}", tf("env.tool_done", &[("tool", tool.display)]));
+            // Prontidão pós-instalação: garante que o bin fique utilizável (PATH pronto).
+            ensure_tool_ready(tool);
+        }
     }
     Ok(())
 }
@@ -463,6 +467,92 @@ fn remove_tool(tool: &Tool, method: Option<String>, dry_run: bool) -> Result<(),
         PlanAction::Executed => println!("{}", tf("env.tool_done", &[("tool", tool.display)])),
     }
     Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// PRONTIDÃO PÓS-INSTALAÇÃO. Muitos instaladores oficiais (Claude Code, e qualquer
+// coisa via curl|sh) jogam o binário em ~/.local/bin — que NEM sempre está no PATH
+// do usuário. Sem isso, o dev instala e o comando "não abre" nem reabrindo o
+// terminal. Aqui a instalação vira SELF-VERIFYING: reconfere o bin no PATH e, se
+// faltar, garante ~/.local/bin no PATH (~/.bashrc + ~/.profile, idempotente) e
+// orienta como recarregar. Best-effort: NUNCA quebra a instalação já concluída.
+// ---------------------------------------------------------------------------
+
+/// A linha de export que garante ~/.local/bin no PATH do usuário.
+const LOCAL_BIN_EXPORT: &str = "export PATH=\"$HOME/.local/bin:$PATH\"";
+
+/// Decisão PURA: precisa consertar o PATH? Só quando o binário NÃO está no PATH
+/// mas EXISTE em ~/.local/bin — nesse caso, pôr ~/.local/bin no PATH resolve. Se
+/// nem no PATH nem no ~/.local/bin, o problema é outro (instalação falhou) e não
+/// há PATH a consertar. Testável sem tocar o disco.
+pub fn needs_path_fix(bin_in_path: bool, bin_in_local_bin: bool) -> bool {
+    !bin_in_path && bin_in_local_bin
+}
+
+/// Decisão PURA e idempotente: o conteúdo de um rc já garante ~/.local/bin no PATH?
+/// Considera presente qualquer linha NÃO-comentada que exporte um PATH mencionando
+/// `.local/bin`. Assim não duplicamos a linha em quem já a tem. Testável com string.
+pub fn rc_already_has_local_bin(content: &str) -> bool {
+    content.lines().any(|l| {
+        let l = l.trim();
+        !l.starts_with('#') && l.contains(".local/bin") && l.contains("PATH")
+    })
+}
+
+/// Garante (idempotente, best-effort) a linha de export num arquivo rc. Cria o
+/// arquivo se não existir (ex.: ~/.bashrc ausente). Retorna Ok(true) se ADICIONOU
+/// a linha, Ok(false) se já estava lá, Err se não deu pra escrever.
+fn ensure_export_in_rc(path: &std::path::Path) -> Result<bool, String> {
+    let existing = std::fs::read_to_string(path).unwrap_or_default();
+    if rc_already_has_local_bin(&existing) {
+        return Ok(false);
+    }
+    let mut new = existing;
+    if !new.is_empty() && !new.ends_with('\n') {
+        new.push('\n');
+    }
+    new.push_str("\n# schematize: garante ~/.local/bin no PATH\n");
+    new.push_str(LOCAL_BIN_EXPORT);
+    new.push('\n');
+    std::fs::write(path, &new).map_err(|e| format!("{}: {e}", path.display()))?;
+    Ok(true)
+}
+
+/// Prontidão pós-instalação de uma ferramenta — deixa o binário USÁVEL de verdade.
+/// (i) reconfere o bin no PATH (`command -v`); (ii) se não estiver mas existir em
+/// ~/.local/bin, garante ~/.local/bin no PATH (~/.bashrc E ~/.profile, idempotente)
+/// e orienta reabrir o terminal ou `source`; (iii) se não apareceu em lugar nenhum,
+/// avisa que a instalação pode ter falhado. Best-effort: nunca propaga erro.
+fn ensure_tool_ready(tool: &Tool) {
+    // (i) reconfere no PATH — se já resolve, está pronto pra uso.
+    if detect::has_bin(tool.bin) {
+        println!("{}", tf("env.ready_ok", &[("bin", tool.bin)]));
+        return;
+    }
+    // (ii) não está no PATH — está em ~/.local/bin? Aí é só faltar o dir no PATH.
+    let local_bin = util::home().join(".local").join("bin").join(tool.bin);
+    if needs_path_fix(false, local_bin.exists()) {
+        let mut changed = false;
+        let mut failed = false;
+        for rc in [".bashrc", ".profile"] {
+            match ensure_export_in_rc(&util::home().join(rc)) {
+                Ok(true) => changed = true,
+                Ok(false) => {}
+                Err(e) => {
+                    failed = true;
+                    println!("{}", tf("env.path_fix_failed", &[("error", &e)]));
+                }
+            }
+        }
+        if changed {
+            println!("{}", t("env.path_fixed"));
+        } else if !failed {
+            println!("{}", t("env.path_already"));
+        }
+        return;
+    }
+    // (iii) nem no PATH nem em ~/.local/bin — a instalação pode ter falhado.
+    println!("{}", tf("env.ready_missing", &[("bin", tool.bin)]));
 }
 
 #[cfg(test)]
@@ -663,6 +753,71 @@ mod tests {
             Recipe::Steps(s) => assert!(s[0].cmd.contains("npm uninstall -g @openai/codex")),
             _ => panic!("codex remove tem Steps"),
         }
+    }
+
+    /// O recipe do Codex agora roda com SUDO (conserta o EACCES no npm global do sistema):
+    /// o comando traz `sudo` literal E o selo de sudo está marcado (guardrail exibe [sudo]).
+    #[test]
+    fn codex_instala_com_sudo() {
+        let codex = defs::find_tool("codex").unwrap();
+        for fam in [Family::Debian, Family::Rpm, Family::Unknown] {
+            match defs::tool_install_recipe(codex, fam) {
+                Recipe::Steps(s) => {
+                    let npm = s
+                        .iter()
+                        .find(|st| st.cmd.contains("npm install -g @openai/codex"))
+                        .expect("passo de npm install do codex");
+                    assert!(npm.cmd.starts_with("sudo "), "sudo literal no comando: {}", npm.cmd);
+                    assert!(npm.sudo, "selo de sudo marcado (guardrail mostra [sudo])");
+                }
+                _ => panic!("codex sempre tem Steps"),
+            }
+        }
+        // Remoção também com sudo (foi instalado como root).
+        match defs::tool_remove_recipe(codex, Family::Debian) {
+            Recipe::Steps(s) => {
+                assert!(s[0].cmd.starts_with("sudo "));
+                assert!(s[0].sudo);
+                assert!(s[0].cmd.contains("npm uninstall -g @openai/codex"));
+            }
+            _ => panic!("codex remove tem Steps"),
+        }
+    }
+
+    /// Decisão PURA de "precisa fixar o PATH?": só quando o bin NÃO está no PATH mas
+    /// EXISTE em ~/.local/bin. Os outros 3 casos não têm PATH a consertar.
+    #[test]
+    fn needs_path_fix_pura() {
+        assert!(needs_path_fix(false, true), "fora do PATH mas em ~/.local/bin → fixa");
+        assert!(!needs_path_fix(true, true), "já no PATH → nada a fazer");
+        assert!(!needs_path_fix(true, false), "já no PATH → nada a fazer");
+        assert!(!needs_path_fix(false, false), "nem no PATH nem local → instalação falhou, não é PATH");
+    }
+
+    /// Idempotência PURA: reconhece um rc que já garante ~/.local/bin no PATH (não duplica),
+    /// e ignora comentários / linhas irrelevantes.
+    #[test]
+    fn rc_already_has_local_bin_pura() {
+        // Já presente (várias grafias comuns).
+        assert!(rc_already_has_local_bin("export PATH=\"$HOME/.local/bin:$PATH\""));
+        assert!(rc_already_has_local_bin("export PATH=$PATH:$HOME/.local/bin"));
+        assert!(rc_already_has_local_bin(
+            "# algo\nfoo=1\nexport PATH=\"$HOME/.local/bin:$PATH\"\nbar=2"
+        ));
+        // Ausente / não conta.
+        assert!(!rc_already_has_local_bin(""));
+        assert!(!rc_already_has_local_bin("export PATH=\"$HOME/bin:$PATH\""));
+        // Linha comentada NÃO conta (deny-by-default: não confia num export desativado).
+        assert!(!rc_already_has_local_bin("# export PATH=\"$HOME/.local/bin:$PATH\""));
+        // Menção sem PATH também não conta.
+        assert!(!rc_already_has_local_bin("cd $HOME/.local/bin"));
+    }
+
+    /// A linha de export canônica satisfaz a própria checagem de idempotência
+    /// (garante que, uma vez escrita, não seja re-adicionada numa 2ª execução).
+    #[test]
+    fn export_line_e_idempotente() {
+        assert!(rc_already_has_local_bin(LOCAL_BIN_EXPORT));
     }
 
     /// Parse de método é deny-by-default (desconhecido = None).

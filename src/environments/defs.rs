@@ -494,12 +494,19 @@ pub fn tool_install_recipe(tool: &Tool, fam: Family) -> Recipe {
             ),
         },
         // Codex CLI via npm global (depende de Node.js/npm — cita a dependência).
+        // DECISÃO: rodamos o `npm install -g` com SUDO. O npm global do sistema (o
+        // instalado pela distro, em /usr/local/lib/node_modules) pertence ao root, então
+        // sem sudo o install dá EACCES (permission denied). Escolhemos sudo por ser o
+        // caminho mais simples e confiável — o guardrail já exibe o selo [sudo] e o `sudo`
+        // literal no comando faz o SO pedir a senha. (Alternativa descartada: configurar um
+        // prefixo de npm no usuário — `npm config set prefix ~/.npm-global` + PATH — resolve
+        // sem root, mas exige mexer no PATH do usuário e é mais frágil por máquina.)
         "codex" => Recipe::Steps(vec![
             note_step("requer Node.js/npm no PATH (instale antes: `schematize env install node`)."),
             step(
-                "npm install -g @openai/codex",
+                "sudo npm install -g @openai/codex",
                 "npmjs.com (@openai/codex)",
-                false,
+                true,
                 false,
             ),
         ]),
@@ -533,10 +540,11 @@ pub fn tool_remove_recipe(tool: &Tool, fam: Family) -> Recipe {
             )]),
             Family::Unknown => Recipe::Na("família da distro não detectada.".into()),
         },
+        // Instalado como root (sudo npm -g) → remover também exige sudo (senão EACCES).
         "codex" => Recipe::Steps(vec![step(
-            "npm uninstall -g @openai/codex",
+            "sudo npm uninstall -g @openai/codex",
             "npmjs.com (@openai/codex)",
-            false,
+            true,
             false,
         )]),
         _ => Recipe::Na(format!("ferramenta desconhecida: {}.", tool.slug)),
