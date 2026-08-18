@@ -109,7 +109,7 @@ enum Cmd {
         #[command(subcommand)]
         sub: Auto,
     },
-    /// Language environments: install a runtime + common tools (docker|mise|distro|official).
+    /// Dev environments: language runtimes (docker|mise|distro|official) + dev tools (claude|code|codex).
     Env {
         #[command(subcommand)]
         sub: EnvCmd,
@@ -263,12 +263,13 @@ enum ProjectsCmd {
 
 #[derive(Subcommand)]
 enum EnvCmd {
-    /// List languages, methods available on this machine, and install status.
+    /// List languages and dev tools, install paths available here, and install status.
     List,
-    /// Install a language runtime + tools via a chosen method.
+    /// Install a language runtime (via a method) OR a dev tool (claude|code|codex; --method ignored).
     Install {
+        /// language slug (go|rust|...) or tool slug (claude|code|codex).
         lang: String,
-        /// docker | mise | distro | official (required; no default — deny-by-default).
+        /// docker | mise | distro | official — required for languages; ignored for tools.
         #[arg(long)]
         method: Option<String>,
         /// Print everything and execute nothing.
@@ -278,8 +279,9 @@ enum EnvCmd {
         #[arg(long)]
         yes: bool,
     },
-    /// Remove a language environment (auto-detects the method if omitted).
+    /// Remove a language environment (auto-detects the method) OR a dev tool (--method ignored).
     Remove {
+        /// language slug (go|rust|...) or tool slug (claude|code|codex).
         lang: String,
         #[arg(long)]
         method: Option<String>,

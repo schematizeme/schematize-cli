@@ -12,7 +12,7 @@ pub mod detect;
 
 use crate::i18n::{t, tf};
 use crate::util;
-use defs::{Env, Recipe, Step};
+use defs::{Env, Recipe, Step, Tool};
 use detect::Family;
 use std::io::{self, BufRead, Write};
 
@@ -81,16 +81,25 @@ fn installed_method(env: &Env, m: &Machine) -> Option<Method> {
 // ---------------------------------------------------------------------------
 
 /// Status estruturado de UM environment nesta máquina.
+/// Cobre linguagens E ferramentas: a GUI agrupa/distingue por `category`
+/// ("language" | "tool"). Ferramentas não têm método (`methods_available` vazio,
+/// `installed` sempre None) — seu status vem só de `runtime_present` (bin no PATH).
 pub struct LangEnv {
-    /// slug curto ("go", "rust", ...).
+    /// slug curto ("go", "rust", "claude", "code", ...).
     pub lang: &'static str,
-    /// nome de exibição ("Go", "C# / .NET", ...).
+    /// nome de exibição ("Go", "C# / .NET", "Claude Code", ...).
     pub display: &'static str,
+    /// categoria pra a GUI agrupar: "language" (runtime) | "tool" (ferramenta de dev).
+    pub category: &'static str,
+    /// rótulo do caminho de instalação (linguagem: métodos disponíveis; ferramenta: fonte canônica).
+    pub install_hint: String,
     /// métodos utilizáveis NESTA máquina (docker só com docker; distro só com família).
+    /// Vazio pra ferramentas (não usam os 4 métodos).
     pub methods_available: Vec<Method>,
-    /// método de instalação DETECTADO (docker/mise), quando rastreável; None caso contrário.
+    /// método de instalação DETECTADO (docker/mise), quando rastreável; None caso contrário
+    /// (e sempre None pra ferramentas).
     pub installed: Option<Method>,
-    /// runtime já presente no PATH (cobre distro/official, cujo método não é rastreável).
+    /// runtime/binário já presente no PATH (cobre distro/official e TODAS as ferramentas).
     pub runtime_present: bool,
 }
 
@@ -102,20 +111,30 @@ impl LangEnv {
 }
 
 /// Status de TODOS os environments nesta máquina (sonda a máquina UMA vez).
-/// Reaproveita exatamente a detecção que o `list()` usa; é a fonte única.
+/// Lista linguagens PRIMEIRO, ferramentas depois. Fonte única (o `list()` e a GUI
+/// consomem isto). Reaproveita exatamente a detecção que a tabela usa.
 pub fn status() -> Vec<LangEnv> {
     let m = Machine::probe();
     let available = m.available();
-    defs::ENVS
-        .iter()
-        .map(|env| LangEnv {
-            lang: env.lang,
-            display: env.display,
-            methods_available: available.clone(),
-            installed: installed_method(env, &m),
-            runtime_present: detect::has_bin(env.bin),
-        })
-        .collect()
+    let langs = defs::ENVS.iter().map(|env| LangEnv {
+        lang: env.lang,
+        display: env.display,
+        category: "language",
+        install_hint: available.iter().map(|x| x.slug()).collect::<Vec<_>>().join(", "),
+        methods_available: available.clone(),
+        installed: installed_method(env, &m),
+        runtime_present: detect::has_bin(env.bin),
+    });
+    let tools = defs::TOOLS.iter().map(|tool| LangEnv {
+        lang: tool.slug,
+        display: tool.display,
+        category: "tool",
+        install_hint: tool.source_hint.to_string(),
+        methods_available: Vec::new(),
+        installed: None,
+        runtime_present: detect::has_bin(tool.bin),
+    });
+    langs.chain(tools).collect()
 }
 
 /// Texto de status pra a tabela: instalado por qual método, ou só "instalado", ou não.
@@ -129,33 +148,46 @@ fn status_text(le: &LangEnv) -> String {
     t("env.not_installed")
 }
 
-/// `schematize env list` — tabela: linguagem, métodos disponíveis aqui, e status.
+/// `schematize env list` — tabela: nome, caminho de instalação, e status.
+/// Linguagens e ferramentas na mesma tabela, com um cabeçalho por seção.
 pub fn list() {
     let envs = status();
     println!("{}", t("env.header"));
     println!(
-        "  {:<12} {:<32} {}",
+        "  {:<14} {:<34} {}",
         t("env.col_lang"),
         t("env.col_methods"),
         t("env.col_status")
     );
+    let mut printed_tools_header = false;
     for le in &envs {
-        let methods = le
-            .methods_available
-            .iter()
-            .map(|x| x.slug())
-            .collect::<Vec<_>>()
-            .join(", ");
-        println!("  {:<12} {:<32} {}", le.display, methods, status_text(le));
+        // Um cabeçalho de seção quando começam as ferramentas.
+        if le.category == "tool" && !printed_tools_header {
+            println!("{}", t("env.tools_header"));
+            printed_tools_header = true;
+        }
+        println!("  {:<14} {:<34} {}", le.display, le.install_hint, status_text(le));
     }
 }
 
-/// Imprime o plano (cada passo: comando exato + procedência + selos sudo/pipe|sh).
+/// Imprime o plano de uma LINGUAGEM (título + passos).
 fn print_plan(env: &Env, method: Method, steps: &[Step]) {
     println!(
         "{}",
         tf("env.plan_title", &[("lang", env.display), ("method", method.slug())])
     );
+    print_steps(steps);
+}
+
+/// Imprime o plano de uma FERRAMENTA (título próprio + passos).
+fn print_tool_plan(tool: &Tool, steps: &[Step]) {
+    println!("{}", tf("env.tool_plan_title", &[("tool", tool.display)]));
+    print_steps(steps);
+}
+
+/// Imprime a lista de passos (comando exato + procedência + selos sudo/pipe|sh).
+/// Compartilhado por linguagens e ferramentas — o guardrail é o mesmo pra ambos.
+fn print_steps(steps: &[Step]) {
     for s in steps {
         if s.source == "nota" {
             // passo informativo (no-op) — mostra só a orientação, não como comando.
@@ -223,8 +255,13 @@ fn exec_step(s: &Step) -> Result<(), String> {
     util::run_shell(&s.cmd)
 }
 
-/// `schematize env install <lang> --method <m> [--dry-run] [--yes]`.
+/// `schematize env install <slug> [--method <m>] [--dry-run] [--yes]`.
+/// Aceita linguagem (go/rust/...) OU ferramenta (claude/code/codex). Pra ferramenta
+/// o `--method` é ignorado (não há seletor — cada uma tem 1 caminho canônico).
 pub fn install(lang: &str, method: Option<String>, dry_run: bool, yes: bool) -> Result<(), String> {
+    if let Some(tool) = defs::find_tool(lang) {
+        return install_tool(tool, method, dry_run, yes);
+    }
     let env = defs::find(lang).ok_or_else(|| tf("env.unknown_lang", &[("lang", lang)]))?;
     let m = Machine::probe();
 
@@ -316,8 +353,12 @@ fn print_docker_usage(env: &Env, img: &str) {
     println!("      {{ \"image\": \"{img}\" }}");
 }
 
-/// `schematize env remove <lang> [--method <m>] [--dry-run]`.
+/// `schematize env remove <slug> [--method <m>] [--dry-run]`.
+/// Aceita linguagem OU ferramenta; pra ferramenta o `--method` é ignorado.
 pub fn remove(lang: &str, method: Option<String>, dry_run: bool) -> Result<(), String> {
+    if let Some(tool) = defs::find_tool(lang) {
+        return remove_tool(tool, method, dry_run);
+    }
     let env = defs::find(lang).ok_or_else(|| tf("env.unknown_lang", &[("lang", lang)]))?;
     let m = Machine::probe();
 
@@ -349,6 +390,77 @@ pub fn remove(lang: &str, method: Option<String>, dry_run: bool) -> Result<(), S
         PlanAction::DryRun => println!("{}", t("env.dry_run")),
         PlanAction::Aborted => println!("{}", t("env.aborted")),
         PlanAction::Executed => println!("{}", tf("env.done", &[("lang", env.display), ("method", method.slug())])),
+    }
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// FERRAMENTAS: instalação/remoção. Reusa o MESMO guardrail (mostra o comando,
+// pede consentimento, respeita dry-run) e o mesmo runner das linguagens. Sem
+// seletor de método: se vier `--method`, avisa e ignora.
+// ---------------------------------------------------------------------------
+
+/// Avisa (uma vez) que o `--method` é ignorado pra ferramentas.
+fn warn_method_ignored(tool: &Tool, method: &Option<String>) {
+    if let Some(mm) = method {
+        println!("{}", tf("env.tool_method_ignored", &[("tool", tool.display), ("method", mm)]));
+    }
+}
+
+/// `schematize env install <tool>` — caminho canônico da ferramenta (por família no VS Code).
+fn install_tool(tool: &Tool, method: Option<String>, dry_run: bool, yes: bool) -> Result<(), String> {
+    warn_method_ignored(tool, &method);
+    let m = Machine::probe();
+
+    // Idempotência: se o binário já está no PATH, nada a fazer.
+    if detect::has_bin(tool.bin) {
+        println!("{}", tf("env.tool_already", &[("tool", tool.display)]));
+        return Ok(());
+    }
+
+    let steps = match defs::tool_install_recipe(tool, m.family) {
+        Recipe::Steps(s) => s,
+        Recipe::Todo(note) => {
+            println!("{}", tf("env.tool_todo", &[("tool", tool.display), ("note", &note)]));
+            return Ok(());
+        }
+        Recipe::Na(note) => return Err(tf("env.na", &[("note", &note)])),
+    };
+
+    print_tool_plan(tool, &steps);
+
+    // Consentimento (deny-by-default): dry-run não executa; senão --yes ou confirmação.
+    let consent = if dry_run { false } else { yes || confirm() };
+    match run_steps(&steps, dry_run, consent, exec_step)? {
+        PlanAction::DryRun => println!("{}", t("env.dry_run")),
+        PlanAction::Aborted => println!("{}", t("env.aborted")),
+        PlanAction::Executed => println!("{}", tf("env.tool_done", &[("tool", tool.display)])),
+    }
+    Ok(())
+}
+
+/// `schematize env remove <tool>` — desfaz o caminho canônico (por família no VS Code).
+fn remove_tool(tool: &Tool, method: Option<String>, dry_run: bool) -> Result<(), String> {
+    warn_method_ignored(tool, &method);
+    let m = Machine::probe();
+
+    let steps = match defs::tool_remove_recipe(tool, m.family) {
+        Recipe::Steps(s) => s,
+        Recipe::Todo(note) => {
+            println!("{}", tf("env.tool_todo", &[("tool", tool.display), ("note", &note)]));
+            return Ok(());
+        }
+        Recipe::Na(note) => return Err(tf("env.na", &[("note", &note)])),
+    };
+
+    println!("{}", tf("env.tool_removing", &[("tool", tool.display)]));
+    print_tool_plan(tool, &steps);
+
+    let consent = if dry_run { false } else { confirm() };
+    match run_steps(&steps, dry_run, consent, exec_step)? {
+        PlanAction::DryRun => println!("{}", t("env.dry_run")),
+        PlanAction::Aborted => println!("{}", t("env.aborted")),
+        PlanAction::Executed => println!("{}", tf("env.tool_done", &[("tool", tool.display)])),
     }
     Ok(())
 }
@@ -450,6 +562,107 @@ mod tests {
         .unwrap();
         assert_eq!(action, PlanAction::Executed);
         assert_eq!(calls, 2);
+    }
+
+    /// As 3 ferramentas existem, têm bin/slug/hint e aparecem no status() (categoria "tool").
+    #[test]
+    fn tabela_tres_ferramentas() {
+        let slugs = ["claude", "code", "codex"];
+        assert_eq!(defs::TOOLS.len(), 3);
+        for s in slugs {
+            let t = defs::find_tool(s).expect("ferramenta presente");
+            assert!(!t.display.is_empty() && !t.bin.is_empty() && !t.source_hint.is_empty());
+        }
+        // status() lista linguagens E ferramentas; as 3 ferramentas estão lá como "tool".
+        let all = status();
+        for s in slugs {
+            let le = all.iter().find(|e| e.lang == s).expect("ferramenta no status");
+            assert_eq!(le.category, "tool");
+            assert!(le.methods_available.is_empty(), "ferramenta não usa método");
+            assert!(le.installed.is_none());
+        }
+        // E as linguagens seguem como "language".
+        assert_eq!(all.iter().find(|e| e.lang == "go").unwrap().category, "language");
+    }
+
+    /// VS Code na família Debian gera o comando do .deb oficial (com sudo).
+    #[test]
+    fn vscode_debian_gera_deb() {
+        let tool = defs::find_tool("code").unwrap();
+        let steps = match defs::tool_install_recipe(tool, Family::Debian) {
+            Recipe::Steps(s) => s,
+            _ => panic!("esperava Steps pra VS Code em Debian"),
+        };
+        assert_eq!(steps.len(), 1);
+        assert!(steps[0].cmd.contains("os=linux-deb-x64"), "baixa o .deb oficial");
+        assert!(steps[0].cmd.contains("apt-get install -y /tmp/schematize-vscode.deb"));
+        assert!(steps[0].sudo, "instalar o .deb exige sudo");
+    }
+
+    /// VS Code no Rpm usa o repo oficial da Microsoft (3 passos: chave, repo, install).
+    #[test]
+    fn vscode_rpm_usa_repo_microsoft() {
+        let tool = defs::find_tool("code").unwrap();
+        let steps = match defs::tool_install_recipe(tool, Family::Rpm) {
+            Recipe::Steps(s) => s,
+            _ => panic!("esperava Steps pra VS Code em Rpm"),
+        };
+        assert_eq!(steps.len(), 3);
+        assert!(steps[0].cmd.contains("rpm --import https://packages.microsoft.com/keys/microsoft.asc"));
+        assert!(steps[2].cmd.contains("dnf install -y code") && steps[2].cmd.contains("zypper"));
+    }
+
+    /// VS Code em família desconhecida é N/A (não chuta gerenciador de pacotes).
+    #[test]
+    fn vscode_familia_desconhecida_na() {
+        let tool = defs::find_tool("code").unwrap();
+        assert!(matches!(defs::tool_install_recipe(tool, Family::Unknown), Recipe::Na(_)));
+    }
+
+    /// Claude Code e Codex têm caminho canônico único (independe de família).
+    #[test]
+    fn claude_e_codex_caminho_canonico() {
+        let claude = defs::find_tool("claude").unwrap();
+        for fam in [Family::Debian, Family::Rpm, Family::Unknown] {
+            match defs::tool_install_recipe(claude, fam) {
+                Recipe::Steps(s) => {
+                    assert_eq!(s.len(), 1);
+                    assert!(s[0].cmd.contains("claude.ai/install.sh"));
+                    assert!(s[0].pipe_sh, "curl|bash = código remoto (selo pipe)");
+                }
+                _ => panic!("claude sempre tem Steps"),
+            }
+        }
+        let codex = defs::find_tool("codex").unwrap();
+        match defs::tool_install_recipe(codex, Family::Debian) {
+            Recipe::Steps(s) => {
+                // note-step da dependência de node + o npm install.
+                assert!(s.iter().any(|st| st.cmd.contains("npm install -g @openai/codex")));
+                assert!(s.iter().any(|st| st.source == "nota"), "cita a dependência de Node.js");
+            }
+            _ => panic!("codex sempre tem Steps"),
+        }
+    }
+
+    /// Remoção das ferramentas é coerente (claude remove o bin; code por família; codex npm).
+    #[test]
+    fn remocao_ferramentas() {
+        let claude = defs::find_tool("claude").unwrap();
+        match defs::tool_remove_recipe(claude, Family::Unknown) {
+            Recipe::Steps(s) => assert!(s[0].cmd.contains(".local/bin/claude")),
+            _ => panic!("claude remove tem Steps"),
+        }
+        let code = defs::find_tool("code").unwrap();
+        match defs::tool_remove_recipe(code, Family::Debian) {
+            Recipe::Steps(s) => assert!(s[0].cmd.contains("apt-get remove -y code")),
+            _ => panic!("code debian remove tem Steps"),
+        }
+        assert!(matches!(defs::tool_remove_recipe(code, Family::Unknown), Recipe::Na(_)));
+        let codex = defs::find_tool("codex").unwrap();
+        match defs::tool_remove_recipe(codex, Family::Rpm) {
+            Recipe::Steps(s) => assert!(s[0].cmd.contains("npm uninstall -g @openai/codex")),
+            _ => panic!("codex remove tem Steps"),
+        }
     }
 
     /// Parse de método é deny-by-default (desconhecido = None).

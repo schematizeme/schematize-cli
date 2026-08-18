@@ -46,6 +46,41 @@ pub fn find(lang: &str) -> Option<&'static Env> {
     ENVS.iter().find(|e| e.lang == lang)
 }
 
+// ---------------------------------------------------------------------------
+// FERRAMENTAS de dev (não-linguagens). Diferente dos runtimes: cada ferramenta
+// tem UM caminho canônico de instalação (não os 4 métodos) — o `method` é
+// ignorado. Aparecem no MESMO fluxo/UI (detecção por `bin` no PATH, idempotente).
+// ---------------------------------------------------------------------------
+
+/// Uma ferramenta de dev com caminho de instalação PRÓPRIO (1 caminho canônico).
+pub struct Tool {
+    /// slug curto (o que o usuário digita): "claude", "code", "codex".
+    pub slug: &'static str,
+    /// nome de exibição na tabela.
+    pub display: &'static str,
+    /// descrição curta (equivalente ao `runtime` do Env).
+    pub desc: &'static str,
+    /// binário pra detectar presença no PATH (idempotência).
+    pub bin: &'static str,
+    /// rótulo curto do caminho de instalação (mostrado na coluna "methods").
+    pub source_hint: &'static str,
+}
+
+/// A tabela das ferramentas de dev suportadas (fonte de verdade).
+pub const TOOLS: &[Tool] = &[
+    Tool { slug: "claude", display: "Claude Code", desc: "Anthropic Claude Code CLI",
+        bin: "claude", source_hint: "official (curl|sh)" },
+    Tool { slug: "code", display: "VS Code", desc: "Visual Studio Code",
+        bin: "code", source_hint: "distro repo (deb/rpm)" },
+    Tool { slug: "codex", display: "Codex CLI", desc: "OpenAI Codex CLI (needs Node.js)",
+        bin: "codex", source_hint: "npm -g" },
+];
+
+/// Resolve uma ferramenta pelo slug.
+pub fn find_tool(slug: &str) -> Option<&'static Tool> {
+    TOOLS.iter().find(|t| t.slug == slug)
+}
+
 /// Os 4 métodos de instalação que o usuário escolhe na hora.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Method {
@@ -402,5 +437,108 @@ pub fn remove_recipe(env: &Env, method: Method, fam: Family) -> Recipe {
                 env.display
             )),
         },
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Planos das FERRAMENTAS. Cada uma tem 1 caminho canônico; o VS Code varia por
+// família (deb vs rpm/repo). Funções PURAS: só montam Steps, nunca executam.
+// ---------------------------------------------------------------------------
+
+/// Monta o plano de INSTALAÇÃO de uma ferramenta (varia por família só no VS Code).
+pub fn tool_install_recipe(tool: &Tool, fam: Family) -> Recipe {
+    match tool.slug {
+        // Instalador oficial (sem sudo, vai pra ~/.local/bin). curl | bash = código remoto.
+        "claude" => Recipe::Steps(vec![step(
+            "curl -fsSL https://claude.ai/install.sh | bash",
+            "https://claude.ai/install.sh (instalador oficial Anthropic)",
+            false,
+            true,
+        )]),
+        // VS Code: .deb oficial no apt; repo oficial da Microsoft no rpm (dnf/zypper).
+        "code" => match fam {
+            Family::Debian => Recipe::Steps(vec![step(
+                "curl -fsSL \"https://code.visualstudio.com/sha/download?build=stable&os=linux-deb-x64\" \
+                 -o /tmp/schematize-vscode.deb && sudo apt-get install -y /tmp/schematize-vscode.deb",
+                "code.visualstudio.com (.deb oficial)",
+                true,
+                false,
+            )]),
+            Family::Rpm => Recipe::Steps(vec![
+                step(
+                    "sudo rpm --import https://packages.microsoft.com/keys/microsoft.asc",
+                    "packages.microsoft.com (chave oficial)",
+                    true,
+                    false,
+                ),
+                step(
+                    "if command -v zypper >/dev/null; then \
+                       sudo zypper --non-interactive addrepo -f https://packages.microsoft.com/yumrepos/vscode vscode; \
+                     else \
+                       printf '[code]\\nname=Visual Studio Code\\nbaseurl=https://packages.microsoft.com/yumrepos/vscode\\nenabled=1\\nautorefresh=1\\ntype=rpm-md\\ngpgcheck=1\\ngpgkey=https://packages.microsoft.com/keys/microsoft.asc\\n' | sudo tee /etc/yum.repos.d/vscode.repo >/dev/null; \
+                     fi",
+                    "packages.microsoft.com/yumrepos/vscode (repo oficial)",
+                    true,
+                    false,
+                ),
+                step(
+                    "if command -v zypper >/dev/null; then sudo zypper --non-interactive install -y code; \
+                     else sudo dnf install -y code; fi",
+                    "repo oficial da Microsoft",
+                    true,
+                    false,
+                ),
+            ]),
+            Family::Unknown => Recipe::Na(
+                "família da distro não detectada — VS Code precisa de apt (.deb) ou dnf/zypper (rpm).".into(),
+            ),
+        },
+        // Codex CLI via npm global (depende de Node.js/npm — cita a dependência).
+        "codex" => Recipe::Steps(vec![
+            note_step("requer Node.js/npm no PATH (instale antes: `schematize env install node`)."),
+            step(
+                "npm install -g @openai/codex",
+                "npmjs.com (@openai/codex)",
+                false,
+                false,
+            ),
+        ]),
+        _ => Recipe::Na(format!("ferramenta desconhecida: {}.", tool.slug)),
+    }
+}
+
+/// Monta o plano de REMOÇÃO de uma ferramenta (varia por família só no VS Code).
+pub fn tool_remove_recipe(tool: &Tool, fam: Family) -> Recipe {
+    match tool.slug {
+        // O instalador oficial não expõe uninstall documentado — remove o binário do ~/.local/bin.
+        "claude" => Recipe::Steps(vec![step(
+            "rm -f \"$HOME/.local/bin/claude\"",
+            "instalador oficial (sem uninstall — remove o binário)",
+            false,
+            false,
+        )]),
+        "code" => match fam {
+            Family::Debian => Recipe::Steps(vec![step(
+                "sudo apt-get remove -y code",
+                fam.label(),
+                true,
+                false,
+            )]),
+            Family::Rpm => Recipe::Steps(vec![step(
+                "if command -v zypper >/dev/null; then sudo zypper --non-interactive rm -y code; \
+                 else sudo dnf remove -y code; fi",
+                fam.label(),
+                true,
+                false,
+            )]),
+            Family::Unknown => Recipe::Na("família da distro não detectada.".into()),
+        },
+        "codex" => Recipe::Steps(vec![step(
+            "npm uninstall -g @openai/codex",
+            "npmjs.com (@openai/codex)",
+            false,
+            false,
+        )]),
+        _ => Recipe::Na(format!("ferramenta desconhecida: {}.", tool.slug)),
     }
 }
