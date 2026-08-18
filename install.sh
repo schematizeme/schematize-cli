@@ -198,27 +198,45 @@ install_rpm() {
   if command -v zypper >/dev/null; then $SUDO zypper --non-interactive install -y --allow-unsigned-rpm "$t"; else $SUDO dnf install -y "$t"; fi
   rm -f "$t"; post_config
 }
+# Deixa um checkout na versão do main (fetch+reset se já existe; clona se não). Shallow.
+_sync_repo() { # <url> <dir>
+  local url="$1" dir="$2"
+  if [ -d "$dir/.git" ]; then
+    git -C "$dir" fetch --depth 1 origin main 2>/dev/null && git -C "$dir" reset --hard origin/main 2>/dev/null && return 0
+    rm -rf "$dir"
+  fi
+  git clone --depth 1 "$url" "$dir"
+}
 install_source() {
   ensure_runtime_deps; ensure_rust; gui_build_deps; ensure_fonts
   . "$HOME/.cargo/env" 2>/dev/null || true
-  local d; d="$(mktemp -d)"
-  log "clonando + compilando o CLI do fonte (release/LTO — leva alguns minutos na 1ª vez)"
-  git clone --depth 1 "https://github.com/$REPO.git" "$d/src"
-  # CLI: instala `schematize` + a GUI egui como `schematize-gui` (fallback).
-  ( cd "$d/src" && cargo install --path . --features gui --force )
-  export PATH="$HOME/.cargo/bin:$PATH"; hash -r 2>/dev/null || true
-  # GUI DEFAULT = Slint (repo próprio, dep no lib via git). Instala como `schematize-gui`,
-  # SOBRESCREVENDO o egui. Se o build do Slint falhar, o egui permanece como fallback
-  # (a janela nunca some). `schematize gui` executa esse binário.
-  log "compilando a GUI (Slint) — schematize-gui"
-  if git clone --depth 1 "https://github.com/schematizeme/schematize_gui_slint.git" "$d/gui" 2>/dev/null \
-     && ( cd "$d/gui" && cargo install --path . --force ); then
+  export PATH="$HOME/.cargo/bin:$PATH"
+  # Checkouts PERSISTENTES: o `target/` fica cacheado entre updates, então `cargo build` só
+  # recompila o que MUDOU (as deps pesadas tipo Slint não recompilam). NÃO usa `cargo install
+  # --force`, que jogava fora o cache e reconstruía a árvore inteira toda vez. 1ª vez é cheia;
+  # updates depois são incrementais (segundos em vez de minutos).
+  local base="$HOME/.schematize/src"; mkdir -p "$base"
+  local cli="$base/schematize-cli" gui="$base/schematize_gui_slint"
+
+  log "compilando o CLI do fonte (incremental — recompila só o que mudou; 1ª vez leva minutos)"
+  _sync_repo "https://github.com/$REPO.git" "$cli" || die "clone do CLI falhou"
+  ( cd "$cli" && cargo build --release --features gui ) || die "build do CLI falhou"
+  install -m755 "$cli/target/release/schematize" "$HOME/.cargo/bin/schematize"
+  # a GUI egui vem junto como fallback de `schematize-gui` (o Slint sobrescreve abaixo se compilar).
+  [ -f "$cli/target/release/schematize-gui" ] && install -m755 "$cli/target/release/schematize-gui" "$HOME/.cargo/bin/schematize-gui"
+  hash -r 2>/dev/null || true
+
+  # GUI DEFAULT = Slint (repo próprio). Sobrescreve o egui; se o build falhar, o egui fica de fallback.
+  log "compilando a GUI Slint — schematize-gui (incremental)"
+  if _sync_repo "https://github.com/schematizeme/schematize_gui_slint.git" "$gui" 2>/dev/null \
+     && ( cd "$gui" && cargo build --release ) \
+     && install -m755 "$gui/target/release/schematize-gui" "$HOME/.cargo/bin/schematize-gui"; then
     ok "GUI Slint instalada (schematize-gui)."
   else
-    warn "build da GUI Slint falhou — a GUI egui fica como schematize-gui (fallback). Rode o install de novo depois."
+    warn "build da GUI Slint falhou — schematize-gui anterior (ou egui) mantido. Rode de novo depois."
   fi
   install_gui_launcher
-  rm -rf "$d"; post_config
+  post_config
 }
 
 case "$MODE" in
