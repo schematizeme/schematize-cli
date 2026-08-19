@@ -75,6 +75,9 @@ enum Cmd {
         #[arg(long)]
         online: bool,
     },
+    /// Archive de evolução: materializa a estrutura do <projeto>_archive/, extrai o chat da sessão
+    /// pro chats/ e gera o context_agent/#N.txt (contexto portável). Roda no dir do projeto.
+    Archive,
     /// Update schematize itself — atualiza o próprio schematize (o APP, o binário), não as skills.
     Upgrade {
         #[arg(long)]
@@ -1296,6 +1299,10 @@ fn main() {
                     }
                 }
             }
+        }
+        Cmd::Archive => {
+            let cwd = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+            schematize::archive::sync(&cwd).map(|msg| println!("{msg}"))
         }
         Cmd::Ssh { sub } => ssh_cmd(sub),
         Cmd::Projects { sub } => projects_cmd(sub),
