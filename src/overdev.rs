@@ -346,20 +346,13 @@ pub fn start(objetivo: &str, max_iters: Option<u64>) -> Result<(), String> {
         );
         fs::write(checklist(), tpl).map_err(|e| e.to_string())?;
     }
-    // Garante gitignore do operacional (`.schematize/`) e do archive DENTRO do projeto (`_archive/`):
-    // o histórico é durável mas NÃO entra no git do código.
+    // Gitignore SÓ do operacional (`.schematize/`) — o archive (`_archive/`) NÃO é ignorado: ele é
+    // um REPOSITÓRIO git próprio (privado, obrigatório), irmão dos microserviços, que documenta a
+    // evolução do projeto (o `git init` do archive é feito por `ensure_archive_mirror`).
     let gi = Path::new(".gitignore");
-    let mut cur = fs::read_to_string(gi).unwrap_or_default();
-    let mut add = String::new();
+    let cur = fs::read_to_string(gi).unwrap_or_default();
     if !cur.contains(".schematize") {
-        add.push_str("\n.schematize/\n");
-    }
-    if !cur.contains("_archive/") {
-        add.push_str("_archive/\n");
-    }
-    if !add.is_empty() {
-        cur.push_str(&add);
-        let _ = fs::write(gi, cur);
+        let _ = fs::write(gi, format!("{cur}\n.schematize/\n"));
     }
     // Archive OBRIGATÓRIO (criticidade 0 — observabilidade da evolução do sistema): materializa
     // `<projeto>_archive/overdev/` e espelha os artefatos. NUNCA é opcional.
@@ -386,6 +379,20 @@ fn ensure_archive_mirror(root: &Path) {
     let od = arch.join("overdev");
     if fs::create_dir_all(&od).is_err() {
         return;
+    }
+    // O archive é um REPOSITÓRIO git PRÓPRIO (privado, obrigatório) que documenta a evolução do
+    // projeto — irmão dos microserviços. Git-init se ainda não for repo + README. Best-effort.
+    if !arch.join(".git").is_dir() {
+        let _ = std::process::Command::new("git")
+            .arg("-C").arg(&arch).arg("init").arg("-q")
+            .status();
+        let readme = arch.join("README.md");
+        if !readme.exists() {
+            let _ = fs::write(
+                &readme,
+                "# _archive — evolução documentada do projeto\n\nRepositório PRIVADO obrigatório (criticidade 0), irmão dos microserviços. Guarda o histórico\nDURÁVEL da evolução: `overdev/` (objetivo, plano, decisões, checklist, notas), `index/` (MAPA +\ngrafos), `decisoes/` (ADRs), `chats/` (handoffs FEITO-vs-ABERTO), `audit/`, `pentest/`. NÃO é\nopcional — é a observabilidade da evolução do sistema. Mantido em git privado, versionado por marco.\n",
+            );
+        }
     }
     let src = dir_at(root);
     for f in ["OBJETIVO.md", "PLAN.md", "DECISOES.md", "CHECKLIST.md", "NOTAS.md"] {
