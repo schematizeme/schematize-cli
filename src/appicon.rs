@@ -141,6 +141,25 @@ pub fn write_hicolor(base: &std::path::Path) -> std::io::Result<Vec<std::path::P
     Ok(out)
 }
 
+/// Instala o ícone em TODOS os locais de fallback do usuário e devolve o caminho ABSOLUTO do 256px.
+/// "Força em todos os formatos": hicolor (16..512) + pixmaps + flat `~/.icons`. O caminho devolvido
+/// serve pra `Icon=` do `.desktop` como ABSOLUTO (à prova de cache/tema quebrado — no Wayland o dock
+/// depende do .desktop). Best-effort nos extras; hicolor é o principal.
+pub fn install_all(home: &std::path::Path) -> std::io::Result<std::path::PathBuf> {
+    let icons = home.join(".local/share/icons/hicolor");
+    write_hicolor(&icons)?;
+    let p256 = icons.join("256x256").join("apps").join("schematize.png");
+    // Fallbacks legados que alguns DEs/temas ainda consultam.
+    for extra in [
+        home.join(".local/share/pixmaps/schematize.png"),
+        home.join(".icons/schematize.png"),
+        home.join(".local/share/icons/schematize.png"),
+    ] {
+        let _ = write_png(&extra, 256);
+    }
+    Ok(p256)
+}
+
 /// Ponto dentro de um quadrado (0..n) com cantos de raio `r` (squircle aproximado por raio).
 fn inside_rounded(px: f32, py: f32, n: f32, r: f32) -> bool {
     if px < 0.0 || py < 0.0 || px > n || py > n {

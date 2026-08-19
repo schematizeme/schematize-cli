@@ -326,17 +326,36 @@ fn gui_checks(fix: bool) -> usize {
 /// Reescreve o `.desktop` do schematize-gui com `Exec=<caminho absoluto>` (mesmo
 /// formato que o install.sh usa: Type/Name/Exec/Terminal=false/Categories).
 fn write_desktop(path: &Path, bin: &Path) -> Result<(), String> {
+    // Gera o ícone em TODOS os locais de fallback e usa o 256px ABSOLUTO no Icon= (no Wayland o dock
+    // depende do .desktop; caminho absoluto é à prova de cache/tema). Se falhar, cai pro nome "schematize".
+    let icon = crate::appicon::install_all(&util::home())
+        .map(|p| p.display().to_string())
+        .unwrap_or_else(|_| "schematize".into());
     let body = format!(
         "[Desktop Entry]\n\
          Type=Application\n\
-         Name=Schematize\n\
+         Name=schematize\n\
+         GenericName=Ecossistema schematize\n\
+         Comment=Skills, overdev e mais — schematize\n\
          Exec={}\n\
+         Icon={icon}\n\
          Terminal=false\n\
-         Categories=Development;\n",
+         Categories=Development;Utility;\n\
+         Keywords=schematize;skills;overdev;claude;\n\
+         StartupWMClass=schematize-gui\n",
         bin.display()
     );
     if let Some(dir) = path.parent() {
         fs::create_dir_all(dir).map_err(|e| e.to_string())?;
     }
-    fs::write(path, body).map_err(|e| e.to_string())
+    fs::write(path, body).map_err(|e| e.to_string())?;
+    // Atualiza os caches best-effort (o DE pode não ter as ferramentas).
+    let _ = std::process::Command::new("gtk-update-icon-cache")
+        .args(["-f", "-t"])
+        .arg(util::home().join(".local/share/icons/hicolor"))
+        .status();
+    let _ = std::process::Command::new("update-desktop-database")
+        .arg(util::home().join(".local/share/applications"))
+        .status();
+    Ok(())
 }

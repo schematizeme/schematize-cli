@@ -38,9 +38,12 @@ fn ensure_group(root: &mut Value, event: &str, needle: &str, group: Value) {
     let hooks = root.as_object_mut().unwrap().entry("hooks").or_insert_with(|| json!({}));
     let arr = hooks.as_object_mut().unwrap().entry(event).or_insert_with(|| json!([]));
     let arr = arr.as_array_mut().unwrap();
-    if !arr.iter().any(|g| group_has(g, needle)) {
-        arr.push(group);
-    }
+    // REMOVE qualquer versão anterior do hook (mesmo needle) antes de adicionar — assim `enable`
+    // ATUALIZA o comando em vez de só adicionar-se-ausente. Sem isto, um hook antigo com caminho
+    // absoluto stale (ex.: `/usr/bin/schematize` de um pacote removido) nunca era trocado pelo
+    // resolvedor resiliente ao re-rodar `overdev enable`.
+    arr.retain(|g| !group_has(g, needle));
+    arr.push(group);
 }
 
 /// Os hooks do overdev estão registrados no settings.json?
@@ -60,14 +63,25 @@ pub fn settings_valid() -> Option<bool> {
     }
 }
 
-/// Liga os dois hooks do overdev, apontando pro binário `exe`.
+/// Comando de hook RESILIENTE: resolve o `schematize` em RUNTIME (o `exe` de agora como 1ª pista,
+/// depois ~/.cargo/bin, /usr/local/bin, /usr/bin e o PATH) e roda `<sub>`. Se NÃO achar o binário,
+/// sai 0 (não bloqueia, não erra) — antes gravava um caminho absoluto que virava stale (ex.: o
+/// pacote saía e ficava `/usr/bin/schematize: not found` em todo Stop). "Prever macacos".
+fn hook_cmd(exe: &str, sub: &str) -> String {
+    format!(
+        r#"for c in "{exe}" "$HOME/.cargo/bin/schematize" /usr/local/bin/schematize /usr/bin/schematize "$(command -v schematize 2>/dev/null)"; do [ -n "$c" ] && [ -x "$c" ] && exec "$c" {sub}; done; exit 0"#
+    )
+}
+
+/// Liga os dois hooks do overdev. O comando resolve o binário em runtime (resiliente a mudança de
+/// caminho / pacote removido), com `exe` (o binário atual) como primeira pista.
 pub fn enable(exe: &str) -> Result<(), String> {
     let mut root = load();
     if !root.is_object() {
         root = json!({});
     }
-    let stop_cmd = format!("{exe} overdev check");
-    let guard_cmd = format!("{exe} overdev guard");
+    let stop_cmd = hook_cmd(exe, "overdev check");
+    let guard_cmd = hook_cmd(exe, "overdev guard");
     ensure_group(&mut root, "Stop", "overdev check",
         json!({ "hooks": [ { "type": "command", "command": stop_cmd } ] }));
     ensure_group(&mut root, "PreToolUse", "overdev guard",
