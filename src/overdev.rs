@@ -346,11 +346,20 @@ pub fn start(objetivo: &str, max_iters: Option<u64>) -> Result<(), String> {
         );
         fs::write(checklist(), tpl).map_err(|e| e.to_string())?;
     }
-    // Garante gitignore do control-plane operacional (`.schematize/`).
+    // Garante gitignore do operacional (`.schematize/`) e do archive DENTRO do projeto (`_archive/`):
+    // o histórico é durável mas NÃO entra no git do código.
     let gi = Path::new(".gitignore");
-    let cur = fs::read_to_string(gi).unwrap_or_default();
+    let mut cur = fs::read_to_string(gi).unwrap_or_default();
+    let mut add = String::new();
     if !cur.contains(".schematize") {
-        let _ = fs::write(gi, format!("{cur}\n.schematize/\n"));
+        add.push_str("\n.schematize/\n");
+    }
+    if !cur.contains("_archive/") {
+        add.push_str("_archive/\n");
+    }
+    if !add.is_empty() {
+        cur.push_str(&add);
+        let _ = fs::write(gi, cur);
     }
     // Archive OBRIGATÓRIO (criticidade 0 — observabilidade da evolução do sistema): materializa
     // `<projeto>_archive/overdev/` e espelha os artefatos. NUNCA é opcional.
@@ -362,14 +371,11 @@ pub fn start(objetivo: &str, max_iters: Option<u64>) -> Result<(), String> {
     Ok(())
 }
 
-/// `<projeto>_archive/` — dir de archive IRMÃO do projeto (`<parent>/<nome>_archive`). O archive é
-/// CRITICIDADE 0 (obrigatório): guarda checklists, planos, decisões, histórico — a observabilidade
-/// da evolução do sistema. Nunca é opcional. `None` só se o path não tiver nome/pai.
+/// `<projeto>/_archive/` — dir de archive DENTRO do projeto (visível ao abrir o projeto; gitignored).
+/// O archive é CRITICIDADE 0 (obrigatório): guarda checklists, planos, decisões, histórico — a
+/// observabilidade da evolução do sistema. Nunca é opcional.
 pub fn archive_dir(root: &Path) -> Option<PathBuf> {
-    let canon = root.canonicalize().unwrap_or_else(|_| root.to_path_buf());
-    let name = canon.file_name()?.to_str()?.to_string();
-    let parent = canon.parent()?.to_path_buf();
-    Some(parent.join(format!("{name}_archive")))
+    Some(root.join("_archive"))
 }
 
 /// Materializa `<projeto>_archive/overdev/` e espelha os artefatos do overdev (OBJETIVO/PLAN/
