@@ -13,6 +13,7 @@ pub mod config;
 pub mod database;
 pub mod debug;
 pub mod debugreport;
+pub mod diagnostics;
 pub mod environments;
 pub mod doctor;
 pub mod githist;

@@ -68,6 +68,13 @@ enum Cmd {
     },
     /// Overview dashboard: versions, agent, overdev, language, links.
     Status,
+    /// Envia (OPT-IN) o relatório de diagnóstico REDIGIDO pro servidor (POST /diagnostics). Nada é
+    /// enviado por padrão — só com este comando e após confirmar.
+    Diagnostics {
+        /// Pula a confirmação (envia direto).
+        #[arg(long)]
+        yes: bool,
+    },
     /// Orçamento de concorrência: quantos agents/subagents do Claude a máquina aguenta SEM travar
     /// (CPU/RAM/load, contando OUTRAS instâncias do claude na máquina). Persiste ~/.schematize/agents.json.
     Agents {
@@ -1329,6 +1336,7 @@ fn main() {
             Ok(())
         }
         Cmd::Agents { json, split } => agents_cmd(json, split),
+        Cmd::Diagnostics { yes } => schematize::diagnostics::send(yes),
         Cmd::Icon { emit, size, hicolor } => {
             let mut r: Result<(), String> = Ok(());
             if let Some(dir) = hicolor {
