@@ -134,10 +134,127 @@ fn binary_runs(bin: &Path) -> bool {
     util::run(bin.to_str().unwrap_or_default(), &["--version"]).is_ok()
 }
 
-/// Executa a atualização. Retorna a mensagem de sucesso (versão) ou erro descritivo.
+// ---------------------------------------------------------------------------
+// Delegação ao schematize-updater (o mecanismo CENTRAL de update). O app "depende" dele: toda
+// atualização passa por ele (instala se faltar), cobrindo instalação limpa E update. Se o updater
+// não puder ser instalado/rodado, cai no fluxo interno (binário/fonte) como rede de segurança.
+// ---------------------------------------------------------------------------
+
+fn updater_filename() -> &'static str {
+    if cfg!(windows) {
+        "schematize-updater.exe"
+    } else {
+        "schematize-updater"
+    }
+}
+
+/// Asset do updater pra esta plataforma (bate com o CI do schematize-updater). None se não há.
+fn updater_asset() -> Option<&'static str> {
+    match (std::env::consts::OS, std::env::consts::ARCH) {
+        ("linux", "x86_64") => Some("schematize-updater-linux-x86_64"),
+        ("macos", "aarch64") => Some("schematize-updater-macos-arm64"),
+        ("macos", "x86_64") => Some("schematize-updater-macos-x86_64"),
+        ("windows", "x86_64") => Some("schematize-updater-windows-x86_64.exe"),
+        _ => None,
+    }
+}
+
+/// Resolve o `schematize-updater` no `$PATH` + `~/.cargo/bin` + `~/.local/bin`. None se ausente.
+/// Exposto pra GUI checar na abertura ("pede pra instalar se faltar").
+pub fn updater_bin() -> Option<PathBuf> {
+    let name = updater_filename();
+    if let Some(paths) = std::env::var_os("PATH") {
+        for dir in std::env::split_paths(&paths) {
+            let p = dir.join(name);
+            if p.is_file() {
+                return Some(p);
+            }
+        }
+    }
+    for sub in [".cargo/bin", ".local/bin"] {
+        let p = util::home().join(sub).join(name);
+        if p.is_file() {
+            return Some(p);
+        }
+    }
+    None
+}
+
+/// Garante o updater instalado: devolve o caminho; se faltar, baixa o asset da plataforma pro
+/// `~/.cargo/bin`. Exposto pra GUI (botão "instalar gestor de atualizações").
+pub fn ensure_updater() -> Result<PathBuf, String> {
+    if let Some(p) = updater_bin() {
+        return Ok(p);
+    }
+    let asset = updater_asset().ok_or("sem binário do updater pra esta plataforma/arch")?;
+    let url = format!(
+        "https://github.com/schematizeme/schematize-updater/releases/latest/download/{asset}"
+    );
+    let dst = util::home().join(".cargo").join("bin").join(updater_filename());
+    if let Some(parent) = dst.parent() {
+        let _ = fs::create_dir_all(parent);
+    }
+    download(&url, &dst)?;
+    #[cfg(unix)]
+    {
+        let _ = util::run("chmod", &["+x", dst.to_str().unwrap_or_default()]);
+    }
+    log(&format!("schematize-updater instalado em {}", dst.display()));
+    Ok(dst)
+}
+
+/// Dispara `schematize-updater update`. Unix: num TERMINAL externo (pode compilar → precisa TTY).
+/// Windows: spawna (abre console). Err se não conseguir (o chamador cai no fluxo interno).
+fn run_updater(up: &Path) -> Result<String, String> {
+    #[cfg(unix)]
+    {
+        let script = format!(
+            "#!/usr/bin/env bash\nexport PATH=\"$HOME/.cargo/bin:$HOME/.local/bin:$PATH\"\n{up:?} update\necho\nread -rp '[update encerrado — Enter para fechar] '\n"
+        );
+        let tmp = log_path().parent().unwrap_or(Path::new(".")).join("run-updater.sh");
+        fs::write(&tmp, &script).map_err(|e| e.to_string())?;
+        let _ = util::run("chmod", &["+x", tmp.to_str().unwrap_or_default()]);
+        let terms = [
+            "konsole", "gnome-terminal", "xfce4-terminal", "x-terminal-emulator",
+            "alacritty", "kitty", "xterm",
+        ];
+        let term = terms.iter().find(|t| which(t)).ok_or_else(|| "nenhum terminal encontrado".to_string())?;
+        let mut cmd = std::process::Command::new(term);
+        match *term {
+            "gnome-terminal" | "xfce4-terminal" => {
+                cmd.arg("--").arg("bash").arg(&tmp);
+            }
+            _ => {
+                cmd.arg("-e").arg("bash").arg(&tmp);
+            }
+        }
+        cmd.spawn().map_err(|e| format!("abrir terminal: {e}"))?;
+        Ok("Abri o schematize-updater num terminal — ele atualiza o app (build incremental).".into())
+    }
+    #[cfg(windows)]
+    {
+        std::process::Command::new(up)
+            .arg("update")
+            .spawn()
+            .map_err(|e| format!("iniciar o updater: {e}"))?;
+        Ok("schematize-updater rodando — ele atualiza o app.".into())
+    }
+}
+
+/// Executa a atualização. DELEGA ao schematize-updater (instalando-o se faltar); só cai no fluxo
+/// interno (binário/fonte) se o updater não puder ser instalado/disparado.
 pub fn run() -> Result<String, String> {
     let cur = env!("CARGO_PKG_VERSION");
     log(&format!("self-update: iniciando (atual v{cur}) em {}", std::env::consts::OS));
+
+    // 1) Caminho CENTRAL: delega ao schematize-updater (instala se faltar).
+    match ensure_updater() {
+        Ok(up) => match run_updater(&up) {
+            Ok(msg) => return Ok(msg),
+            Err(e) => log(&format!("run_updater falhou ({e}) — caindo no fluxo interno")),
+        },
+        Err(e) => log(&format!("updater indisponível ({e}) — caindo no fluxo interno")),
+    }
 
     // Windows: substituir o .exe em execução é frágil — abre o release pra baixar o instalador.
     #[cfg(target_os = "windows")]
