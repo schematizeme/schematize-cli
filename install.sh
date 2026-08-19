@@ -29,6 +29,33 @@ die() { printf '\033[1;31m✗ %s\033[0m\n' "$*" >&2; exit 1; }
 [ "$(uname -s)" = "Linux" ] || die "só Linux por enquanto."
 SUDO=""; [ "$(id -u)" -eq 0 ] || SUDO="sudo"
 
+# "PREVER MACACOS": software de massa não pode quebrar porque o usuário rodou como root (su/sudo).
+# Se estamos como root, descobre o usuário REAL (mesmo sob su) e instala PRA ELE — o app é de
+# usuário (mora em ~/.cargo/bin, a GUI dele que abre). Só as libs do apt rodam como root.
+REAL_USER=""
+if [ "$(id -u)" -eq 0 ]; then
+  REAL_USER="${SUDO_USER:-}"
+  [ -z "$REAL_USER" ] && REAL_USER="$(logname 2>/dev/null || true)"
+  [ -z "$REAL_USER" ] && REAL_USER="$(stat -c %U "$(tty 2>/dev/null)" 2>/dev/null || true)"
+  [ "$REAL_USER" = "root" ] && REAL_USER=""
+fi
+if [ -n "$REAL_USER" ]; then
+  TARGET_HOME="$(getent passwd "$REAL_USER" | cut -d: -f6)"
+  [ -n "$TARGET_HOME" ] || TARGET_HOME="/home/$REAL_USER"
+  ok "detectei root — instalando pro seu usuário '$REAL_USER' (HOME=$TARGET_HOME), não pro /root."
+else
+  TARGET_HOME="$HOME"
+fi
+# Roda um comando COMO o usuário real (se root com usuário detectado); senão direto. Já leva o
+# ~/.cargo/bin do usuário no PATH (rustup/cargo) e o HOME certo.
+as_user() {
+  if [ -n "$REAL_USER" ]; then
+    sudo -u "$REAL_USER" -H env "HOME=$TARGET_HOME" "PATH=$TARGET_HOME/.cargo/bin:/usr/local/bin:/usr/bin:/bin" "$@"
+  else
+    env "PATH=$TARGET_HOME/.cargo/bin:$PATH" "$@"
+  fi
+}
+
 . /etc/os-release 2>/dev/null || true
 FAMILY="unknown"
 case " ${ID:-} ${ID_LIKE:-} " in
@@ -94,26 +121,24 @@ ensure_fonts() {
   esac
 }
 ensure_rust() {
-  if ! command -v cargo >/dev/null; then
-    log "instalando Rust (rustup)"; curl -fsSL https://sh.rustup.rs | sh -s -- -y --profile minimal
-    . "$HOME/.cargo/env" 2>/dev/null || true
+  # Tudo como o usuário REAL (rustup/cargo moram no HOME dele, não no /root).
+  if ! as_user sh -c 'command -v cargo >/dev/null 2>&1'; then
+    log "instalando Rust (rustup) para ${REAL_USER:-você}"
+    as_user sh -c 'curl -fsSL https://sh.rustup.rs | sh -s -- -y --profile minimal'
   fi
-  # rustup pode ter o shim `cargo` mas SEM toolchain default (ex.: primeira vez, ou rodando como
-  # outro usuário/root cujo ~/.rustup está vazio) → o cargo falha com "no default configured".
-  # Garante um default estável, senão o `cargo build` quebra.
-  if command -v rustup >/dev/null 2>&1 && ! rustup default >/dev/null 2>&1; then
+  # rustup pode ter o shim `cargo` mas SEM toolchain default (1ª vez, ou HOME sem ~/.rustup) → o
+  # cargo falha com "no default configured". Garante um default estável, senão o build quebra.
+  if as_user sh -c 'command -v rustup >/dev/null 2>&1' && ! as_user sh -c 'rustup default >/dev/null 2>&1'; then
     log "configurando o toolchain default do Rust (stable)"
-    rustup default stable || rustup toolchain install stable && rustup default stable
+    as_user sh -c 'rustup default stable || { rustup toolchain install stable && rustup default stable; }'
   fi
 }
 install_gui_launcher() {
-  local app="$HOME/.local/share/applications"; mkdir -p "$app"
-  # CAMINHO ABSOLUTO do schematize-gui (o Slint recém-instalado) — o `Exec=schematize gui`
-  # dependia do PATH do ambiente gráfico, que muitas vezes NÃO tem ~/.cargo/bin; aí o DE
-  # abria o schematize-gui do pacote em /usr/bin (egui, layout velho). Absoluto mata isso.
-  local guibin; guibin="$(command -v schematize-gui 2>/dev/null || echo "$HOME/.cargo/bin/schematize-gui")"
-  cat > "$app/schematize-gui.desktop" <<EOF
-[Desktop Entry]
+  local app="$TARGET_HOME/.local/share/applications"; as_user mkdir -p "$app"
+  # CAMINHO ABSOLUTO do schematize-gui (Slint) no HOME do usuário — o `Exec=schematize gui` dependia
+  # do PATH do ambiente gráfico (sem ~/.cargo/bin), aí o DE abria o egui velho. Absoluto mata isso.
+  local guibin="$TARGET_HOME/.cargo/bin/schematize-gui"
+  printf '%s\n' "[Desktop Entry]
 Type=Application
 Name=schematize
 GenericName=Ecossistema schematize
@@ -121,9 +146,8 @@ Comment=Skills, overdev e mais — schematize
 Exec=$guibin
 Terminal=false
 Categories=Development;Utility;
-Keywords=schematize;skills;overdev;claude;
-EOF
-  update-desktop-database "$app" 2>/dev/null || true
+Keywords=schematize;skills;overdev;claude;" | as_user tee "$app/schematize-gui.desktop" >/dev/null
+  as_user update-desktop-database "$app" 2>/dev/null || true
   # No modo fonte, remove o lançador DUPLICADO do pacote (Exec=schematize-gui, que pode cair
   # no egui do /usr/bin) pra o DE usar só este (absoluto → Slint).
   if [ "${MODE:-source}" = source ] && [ -f /usr/share/applications/schematize-gui.desktop ]; then
@@ -145,53 +169,38 @@ install_updater() {
     *) return 0 ;;
   esac
   local url="https://github.com/schematizeme/schematize-updater/releases/latest/download/$asset"
-  local dst="$HOME/.cargo/bin/schematize-updater"
-  if curl -fsSL -o "$dst" "$url" 2>/dev/null && [ -s "$dst" ]; then
-    chmod +x "$dst" 2>/dev/null || true
+  local dst="$TARGET_HOME/.cargo/bin/schematize-updater"
+  as_user mkdir -p "$TARGET_HOME/.cargo/bin"
+  if as_user sh -c "curl -fsSL -o '$dst' '$url'" 2>/dev/null && [ -s "$dst" ]; then
+    as_user chmod +x "$dst" 2>/dev/null || true
     ok "schematize-updater instalado ($dst) — atualize com: schematize-updater update"
   fi
 }
 post_config() {
-  hash -r 2>/dev/null || true
-  local BIN; BIN="$(command -v schematize || true)"
-  # Só no modo pacote/binário: um schematize em ~/.cargo/bin sombreia o do pacote.
-  # No modo source (padrão), ~/.cargo/bin É onde instalamos — não mexer.
-  if [ "$MODE" != source ] && [ "$BIN" = "$HOME/.cargo/bin/schematize" ] && [ -x /usr/bin/schematize ] && command -v cargo >/dev/null; then
-    log "removendo schematize antigo do ~/.cargo/bin (sombreava o pacote)"
-    cargo uninstall schematize >/dev/null 2>&1 || rm -f "$HOME/.cargo/bin/schematize" "$HOME/.cargo/bin/schematize-gui"
-    hash -r 2>/dev/null || true
-    BIN="$(command -v schematize || true)"
-  fi
-  # No modo source (padrão), o .deb/.rpm do schematize (se existir) CONFLITA com a instalação de
-  # fonte: dois binários (/usr/bin vs ~/.cargo/bin), dois launchers e autostart duplicado — a causa
-  # dos conflitos de PATH no ambiente gráfico. Remove o pacote — a fonte é a verdade única.
+  local BIN="$TARGET_HOME/.cargo/bin/schematize"
+  # No modo source, o .deb/.rpm do schematize (se existir) CONFLITA (dois binários/launchers). Remove
+  # (as libs do apt são root — $SUDO="" quando já root). A fonte no HOME do usuário é a verdade única.
   if [ "$MODE" = source ]; then
     if command -v dpkg >/dev/null && dpkg -l schematize 2>/dev/null | grep -q '^ii'; then
-      log "removendo o pacote .deb antigo do schematize (conflitava com a instalação de fonte)"
+      log "removendo o pacote .deb antigo do schematize (conflitava com a fonte)"
       $SUDO apt-get remove -y schematize >/dev/null 2>&1 || $SUDO dpkg -r schematize >/dev/null 2>&1 || \
-        warn "não removi o .deb automaticamente — rode: sudo apt remove schematize"
+        warn "não removi o .deb — rode: sudo apt remove schematize"
     elif command -v rpm >/dev/null && rpm -q schematize >/dev/null 2>&1; then
-      log "removendo o pacote .rpm antigo do schematize (conflitava com a instalação de fonte)"
+      log "removendo o pacote .rpm antigo do schematize"
       { command -v zypper >/dev/null && $SUDO zypper -n rm schematize; } >/dev/null 2>&1 \
         || $SUDO dnf -y remove schematize >/dev/null 2>&1 \
-        || warn "não removi o .rpm automaticamente — rode: sudo zypper rm schematize (ou dnf remove)"
+        || warn "não removi o .rpm — rode: sudo zypper rm schematize (ou dnf remove)"
     fi
-    # limpa launcher/autostart residuais do pacote, se sobrarem (o Exec do pacote cai no /usr/bin)
     $SUDO rm -f /usr/share/applications/schematize-gui.desktop /etc/xdg/autostart/schematize-agent.desktop 2>/dev/null || true
-    hash -r 2>/dev/null || true
-    BIN="$(command -v schematize || true)"
   fi
-  [ -n "$BIN" ] || { log "reabra o shell (PATH) e rode: schematize --help"; return; }
-  ok "schematize $($BIN --version 2>/dev/null | awk '{print $2}') em $BIN"
-  if [ "$BIN" != "/usr/bin/schematize" ] && [ -x /usr/bin/schematize ]; then
-    log "aviso: '$BIN' está na frente de /usr/bin/schematize no PATH (shadow). Pra usar o do pacote: cargo uninstall schematize"
-  fi
-  "$BIN" autostart enable || true
+  [ -x "$BIN" ] || { warn "o binário não apareceu em $BIN — rode o install de novo."; return; }
+  ok "schematize $(as_user "$BIN" --version 2>/dev/null | awk '{print $2}') em $BIN (usuário ${REAL_USER:-$USER})"
+  as_user "$BIN" autostart enable || true
   install_updater || true
   echo; ok "pronto. Próximos passos:"
   echo "    schematize skills install --all   # instala as skills"
-  echo "    schematize overdev enable     # liga o modo overdev"
-  echo "    schematize gui                # abre a janela (o & libera o terminal; ou use o menu de apps)"
+  echo "    schematize overdev enable         # liga o modo overdev"
+  echo "    schematize gui                    # abre a janela (ou use o menu de apps)"
   echo "    schematize skills list            # versões instaladas vs latest"
 }
 
@@ -226,46 +235,35 @@ install_rpm() {
   rm -f "$t"; post_config
 }
 # Deixa um checkout na versão do main (fetch+reset se já existe; clona se não). Shallow.
-_sync_repo() { # <url> <dir>
+_sync_repo() { # <url> <dir>  — git como o usuário real (checkout no HOME dele)
   local url="$1" dir="$2"
   if [ -d "$dir/.git" ]; then
-    git -C "$dir" fetch --depth 1 origin main 2>/dev/null && git -C "$dir" reset --hard origin/main 2>/dev/null && return 0
+    as_user git -C "$dir" fetch --depth 1 origin main 2>/dev/null && as_user git -C "$dir" reset --hard origin/main 2>/dev/null && return 0
     rm -rf "$dir"
   fi
-  git clone --depth 1 "$url" "$dir"
+  as_user git clone --depth 1 "$url" "$dir"
 }
 install_source() {
-  # Rodando como ROOT: instala no HOME do root (/root/.cargo/bin), NÃO no seu usuário — a GUI que
-  # você abre não vai ver. O sudo é usado SÓ pras deps do apt; o build/instalação é do usuário.
-  if [ "$(id -u)" = "0" ] && [ -n "${SUDO_USER:-}${LOGNAME:-}" ] && [ "${SUDO_USER:-}" != "root" ]; then
-    warn "você está como ROOT — isso instala em /root, não no seu usuário."
-    warn "SAIA do root (exit) e rode como VOCÊ: curl -fsSL $INSTALL_SH | bash -s -- --from-source"
-    warn "(o instalador já usa sudo sozinho só pras libs do apt — não precisa de su/root)"
-  fi
+  # Deps do apt como root ($SUDO); build/instalação como o USUÁRIO REAL (as_user + TARGET_HOME) —
+  # o app mora no HOME do usuário, nunca em /root, mesmo que tenham rodado via su/sudo.
   ensure_runtime_deps; ensure_rust; gui_build_deps; ensure_fonts
-  . "$HOME/.cargo/env" 2>/dev/null || true
-  export PATH="$HOME/.cargo/bin:$PATH"
-  # Checkouts PERSISTENTES: o `target/` fica cacheado entre updates, então `cargo build` só
-  # recompila o que MUDOU (as deps pesadas tipo Slint não recompilam). NÃO usa `cargo install
-  # --force`, que jogava fora o cache e reconstruía a árvore inteira toda vez. 1ª vez é cheia;
-  # updates depois são incrementais (segundos em vez de minutos).
-  local base="$HOME/.schematize/src"; mkdir -p "$base"
+  # Checkouts PERSISTENTES no HOME do usuário: `target/` cacheado → `cargo build` incremental (só o
+  # que mudou recompila; deps pesadas tipo Slint não). Sem `cargo install --force` (que zerava o cache).
+  local base="$TARGET_HOME/.schematize/src"; as_user mkdir -p "$base"
   local cli="$base/schematize-cli" gui="$base/schematize_gui_slint"
+  local bin="$TARGET_HOME/.cargo/bin"; as_user mkdir -p "$bin"
 
-  # CLI SEM a feature `gui` — NÃO produz o schematize-gui egui. A GUI é SÓ o Slint (repo próprio).
-  # (o egui era instalado como "fallback" e reaparecia como layout velho durante todo update — o
-  #  fantasma. Eliminado na raiz: nunca mais se instala egui.)
+  # CLI SEM a feature `gui` — NÃO produz o schematize-gui egui (a única GUI é o Slint, repo próprio).
   log "compilando o CLI do fonte (incremental — recompila só o que mudou; 1ª vez leva minutos)"
   _sync_repo "https://github.com/$REPO.git" "$cli" || die "clone do CLI falhou"
-  ( cd "$cli" && cargo build --release ) || die "build do CLI falhou"
-  install -m755 "$cli/target/release/schematize" "$HOME/.cargo/bin/schematize"
-  hash -r 2>/dev/null || true
+  as_user sh -c "cd '$cli' && cargo build --release" || die "build do CLI falhou"
+  as_user install -m755 "$cli/target/release/schematize" "$bin/schematize"
 
   # GUI = Slint (a ÚNICA GUI). Se o build falhar, NÃO cai pro egui — melhor sem GUI que o fantasma.
   log "compilando a GUI Slint — schematize-gui (incremental)"
   if _sync_repo "https://github.com/schematizeme/schematize_gui_slint.git" "$gui" 2>/dev/null \
-     && ( cd "$gui" && cargo build --release ) \
-     && install -m755 "$gui/target/release/schematize-gui" "$HOME/.cargo/bin/schematize-gui"; then
+     && as_user sh -c "cd '$gui' && cargo build --release" \
+     && as_user install -m755 "$gui/target/release/schematize-gui" "$bin/schematize-gui"; then
     ok "GUI Slint instalada (schematize-gui)."
   else
     warn "build da GUI Slint falhou — rode o install de novo. (Não instalamos GUI egui de fallback.)"
