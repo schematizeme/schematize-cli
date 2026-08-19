@@ -16,6 +16,7 @@ pub mod debugreport;
 pub mod environments;
 pub mod doctor;
 pub mod githist;
+pub mod guiactions;
 pub mod i18n;
 pub mod links;
 pub mod market;
