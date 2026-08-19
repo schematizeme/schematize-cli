@@ -5,6 +5,7 @@
 pub mod account;
 pub mod agent;
 pub mod agentrun;
+pub mod agents;
 pub mod archive;
 pub mod appicon;
 pub mod autostart;

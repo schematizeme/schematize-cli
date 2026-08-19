@@ -54,6 +54,16 @@ enum Cmd {
     Remove { name: String },
     /// Overview dashboard: versions, agent, overdev, language, links.
     Status,
+    /// Orçamento de concorrência: quantos agents/subagents do Claude a máquina aguenta SEM travar
+    /// (CPU/RAM/load, contando OUTRAS instâncias do claude na máquina). Persiste ~/.schematize/agents.json.
+    Agents {
+        /// Sai em JSON (pra scripts/hooks) em vez da tabela legível.
+        #[arg(long)]
+        json: bool,
+        /// Simula um SPLIT em K claudes principais e mostra quantos subagents cada um pode abrir.
+        #[arg(long, value_name = "K")]
+        split: Option<usize>,
+    },
     /// Diagnose the environment (add --fix to repair what's safe).
     Doctor {
         #[arg(long)]
@@ -445,6 +455,49 @@ fn resolve(cat: &[registry::Item], names: &[String], all: bool) -> Vec<registry:
 }
 
 /// `schematize lang [code] [--list]`.
+/// `schematize agents` — imprime o orçamento de concorrência e persiste ~/.schematize/agents.json.
+fn agents_cmd(json: bool, split: Option<usize>) -> Result<(), String> {
+    let b = schematize::agents::budget();
+    let _ = schematize::agents::persist(&b); // best-effort: outros (Claude/overdev/GUI) leem daqui.
+
+    if json {
+        let plan = split.map(|k| b.split_plan(k));
+        let mut v = serde_json::json!({
+            "total_cap": b.total_cap, "available": b.available,
+            "cpu_cap": b.cpu_cap, "ram_cap": b.ram_cap, "load_cap": b.load_cap,
+            "threads": b.snap.threads, "mem_available_mb": b.snap.mem_available_mb,
+            "load1": b.snap.load1, "running_claudes": b.snap.running_claudes,
+            "ram_tight": b.ram_tight,
+        });
+        if let Some(p) = plan {
+            v["split"] = serde_json::json!({
+                "mains": p.mains, "subagents_each": p.subagents_each, "total_used": p.total_used
+            });
+        }
+        println!("{}", serde_json::to_string_pretty(&v).unwrap_or_default());
+        return Ok(());
+    }
+
+    let gb = |mb: u64| format!("{:.1} GB", mb as f64 / 1024.0);
+    println!("\x1b[1mOrçamento de concorrência do Claude (máquina inteira)\x1b[0m");
+    println!("  threads lógicos      : {}", b.snap.threads);
+    println!("  reserva (respiro)    : {}", b.params.reserve);
+    println!("  RAM disponível       : {}  (≈{} por agent, −{:.0}% de margem)", gb(b.snap.mem_available_mb), gb(b.params.mb_per_agent), b.params.ram_margin * 100.0);
+    println!("  load atual (1min)    : {:.2}", b.snap.load1);
+    println!("  claudes rodando AGORA: {}  (esta janela + outras + subagents)", b.snap.running_claudes);
+    println!("  ─────────────────────");
+    println!("  teto por CPU         : {}", b.cpu_cap);
+    println!("  teto por RAM         : {}{}", b.ram_cap, if b.ram_tight { "  \x1b[33m(RAM apertada — cuidado com swap)\x1b[0m" } else { "" });
+    println!("  teto por load        : {}", b.load_cap);
+    println!("  \x1b[1mTETO TOTAL seguro    : {}\x1b[0m  (o menor dos três)", b.total_cap);
+    println!("  \x1b[1;32mDISPONÍVEL p/ lançar : {}\x1b[0m  (teto − já rodando)", b.available);
+    if let Some(k) = split {
+        let p = b.split_plan(k);
+        println!("\n  \x1b[1mSplit em {} claude(s) principal(is):\x1b[0m {} subagents cada  (total {}/{} do teto)", p.mains, p.subagents_each, p.total_used, p.cap);
+    }
+    Ok(())
+}
+
 fn lang_cmd(code: Option<String>, list: bool) -> Result<(), String> {
     if list {
         println!("{}", t("lang.available"));
@@ -1194,6 +1247,7 @@ fn main() {
             status::run();
             Ok(())
         }
+        Cmd::Agents { json, split } => agents_cmd(json, split),
         Cmd::Doctor { fix } => {
             doctor::run(fix);
             Ok(())
