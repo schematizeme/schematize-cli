@@ -147,7 +147,8 @@ Exec=$guibin
 Icon=schematize
 Terminal=false
 Categories=Development;Utility;
-Keywords=schematize;skills;overdev;claude;" | as_user tee "$app/schematize-gui.desktop" >/dev/null
+Keywords=schematize;skills;overdev;claude;
+StartupWMClass=schematize-gui" | as_user tee "$app/schematize-gui.desktop" >/dev/null
   as_user update-desktop-database "$app" 2>/dev/null || true
   # No modo fonte, remove o lançador DUPLICADO do pacote (Exec=schematize-gui, que pode cair
   # no egui do /usr/bin) pra o DE usar só este (absoluto → Slint).

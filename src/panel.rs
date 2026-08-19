@@ -435,18 +435,127 @@ pub fn load_graph(root: &Path) -> (Vec<Node>, Vec<Edge>, Option<PathBuf>) {
 }
 
 /// Carrega o grafo DETALHADO de UM microserviço `<servico>.md` do dir de grafos de `root`
-/// (drill-down do grafo global). `(nós, arestas)` vazio se o arquivo não existir.
+/// (drill-down do grafo global). Se não houver um `<servico>.md` autorado, cai no FALLBACK: filtra o
+/// índice flat aos nós DESSE serviço (loc começando com `<servico>/`) — assim o drill funciona mesmo
+/// sem grafo por-serviço escrito à mão. `(nós, arestas)` vazio se não achar nada.
 pub fn load_service_graph(root: &Path, servico: &str) -> (Vec<Node>, Vec<Edge>) {
     let Some(dir) = find_index_dir(root) else {
         return (Vec::new(), Vec::new());
     };
-    // sanitiza pra basename (anti path-traversal) e casa `<servico>.md`.
-    let base = Path::new(servico).file_name().and_then(|s| s.to_str()).unwrap_or(servico);
+    // O id do nó agregado é "<serviço> · N" (com contagem de funções). Tira o sufixo pra recuperar
+    // o nome do serviço; depois sanitiza a basename (anti path-traversal).
+    let name = strip_count_suffix(servico);
+    let base = Path::new(name).file_name().and_then(|s| s.to_str()).unwrap_or(name);
     let f = dir.join(format!("{base}.md"));
     if f.is_file() {
-        parse_graph_files(&[f])
+        return parse_graph_files(&[f]);
+    }
+    // Fallback: subgrafo do serviço a partir do índice flat.
+    let (nodes, edges) = parse_graph(&dir);
+    service_subgraph(&nodes, &edges, base)
+}
+
+/// Remove o sufixo " · N" (contagem) que a agregação põe no id do nó de serviço → nome do serviço.
+/// Só remove se o que vem depois de " · " for tudo dígito (senão devolve intacto).
+fn strip_count_suffix(s: &str) -> &str {
+    match s.rsplit_once(" · ") {
+        Some((svc, n)) if !n.is_empty() && n.chars().all(|c| c.is_ascii_digit()) => svc,
+        _ => s,
+    }
+}
+
+/// Cap de nós do grafo GLOBAL: acima disso, um índice flat vira "amontoado" ilegível (o usuário
+/// relatou 1600+ nós em `owiew`). Passou disso e sem `GRAFO_GLOBAL.md` autorado → agrega por serviço.
+pub const GLOBAL_NODE_CAP: usize = 60;
+
+/// Microserviço de um nó = 1º componente do path do `loc` (`<servico>/…:linha`). `None` se o nó não
+/// tem loc ou o loc não tem diretório (nó de raiz). Base da agregação e do subgrafo de drill.
+fn service_of(loc: &Option<String>) -> Option<String> {
+    let loc = loc.as_deref()?;
+    let path = loc.rsplit_once(':').map(|(p, _)| p).unwrap_or(loc);
+    let first = path.split(['/', '\\']).next()?;
+    if first.is_empty() || first == path {
+        None // sem diretório → nó na raiz do projeto, não é microserviço
     } else {
-        (Vec::new(), Vec::new())
+        Some(first.to_string())
+    }
+}
+
+/// Agrega um grafo flat em UM nó por microserviço (id = nome do serviço + contagem de funções);
+/// arestas viram serviço→serviço (dedup, sem self-loop). Nós sem serviço identificável caem num
+/// balde `(raiz)`. É o que transforma 1600 nós num mapa mental de ~N serviços.
+pub fn aggregate_by_service(nodes: &[Node], edges: &[Edge]) -> (Vec<Node>, Vec<Edge>) {
+    use std::collections::BTreeMap;
+    let name_svc: std::collections::HashMap<&str, String> = nodes
+        .iter()
+        .map(|n| (n.id.as_str(), service_of(&n.loc).unwrap_or_else(|| "(raiz)".into())))
+        .collect();
+    // contagem por serviço → rótulo "<serviço> · N".
+    let mut counts: BTreeMap<String, usize> = BTreeMap::new();
+    for n in nodes {
+        *counts.entry(name_svc.get(n.id.as_str()).cloned().unwrap_or_else(|| "(raiz)".into())).or_default() += 1;
+    }
+    let agg_nodes: Vec<Node> = counts
+        .iter()
+        .map(|(svc, n)| Node { id: format!("{svc} · {n}"), loc: None })
+        .collect();
+    // mapa serviço → id-rotulado (pra as arestas casarem os nós agregados).
+    let svc_label: BTreeMap<&str, String> =
+        counts.iter().map(|(svc, n)| (svc.as_str(), format!("{svc} · {n}"))).collect();
+    let mut seen: std::collections::BTreeSet<(String, String)> = Default::default();
+    let mut agg_edges = Vec::new();
+    for e in edges {
+        let (Some(sa), Some(sb)) = (name_svc.get(e.from.as_str()), name_svc.get(e.to.as_str())) else {
+            continue;
+        };
+        if sa == sb {
+            continue; // aresta interna ao serviço não aparece no global
+        }
+        let (la, lb) = (svc_label[sa.as_str()].clone(), svc_label[sb.as_str()].clone());
+        if seen.insert((la.clone(), lb.clone())) {
+            agg_edges.push(Edge { from: la, to: lb, label: None });
+        }
+    }
+    (agg_nodes, agg_edges)
+}
+
+/// Subgrafo de um serviço: só os nós cujo `loc` começa com `<servico>/` (+ arestas entre eles).
+fn service_subgraph(nodes: &[Node], edges: &[Edge], servico: &str) -> (Vec<Node>, Vec<Edge>) {
+    let keep: std::collections::HashSet<&str> = nodes
+        .iter()
+        .filter(|n| service_of(&n.loc).as_deref() == Some(servico))
+        .map(|n| n.id.as_str())
+        .collect();
+    let sub_nodes: Vec<Node> = nodes.iter().filter(|n| keep.contains(n.id.as_str())).cloned().collect();
+    let sub_edges: Vec<Edge> = edges
+        .iter()
+        .filter(|e| keep.contains(e.from.as_str()) && keep.contains(e.to.as_str()))
+        .cloned()
+        .collect();
+    (sub_nodes, sub_edges)
+}
+
+/// Grafo GLOBAL "paginado" — a visão de entrada, sempre legível:
+/// 1) `GRAFO_GLOBAL.md` autorado, se existir (visão curada);
+/// 2) senão, índice flat; se ele passar de [`GLOBAL_NODE_CAP`] nós, AGREGA por microserviço
+///    (1 nó por serviço) — o drill (`load_service_graph`) abre o detalhe;
+/// 3) senão, o flat mesmo (projeto pequeno cabe na tela).
+/// Retorna `(nós, arestas, dir-do-index, agregado?)`.
+pub fn load_graph_global(root: &Path) -> (Vec<Node>, Vec<Edge>, Option<PathBuf>, bool) {
+    let Some(dir) = find_index_dir(root) else {
+        return (Vec::new(), Vec::new(), None, false);
+    };
+    let global = dir.join("GRAFO_GLOBAL.md");
+    if global.is_file() {
+        let (n, e) = parse_graph_files(&[global]);
+        return (n, e, Some(dir), false);
+    }
+    let (n, e) = parse_graph(&dir);
+    if n.len() > GLOBAL_NODE_CAP {
+        let (an, ae) = aggregate_by_service(&n, &e);
+        (an, ae, Some(dir), true)
+    } else {
+        (n, e, Some(dir), false)
     }
 }
 
@@ -673,6 +782,52 @@ mod tests {
         let (snodes, _sedges) = load_service_graph(&root, "api");
         let sids: std::collections::HashSet<&str> = snodes.iter().map(|n| n.id.as_str()).collect();
         assert!(sids.contains("repo") && sids.contains("pg"));
+
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    /// `service_of` extrai o microserviço do 1º componente do path do loc.
+    #[test]
+    fn service_of_pega_o_primeiro_componente() {
+        assert_eq!(service_of(&Some("svc_a/src/x.rs:12".into())).as_deref(), Some("svc_a"));
+        assert_eq!(service_of(&Some("front/app/page.tsx:1".into())).as_deref(), Some("front"));
+        // Sem diretório (nó de raiz) → None.
+        assert!(service_of(&Some("main.rs:3".into())).is_none());
+        // Sem loc → None.
+        assert!(service_of(&None).is_none());
+    }
+
+    /// Índice flat grande (> CAP) sem `GRAFO_GLOBAL.md` → agrega em 1 nó por serviço, e o drill
+    /// devolve o subgrafo do serviço a partir do flat. É o fix do "1600 nós ilegíveis".
+    #[test]
+    fn load_graph_global_agrega_flat_grande_e_drilla() {
+        let root = std::env::temp_dir().join(format!("schz-agg-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        let grafos = root.join(".schematize/grafos");
+        fs::create_dir_all(&grafos).unwrap();
+        // 40 funções em svc_a + 21 em svc_b = 61 nós (> GLOBAL_NODE_CAP=60) → deve agregar.
+        let mut s = String::from("# MAPA\n");
+        for i in 0..40 {
+            s.push_str(&format!("- `fn_a{i}` — faz A{i} · svc_a/src/a.rs:{}\n", i + 1));
+        }
+        for i in 0..21 {
+            s.push_str(&format!("- `fn_b{i}` — faz B{i} · svc_b/src/b.rs:{}\n", i + 1));
+        }
+        s.push_str("fn_a0 -> fn_b0\n"); // aresta cross-serviço
+        fs::write(grafos.join("INDEX_FUNCTIONS.md"), s).unwrap();
+
+        let (nodes, edges, dir, aggregated) = load_graph_global(&root);
+        assert!(dir.is_some());
+        assert!(aggregated, "flat com 61 nós tem que agregar");
+        assert_eq!(nodes.len(), 2, "1 nó por serviço");
+        let ids: std::collections::HashSet<&str> = nodes.iter().map(|n| n.id.as_str()).collect();
+        assert!(ids.contains("svc_a · 40") && ids.contains("svc_b · 21"), "rótulo com contagem: {ids:?}");
+        assert_eq!(edges.len(), 1, "1 aresta serviço→serviço");
+
+        // Drill no serviço agregado (fallback pelo flat, sem `svc_a.md` autorado).
+        let (sn, _se) = load_service_graph(&root, "svc_a");
+        assert_eq!(sn.len(), 40, "subgrafo do svc_a = suas 40 funções");
+        assert!(sn.iter().all(|n| n.id.starts_with("fn_a")));
 
         let _ = fs::remove_dir_all(&root);
     }
