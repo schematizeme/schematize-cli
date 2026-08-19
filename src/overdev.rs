@@ -364,11 +364,53 @@ pub fn start(objetivo: &str, max_iters: Option<u64>) -> Result<(), String> {
     Ok(())
 }
 
-/// `<projeto>/_archive/` — dir de archive DENTRO do projeto (visível ao abrir o projeto; gitignored).
-/// O archive é CRITICIDADE 0 (obrigatório): guarda checklists, planos, decisões, histórico — a
-/// observabilidade da evolução do sistema. Nunca é opcional.
+/// `<projeto>/<projeto>_archive/` — dir de archive DENTRO do projeto (irmão dos microserviços),
+/// nomeado com o NOME DO PROJETO (não só `_archive` — senão, sem separação por team, mistura os
+/// archives de projetos diferentes). O archive é CRITICIDADE 0 (obrigatório): guarda checklists,
+/// planos, decisões, histórico — a observabilidade da evolução. É um repo git próprio, privado.
 pub fn archive_dir(root: &Path) -> Option<PathBuf> {
-    Some(root.join("_archive"))
+    Some(root.join(format!("{}_archive", project_name(root))))
+}
+
+/// Nome do PROJETO (a aplicação): o PREFIXO comum dos dirs de microserviço, que a casa nomeia como
+/// `<projeto>_<microservice>` (ex.: `schematize_cli_rs`, `schematizeskills_api_rs` → projeto
+/// "schematize"). Assim o archive fica `<projeto>_archive` mesmo quando a pasta do projeto tem outro
+/// nome. Fallback: o basename do dir (projeto standalone, sem microserviços com prefixo comum).
+pub fn project_name(root: &Path) -> String {
+    let canon = root.canonicalize().unwrap_or_else(|_| root.to_path_buf());
+    let base = canon.file_name().and_then(|s| s.to_str()).unwrap_or("projeto").to_string();
+    // sub-dirs "microserviço": não ocultos, não `*_archive`, e que seguem `<x>_<y>` (têm `_`).
+    let mut names: Vec<String> = Vec::new();
+    if let Ok(rd) = std::fs::read_dir(&canon) {
+        for e in rd.flatten() {
+            if e.path().is_dir() {
+                let n = e.file_name().to_string_lossy().to_string();
+                if !n.starts_with('.') && !n.ends_with("_archive") && n.contains('_') {
+                    names.push(n);
+                }
+            }
+        }
+    }
+    if names.len() < 2 {
+        return base; // standalone → basename do dir
+    }
+    names.sort();
+    let first = names.first().cloned().unwrap_or_default();
+    let last = names.last().cloned().unwrap_or_default();
+    let mut common = String::new();
+    for (a, b) in first.chars().zip(last.chars()) {
+        if a == b {
+            common.push(a);
+        } else {
+            break;
+        }
+    }
+    let proj = common.trim_end_matches(['_', '-']).to_string();
+    if proj.is_empty() {
+        base
+    } else {
+        proj
+    }
 }
 
 /// Materializa `<projeto>_archive/overdev/` e espelha os artefatos do overdev (OBJETIVO/PLAN/
@@ -885,5 +927,21 @@ não é item
         assert_eq!(rec, read);
         assert_eq!(read.len(), 1);
         assert_eq!(read[0].text, "a");
+    }
+}
+
+#[cfg(test)]
+mod archive_name_tests {
+    use super::*;
+    #[test]
+    fn projeto_e_prefixo_comum_dos_microservicos() {
+        let tmp = std::env::temp_dir().join(format!("schz-proj-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&tmp);
+        for ms in ["schematize_cli_rs","schematizeskills_api_rs","schematize_gui_slint"] {
+            std::fs::create_dir_all(tmp.join(ms)).unwrap();
+        }
+        assert_eq!(project_name(&tmp), "schematize");
+        assert_eq!(archive_dir(&tmp).unwrap(), tmp.join("schematize_archive"));
+        let _ = std::fs::remove_dir_all(&tmp);
     }
 }
