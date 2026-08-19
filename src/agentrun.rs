@@ -92,6 +92,22 @@ pub fn overdev_prompt(objetivo: &str) -> String {
 /// Prompt em linguagem NATURAL pra (RE)INDEXAR o projeto (o grafo/MAPA §39). NÃO é o
 /// slash `/eng-index` (que não dispara como argumento do `claude`) — dá a instrução direta
 /// pra a GUI/CLI dispararem via `launch_prompt_in_terminal`. PURA.
+/// Prompt (linguagem natural) que dispara a GERAÇÃO DE AFAZERES do overdev a partir do histórico
+/// recuperável do archive (skill schematize-archive `/archive-todos`). Consumido pela GUI (botão).
+pub fn archive_todos_prompt() -> String {
+    "Gere os AFAZERES do overdev a partir do histórico RECUPERÁVEL deste projeto, seguindo a skill \
+     schematize-archive (/archive-todos). Se não existir `<projeto>_archive/`, crie primeiro \
+     (/archive-init — o archive é CRITICIDADE 0, obrigatório, nunca opcional). Varra EXAUSTIVAMENTE o \
+     `<projeto>_archive/` + `.schematize/` + o histórico git: checklists com `- [ ]`/`- [~]`, perguntas \
+     parkeadas (PERGUNTAS-OVERDEV.txt), premature-stops, ADRs `proposed`, planos com itens abertos, \
+     handoffs de `chats/` com seção EM ABERTO, TODOs/FIXMEs do git. Disciplina red-first: 'feito' sem \
+     prova volta a ABERTO; on-hold sem resposta = aberto. Derive um CHECKLIST exaustivo (1 item/linha, \
+     cada um com COMO PROVAR, convenção de 2 níveis) agrupado por origem, grave em \
+     `.schematize/overdev/CHECKLIST.md` (+ OBJETIVO.md + espelho no `<projeto>_archive/overdev/`) e \
+     reporte a contagem por fonte. NÃO pare até o checklist estar completo e consistente."
+        .to_string()
+}
+
 pub fn reindex_prompt() -> String {
     "Rode o índice/grafo deste projeto seguindo a §39 da engenharia da casa, gerando um GRAFO \
      GLOBAL da aplicação (não um por microserviço solto). REGRAS OBRIGATÓRIAS:\n\

@@ -94,6 +94,7 @@ fn builtin() -> Vec<Item> {
         mk("qa", "base", me(), &["engineering"]),
         mk("institutional", "base", me(), &["web", "seo"]),
         mk("database", "base", me(), &["data", "engineering"]),
+        mk("archive", "base", me(), &["engineering", "audit"]),
     ]
 }
 

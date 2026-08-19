@@ -22,6 +22,7 @@
     { "slug": "overdev-context", "skill_dir": "schematize-overdev-context", "repo": "skill-overdev-context", "zip": "skill-overdev-context.zip", "category": "base", "verified": true, "recommends": ["engineering"], "sponsor": { "name": "Lucassa", "url": "https://lucassa.me" } },
     { "slug": "qa", "skill_dir": "schematize-qa", "repo": "skill-qa", "zip": "skill-qa.zip", "category": "base", "verified": true, "recommends": ["engineering"], "sponsor": { "name": "Lucassa", "url": "https://lucassa.me" } },
     { "slug": "institutional", "skill_dir": "schematize-institutional", "repo": "skill-institutional", "zip": "skill-institutional.zip", "category": "base", "verified": true, "recommends": ["web", "seo"], "sponsor": { "name": "Lucassa", "url": "https://lucassa.me" } },
-    { "slug": "database", "skill_dir": "schematize-database", "repo": "skill-database", "zip": "skill-database.zip", "category": "base", "verified": true, "recommends": ["data", "engineering"], "sponsor": { "name": "Lucassa", "url": "https://lucassa.me" } }
+    { "slug": "database", "skill_dir": "schematize-database", "repo": "skill-database", "zip": "skill-database.zip", "category": "base", "verified": true, "recommends": ["data", "engineering"], "sponsor": { "name": "Lucassa", "url": "https://lucassa.me" } },
+    { "slug": "archive", "skill_dir": "schematize-archive", "repo": "skill-archive", "zip": "skill-archive.zip", "category": "base", "verified": true, "recommends": ["engineering", "audit"], "sponsor": { "name": "Lucassa", "url": "https://lucassa.me" } }
   ]
 }

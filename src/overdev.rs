@@ -352,11 +352,42 @@ pub fn start(objetivo: &str, max_iters: Option<u64>) -> Result<(), String> {
     if !cur.contains(".schematize") {
         let _ = fs::write(gi, format!("{cur}\n.schematize/\n"));
     }
+    // Archive OBRIGATÓRIO (criticidade 0 — observabilidade da evolução do sistema): materializa
+    // `<projeto>_archive/overdev/` e espelha os artefatos. NUNCA é opcional.
+    ensure_archive_mirror(Path::new("."));
     println!("overdev ATIVO. Objetivo: {objetivo}");
     println!("Preencha .schematize/overdev/CHECKLIST.md (exaustivo). O agente não pode parar até fechar.");
     // Snapshot inicial no DB local (best-effort: nunca quebra o start se o DB falhar).
     let _ = crate::overdevdb::snapshot(Path::new("."));
     Ok(())
+}
+
+/// `<projeto>_archive/` — dir de archive IRMÃO do projeto (`<parent>/<nome>_archive`). O archive é
+/// CRITICIDADE 0 (obrigatório): guarda checklists, planos, decisões, histórico — a observabilidade
+/// da evolução do sistema. Nunca é opcional. `None` só se o path não tiver nome/pai.
+pub fn archive_dir(root: &Path) -> Option<PathBuf> {
+    let canon = root.canonicalize().unwrap_or_else(|_| root.to_path_buf());
+    let name = canon.file_name()?.to_str()?.to_string();
+    let parent = canon.parent()?.to_path_buf();
+    Some(parent.join(format!("{name}_archive")))
+}
+
+/// Materializa `<projeto>_archive/overdev/` e espelha os artefatos do overdev (OBJETIVO/PLAN/
+/// DECISOES/CHECKLIST) que já existirem. Best-effort — nunca quebra o fluxo. Chamado no `start` e
+/// no `check` (a cada tentativa de parada), pra o archive ficar sempre em dia conforme o agente escreve.
+fn ensure_archive_mirror(root: &Path) {
+    let Some(arch) = archive_dir(root) else { return };
+    let od = arch.join("overdev");
+    if fs::create_dir_all(&od).is_err() {
+        return;
+    }
+    let src = dir_at(root);
+    for f in ["OBJETIVO.md", "PLAN.md", "DECISOES.md", "CHECKLIST.md", "NOTAS.md"] {
+        let s = src.join(f);
+        if s.is_file() {
+            let _ = fs::copy(&s, od.join(f));
+        }
+    }
 }
 
 /// Comando que a GUI injeta na sessão do agente acoplado pra CARREGAR os preceitos
@@ -429,6 +460,8 @@ pub fn check() {
     // a hora. Fica na trilha do Stop hook, então também pega run EXTERNO (fora do app).
     // Não altera a decisão de parar.
     let _ = record_completions(Path::new("."));
+    // Archive obrigatório em dia: re-espelha os artefatos (o agente vai escrevendo PLAN/DECISOES/etc).
+    ensure_archive_mirror(Path::new("."));
     // budget
     let mut it: u64 = fs::read_to_string(iters_file()).ok().and_then(|s| s.trim().parse().ok()).unwrap_or(0);
     it += 1;
