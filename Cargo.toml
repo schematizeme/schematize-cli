@@ -24,6 +24,9 @@ clap = { version = "4", features = ["derive"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 notify-rust = "4"
+# Encoder PNG — gera o ícone (appicon) em PNG A PARTIR DO CÓDIGO, pros hicolor/.desktop, sem depender
+# de rasterizador externo (ImageMagick/rsvg) que falha em SVG. Já está no dep tree (transitivo).
+png = "0.18"
 # Backend glow (OpenGL), NÃO wgpu: o wgpu-hal (DX12) não compila no Windows com a
 # versão atual do crate `windows`. glow compila limpo em Linux/macOS/Windows.
 eframe = { version = "0.36.1", optional = true, default-features = false, features = [

@@ -52,6 +52,20 @@ enum Cmd {
     /// (alias oculto de `skills remove`)
     #[command(hide = true)]
     Remove { name: String },
+    /// Gera o ícone do app EM CÓDIGO (resiliente — sem rasterizar SVG). `--emit <png>` um tamanho;
+    /// `--hicolor <dir>` a árvore freedesktop inteira (16..512). Usado pelo install.sh.
+    #[command(hide = true)]
+    Icon {
+        /// Escreve um PNG único neste caminho.
+        #[arg(long)]
+        emit: Option<String>,
+        /// Tamanho (px) do `--emit`.
+        #[arg(long, default_value = "256")]
+        size: u32,
+        /// Gera a árvore hicolor completa (`<dir>/<N>x<N>/apps/schematize.png`) neste dir base.
+        #[arg(long)]
+        hicolor: Option<String>,
+    },
     /// Overview dashboard: versions, agent, overdev, language, links.
     Status,
     /// Orçamento de concorrência: quantos agents/subagents do Claude a máquina aguenta SEM travar
@@ -1315,6 +1329,22 @@ fn main() {
             Ok(())
         }
         Cmd::Agents { json, split } => agents_cmd(json, split),
+        Cmd::Icon { emit, size, hicolor } => {
+            let mut r: Result<(), String> = Ok(());
+            if let Some(dir) = hicolor {
+                r = schematize::appicon::write_hicolor(std::path::Path::new(&dir))
+                    .map(|paths| paths.iter().for_each(|p| println!("{}", p.display())))
+                    .map_err(|e| e.to_string());
+            }
+            if r.is_ok() {
+                if let Some(path) = emit {
+                    r = schematize::appicon::write_png(std::path::Path::new(&path), size)
+                        .map(|_| println!("{path}"))
+                        .map_err(|e| e.to_string());
+                }
+            }
+            r
+        }
         Cmd::Doctor { fix } => {
             doctor::run(fix);
             Ok(())

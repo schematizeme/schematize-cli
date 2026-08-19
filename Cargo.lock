@@ -2446,6 +2446,7 @@ dependencies = [
  "clap",
  "eframe",
  "notify-rust",
+ "png",
  "portable-pty",
  "rfd",
  "rusqlite",

@@ -169,6 +169,19 @@ ICON_SIZES="16 24 32 48 64 128 256 512 1024"
 install_app_icons() {
   local ithome="$TARGET_HOME/.local/share/icons/hicolor"
   local src="$TARGET_HOME/.schematize/src/schematize-cli/assets/icons" n
+  # RESILIENTE: gera os PNGs A PARTIR DO CÓDIGO (`schematize icon --hicolor`) — não depende de asset
+  # commitado nem de rasterizador de SVG. Se o binário ainda não existir, cai no copy/download abaixo.
+  local szbin="$TARGET_HOME/.cargo/bin/schematize"
+  if [ -x "$szbin" ] && as_user "$szbin" icon --hicolor "$ithome" >/dev/null 2>&1; then
+    ok "ícones do app gerados do código (todos os tamanhos)"
+    if [ -f "$src/schematize.svg" ]; then
+      as_user mkdir -p "$ithome/scalable/apps"
+      as_user cp "$src/schematize.svg" "$ithome/scalable/apps/schematize.svg" 2>/dev/null || true
+    fi
+    as_user gtk-update-icon-cache -f -t "$ithome" 2>/dev/null || true
+    as_user update-desktop-database "$TARGET_HOME/.local/share/applications" 2>/dev/null || true
+    return 0
+  fi
   if [ -d "$src/hicolor" ]; then
     # Modo source (padrão): copia do checkout já clonado em ~/.schematize/src/schematize-cli.
     for n in $ICON_SIZES; do
