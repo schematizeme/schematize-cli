@@ -144,6 +144,7 @@ Name=schematize
 GenericName=Ecossistema schematize
 Comment=Skills, overdev e mais — schematize
 Exec=$guibin
+Icon=schematize
 Terminal=false
 Categories=Development;Utility;
 Keywords=schematize;skills;overdev;claude;" | as_user tee "$app/schematize-gui.desktop" >/dev/null
@@ -154,6 +155,43 @@ Keywords=schematize;skills;overdev;claude;" | as_user tee "$app/schematize-gui.d
     $SUDO rm -f /usr/share/applications/schematize-gui.desktop 2>/dev/null || true
     update-desktop-database /usr/share/applications 2>/dev/null || true
   fi
+  install_app_icons
+}
+
+# Dimensões do ícone do app no padrão freedesktop (hicolor). O SVG master vai em scalable/.
+ICON_SIZES="16 24 32 48 64 128 256 512 1024"
+
+# Instala o ícone do app no tema hicolor do usuário (padrão freedesktop cross-desktop) — é o que
+# faz o DE mostrar o ícone certo no dock/menu em vez do "W" de fallback. O .desktop referencia só
+# o NOME `schematize`, então o ícone PRECISA morar aqui pra o tema resolver. Best-effort: nunca
+# derruba o install. Fonte dos assets: o checkout do CLI (modo source) ou, se ausente, baixa do repo.
+install_app_icons() {
+  local ithome="$TARGET_HOME/.local/share/icons/hicolor"
+  local src="$TARGET_HOME/.schematize/src/schematize-cli/assets/icons" n
+  if [ -d "$src/hicolor" ]; then
+    # Modo source (padrão): copia do checkout já clonado em ~/.schematize/src/schematize-cli.
+    for n in $ICON_SIZES; do
+      [ -f "$src/hicolor/${n}x${n}/apps/schematize.png" ] || continue
+      as_user mkdir -p "$ithome/${n}x${n}/apps"
+      as_user cp "$src/hicolor/${n}x${n}/apps/schematize.png" "$ithome/${n}x${n}/apps/schematize.png" 2>/dev/null || true
+    done
+    if [ -f "$src/schematize.svg" ]; then
+      as_user mkdir -p "$ithome/scalable/apps"
+      as_user cp "$src/schematize.svg" "$ithome/scalable/apps/schematize.svg" 2>/dev/null || true
+    fi
+  else
+    # Modo binário/pacote (sem checkout): baixa os PNGs + SVG do repo, best-effort.
+    local raw="https://raw.githubusercontent.com/$REPO/main/assets/icons"
+    for n in $ICON_SIZES; do
+      as_user mkdir -p "$ithome/${n}x${n}/apps"
+      as_user sh -c "curl -fsSL -o '$ithome/${n}x${n}/apps/schematize.png' '$raw/hicolor/${n}x${n}/apps/schematize.png'" 2>/dev/null || true
+    done
+    as_user mkdir -p "$ithome/scalable/apps"
+    as_user sh -c "curl -fsSL -o '$ithome/scalable/apps/schematize.svg' '$raw/schematize.svg'" 2>/dev/null || true
+  fi
+  # Atualiza os caches do tema de ícones / lançadores (best-effort — o DE pode não ter as ferramentas).
+  as_user gtk-update-icon-cache -f -t "$ithome" 2>/dev/null || true
+  as_user update-desktop-database "$TARGET_HOME/.local/share/applications" 2>/dev/null || true
 }
 
 # Instala o schematize-updater (gestor de versão SEPARADO do app, cross-OS). Best-effort: nunca

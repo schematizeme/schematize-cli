@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!-- schematize app icon — grafo/esquema. Squircle escuro da casa + nós conectados no acento #5b8cff. -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#14161c"/>
+      <stop offset="1" stop-color="#1b1e27"/>
+    </linearGradient>
+  </defs>
+
+  <!-- fundo squircle escuro: resolve tema claro/escuro (o glifo vive sobre fundo escuro) -->
+  <rect x="0" y="0" width="1024" height="1024" rx="232" ry="232" fill="url(#bg)"/>
+
+  <!-- glifo do grafo (margem de segurança ~12%): 3 nós ligados em triângulo = diagrama esquemático.
+       Arestas grossas o bastante pra sobreviver a 16px; nós com anel do fundo pra separar da aresta. -->
+  <g fill="none" stroke="#5b8cff" stroke-width="48" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M512 300 L300 700"/>
+    <path d="M512 300 L724 700"/>
+    <path d="M300 700 L724 700"/>
+  </g>
+
+  <!-- nós: fill acento, anel do fundo pra destacar dos traços; nó de topo em destaque mais claro -->
+  <g stroke="#14161c" stroke-width="16">
+    <circle cx="300" cy="700" r="92" fill="#5b8cff"/>
+    <circle cx="724" cy="700" r="92" fill="#5b8cff"/>
+    <circle cx="512" cy="300" r="98" fill="#9db4ff"/>
+  </g>
+</svg>
