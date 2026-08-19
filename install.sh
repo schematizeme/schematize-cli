@@ -125,6 +125,25 @@ EOF
   fi
 }
 
+# Instala o schematize-updater (gestor de versão SEPARADO do app, cross-OS). Best-effort: nunca
+# falha o install do app. Assim toda instalação/update do app já carrega o updater — quem atualizou
+# passa a ter também o updater novo, sem rodar o bootstrap dele à mão.
+install_updater() {
+  local os arch asset
+  os="$(uname -s)"; arch="$(uname -m)"
+  case "$os/$arch" in
+    Linux/x86_64)  asset="schematize-updater-linux-x86_64" ;;
+    Darwin/arm64)  asset="schematize-updater-macos-arm64" ;;
+    Darwin/x86_64) asset="schematize-updater-macos-x86_64" ;;
+    *) return 0 ;;
+  esac
+  local url="https://github.com/schematizeme/schematize-updater/releases/latest/download/$asset"
+  local dst="$HOME/.cargo/bin/schematize-updater"
+  if curl -fsSL -o "$dst" "$url" 2>/dev/null && [ -s "$dst" ]; then
+    chmod +x "$dst" 2>/dev/null || true
+    ok "schematize-updater instalado ($dst) — atualize com: schematize-updater update"
+  fi
+}
 post_config() {
   hash -r 2>/dev/null || true
   local BIN; BIN="$(command -v schematize || true)"
@@ -161,6 +180,7 @@ post_config() {
     log "aviso: '$BIN' está na frente de /usr/bin/schematize no PATH (shadow). Pra usar o do pacote: cargo uninstall schematize"
   fi
   "$BIN" autostart enable || true
+  install_updater || true
   echo; ok "pronto. Próximos passos:"
   echo "    schematize skills install --all   # instala as skills"
   echo "    schematize overdev enable     # liga o modo overdev"
