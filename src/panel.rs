@@ -548,11 +548,13 @@ pub fn load_graph_global(root: &Path) -> (Vec<Node>, Vec<Edge>, Option<PathBuf>,
         return (Vec::new(), Vec::new(), None, false);
     };
     let global = dir.join("GRAFO_GLOBAL.md");
-    if global.is_file() {
-        let (n, e) = parse_graph_files(&[global]);
-        return (n, e, Some(dir), false);
-    }
-    let (n, e) = parse_graph(&dir);
+    // Origem preferida: o global AUTORADO; senão o índice flat da pasta.
+    let (n, e) = if global.is_file() { parse_graph_files(&[global]) } else { parse_graph(&dir) };
+    // O CAP vale pra QUALQUER origem. O `GRAFO_GLOBAL.md` autorado costuma trazer,
+    // além dos nós de serviço, as TABELAS de funções de cada repo — num projeto de
+    // verdade isso passa de 600 nós e a "visão de entrada" deixa de ser legível (e a
+    // física do app passa a simular 600 corpos por quadro). Antes essa origem
+    // pulava o cap, e era justamente ela que o app carregava ao abrir o projeto.
     if n.len() > GLOBAL_NODE_CAP {
         let (an, ae) = aggregate_by_service(&n, &e);
         (an, ae, Some(dir), true)
@@ -801,6 +803,37 @@ mod tests {
 
     /// Índice flat grande (> CAP) sem `GRAFO_GLOBAL.md` → agrega em 1 nó por serviço, e o drill
     /// devolve o subgrafo do serviço a partir do flat. É o fix do "1600 nós ilegíveis".
+    /// O `GRAFO_GLOBAL.md` AUTORADO também respeita o cap: um global que arrasta as
+    /// tabelas de função de cada repo (o caso real do archive da casa) passa de 60
+    /// nós e tem de virar a visão agregada — antes essa origem furava o cap e a GUI
+    /// carregava centenas de nós na física.
+    #[test]
+    fn load_graph_global_autorado_grande_tambem_agrega() {
+        let root = std::env::temp_dir().join(format!("schz-gg-cap-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        let grafos = root.join(".schematize/grafos");
+        fs::create_dir_all(&grafos).unwrap();
+        // Global autorado: 2 arestas de fronteira + 80 linhas de tabela de função
+        // (40 em cada serviço) — exatamente o formato do índice §39.
+        let mut md = String::from("svc_a/main.rs -> svc_b/main.rs (chamada)\n");
+        md.push_str("| Função | O quê | arquivo:linha |\n|---|---|---|\n");
+        for i in 0..40 {
+            md.push_str(&format!("| `a{i}` | faz a | svc_a/x.rs:{} |\n", i + 1));
+            md.push_str(&format!("| `b{i}` | faz b | svc_b/y.rs:{} |\n", i + 1));
+        }
+        fs::write(grafos.join("GRAFO_GLOBAL.md"), md).unwrap();
+
+        let (nodes, _edges, dir, aggregated) = load_graph_global(&root);
+        assert!(dir.is_some());
+        assert!(aggregated, "global autorado com >60 nós tem de agregar");
+        assert!(nodes.len() <= GLOBAL_NODE_CAP, "{} nós passaram do cap", nodes.len());
+        let ids: Vec<&str> = nodes.iter().map(|n| n.id.as_str()).collect();
+        assert!(ids.iter().any(|i| i.starts_with("svc_a ·")), "faltou o nó agregado de svc_a: {ids:?}");
+        assert!(ids.iter().any(|i| i.starts_with("svc_b ·")), "faltou o nó agregado de svc_b: {ids:?}");
+
+        let _ = fs::remove_dir_all(&root);
+    }
+
     #[test]
     fn load_graph_global_agrega_flat_grande_e_drilla() {
         let root = std::env::temp_dir().join(format!("schz-agg-{}", std::process::id()));
