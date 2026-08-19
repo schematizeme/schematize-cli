@@ -1,0 +1,59 @@
+name: version-guard
+
+# POR QUE ISTO EXISTE
+#
+# A detecção de update lê a `version` do Cargo.toml do `main` via raw.githubusercontent
+# e compara com a versão COMPILADA no binário do usuário (upgrade::app_version). Quer
+# dizer: código novo no main SEM bump é código que ninguém recebe — o app de todo mundo
+# continua achando que está em dia. O sintoma é "atualizei e não veio nada".
+#
+# Confiar em lembrar do bump não funcionou. Este job trava o main quando o código muda
+# e a versão não. Não é burocracia: é o gate que garante que o que foi publicado chega.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2   # precisa do commit anterior pra comparar
+
+      - name: a versão subiu junto com o código?
+        run: |
+          set -euo pipefail
+
+          # Primeiro commit do repo / push forçado sem pai: nada a comparar.
+          if ! git rev-parse HEAD~1 >/dev/null 2>&1; then
+            echo "sem commit anterior — nada a comparar"; exit 0
+          fi
+
+          # O que mudou? Só arquivos que ENTRAM no binário/instalação contam.
+          mudou=$(git diff --name-only HEAD~1 HEAD -- src/ Cargo.toml Cargo.lock install.sh | wc -l)
+          if [ "$mudou" -eq 0 ]; then
+            echo "nada que entra no binário mudou — bump não é exigido"; exit 0
+          fi
+
+          ver_de()  { git show "$1:Cargo.toml" 2>/dev/null | awk -F'"' '/^version =/{print $2; exit}'; }
+          antes=$(ver_de HEAD~1); agora=$(ver_de HEAD)
+          echo "versão: $antes -> $agora  ($mudou arquivo(s) relevante(s) mudaram)"
+
+          if [ "$antes" = "$agora" ]; then
+            echo "::error::O código mudou mas a versão continua $agora."
+            echo "::error::Sem bump, o app instalado de ninguém enxerga esta atualização."
+            echo "::error::Suba a `version` no Cargo.toml (e rode o release: tag v<versão>)."
+            exit 1
+          fi
+
+          # Bump tem de ser pra FRENTE (evita bump acidental pra trás num merge ruim).
+          maior=$(printf '%s\n%s\n' "$antes" "$agora" | sort -V | tail -1)
+          if [ "$maior" != "$agora" ]; then
+            echo "::error::A versão ANDOU PRA TRÁS: $antes -> $agora."
+            exit 1
+          fi
+          echo "ok"

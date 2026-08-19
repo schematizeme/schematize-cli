@@ -3,7 +3,7 @@
 //! Onde: chamado por main. Não toca em nada sem --fix (além de criar diretórios base).
 
 use crate::i18n::{t, tf};
-use crate::{autostart, settings, skills, util};
+use crate::{autostart, settings, skills, updaterboot, util};
 use std::fs;
 use std::path::Path;
 
@@ -101,6 +101,31 @@ pub fn run(fix: bool) {
 
     // GUI: flavor (Slint novo vs egui antigo), lançador .desktop e coexistência pacote+fonte.
     issues += gui_checks(fix);
+
+    // Gestor de atualizações (`schematize-updater`). Sem ele o update cai no
+    // fluxo interno — que é justamente o caminho de "cliquei e não aconteceu
+    // nada". O doctor INSTALA (não só reclama): é o que o usuário espera de um
+    // comando chamado "doctor", e não exige saber que existe um gestor separado.
+    if updaterboot::present() {
+        line(&Lv::Ok, "gestor de atualizações (schematize-updater)", "");
+    } else {
+        match updaterboot::ensure_now() {
+            updaterboot::Outcome::Instalado(p) => {
+                line(&Lv::Ok, "gestor de atualizações (schematize-updater)", &format!("instalado em {}", p.display()));
+            }
+            updaterboot::Outcome::JaTinha => {
+                line(&Lv::Ok, "gestor de atualizações (schematize-updater)", "");
+            }
+            outcome => {
+                issues += 1;
+                let detalhe = match outcome {
+                    updaterboot::Outcome::Falhou(e) => e,
+                    _ => "tentativa recente falhou — tento de novo mais tarde".to_string(),
+                };
+                line(&Lv::Warn, "gestor de atualizações (schematize-updater)", &detalhe);
+            }
+        }
+    }
 
     println!();
     if issues == 0 {
