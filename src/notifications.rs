@@ -151,16 +151,36 @@ pub fn collect() -> Vec<Notif> {
     // Cruza o estado (o que ele tem) com o catálogo (pra saber onde checar a última).
     let st = skills::load_state();
     let cat = registry::catalog();
-    for slug in st.skills.keys() {
-        let Some(it) = registry::find(&cat, slug) else { continue }; // fora do catálogo → pula
-        let Some(installed) = skills::installed_version(&it) else { continue }; // não está em disco
-        // Skill forkada não "desatualiza" no sentido normal — a via é comparar/mesclar, não sobrescrever.
-        if st.skills.get(slug).map(|e| e.forked).unwrap_or(false) {
-            continue;
-        }
-        let Ok(latest) = skills::resolve_latest(&it) else { continue }; // rede falhou → pula
-        if crate::util::semver_lt(&installed, &latest) {
-            out.push(notif_skill_outdated(slug, &installed, &latest));
+    // Candidatos: skill instalada, no catálogo, NÃO forkada (fork compara/mescla, não desatualiza).
+    let cands: Vec<(String, registry::Item, String)> = st
+        .skills
+        .keys()
+        .filter_map(|slug| {
+            let it = registry::find(&cat, slug)?;
+            let installed = skills::installed_version(&it)?;
+            if st.skills.get(slug).map(|e| e.forked).unwrap_or(false) {
+                return None;
+            }
+            Some((slug.clone(), it, installed))
+        })
+        .collect();
+    // PARALELIZA o `resolve_latest` de cada skill — era um N+1 SEQUENCIAL (1 ida ao GitHub por skill,
+    // uma após a outra) e o principal motivo do sininho ser lento. Agora tudo concorrente (1 thread
+    // por skill, curl bloqueante em cada). ~20 idas em série viram ~1 latência.
+    let handles: Vec<_> = cands
+        .into_iter()
+        .map(|(slug, it, installed)| {
+            std::thread::spawn(move || match skills::resolve_latest(&it) {
+                Ok(latest) if crate::util::semver_lt(&installed, &latest) => {
+                    Some((slug, installed, latest))
+                }
+                _ => None,
+            })
+        })
+        .collect();
+    for h in handles {
+        if let Ok(Some((slug, installed, latest))) = h.join() {
+            out.push(notif_skill_outdated(&slug, &installed, &latest));
         }
     }
 
