@@ -276,6 +276,19 @@ install_source() {
   else
     warn "build da GUI Slint falhou — rode o install de novo. (Não instalamos GUI egui de fallback.)"
   fi
+
+  # GUI do updater (janela amigável do gestor de atualizações) — OPCIONAL. Não depende do crate
+  # `schematize` (fala só com o binário do updater), então sem `cargo update`. Best-effort: se
+  # falhar, o app já está instalado — é só chrome. Não roda `die`.
+  local ugui="$base/schematize-updater-gui"
+  log "compilando a GUI do updater — schematize-updater-gui (opcional)"
+  if _sync_repo "https://github.com/schematizeme/schematize-updater-gui.git" "$ugui" 2>/dev/null \
+     && as_user sh -c "cd '$ugui' && cargo build --release" \
+     && as_user install -m755 "$ugui/target/release/schematize-updater-gui" "$bin/schematize-updater-gui"; then
+    ok "GUI do updater instalada (schematize-updater-gui)."
+  else
+    warn "GUI do updater não compilou (opcional) — segue sem ela."
+  fi
   install_gui_launcher
   post_config
 }
