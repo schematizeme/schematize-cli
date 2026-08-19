@@ -260,11 +260,19 @@ install_source() {
   as_user install -m755 "$cli/target/release/schematize" "$bin/schematize"
 
   # GUI = Slint (a ÚNICA GUI). Se o build falhar, NÃO cai pro egui — melhor sem GUI que o fantasma.
+  # A GUI depende do crate `schematize` como git-dep (branch=main); o Cargo.lock commitado FIXA um
+  # commit e `git reset --hard` o restaura a cada update, então a versão embutida (`app_version()`)
+  # ficava travada numa release velha. `cargo update -p schematize` avança o git-dep pro HEAD ANTES
+  # de compilar (best-effort: offline segue com o lock). Sem isso, "atualizei mas abre versão antiga".
   log "compilando a GUI Slint — schematize-gui (incremental)"
   if _sync_repo "https://github.com/schematizeme/schematize_gui_slint.git" "$gui" 2>/dev/null \
+     && { as_user sh -c "cd '$gui' && cargo update -p schematize" 2>/dev/null || true; } \
      && as_user sh -c "cd '$gui' && cargo build --release" \
      && as_user install -m755 "$gui/target/release/schematize-gui" "$bin/schematize-gui"; then
     ok "GUI Slint instalada (schematize-gui)."
+    # Encerra GUI antiga ainda aberta — fechar a janela não matava o processo, e o relaunch reusava
+    # a versão anterior. `pkill -x` casa só o nome exato do binário (não o updater nem o CLI).
+    as_user sh -c "pkill -x schematize-gui" 2>/dev/null || true
   else
     warn "build da GUI Slint falhou — rode o install de novo. (Não instalamos GUI egui de fallback.)"
   fi
