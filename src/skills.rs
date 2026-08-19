@@ -90,6 +90,46 @@ pub fn latest_version_raw(repo: &str) -> Option<String> {
     }
 }
 
+/// TODAS as versões numa ÚNICA chamada, pelo AGREGADOR da API (`GET /versions`).
+///
+/// O quê: pergunta `{api}/versions?skills=a,b,c` e devolve `slug -> versão`. Existe pra matar
+/// o N+1 do sininho (era 1 ida ao GitHub POR skill) e, mais importante, pra app e SITE lerem a
+/// MESMA fonte: o espelho da API, que o `sync-skills` mantém a partir dos releases do GitHub.
+/// Onde: `notifications::collect` (checagem de desatualizadas).
+/// Postura: best-effort — API fora do ar/resposta inválida → mapa VAZIO, e o chamador cai no
+/// caminho antigo (raw por skill). Nunca panica, nunca bloqueia mais que 8s.
+pub fn latest_versions_bulk(slugs: &[String]) -> BTreeMap<String, String> {
+    if slugs.is_empty() {
+        return BTreeMap::new();
+    }
+    let url = format!("{}/versions?skills={}", crate::account::api_base(), slugs.join(","));
+    let Ok(body) = util::run("curl", &["-sfL", "-m", "8", "-H", "User-Agent: schematize-cli", &url])
+    else {
+        return BTreeMap::new();
+    };
+    parse_versions(&body)
+}
+
+/// Parse PURO da resposta do agregador (`{"count":N,"data":{"go":"1.9.2"}}`).
+///
+/// O quê: extrai o mapa `slug -> versão`, ignorando entradas não-string. JSON inválido ou sem
+/// `data` → mapa vazio (o chamador trata como "API não respondeu").
+/// Onde: `latest_versions_bulk`; testado sem rede.
+fn parse_versions(json: &str) -> BTreeMap<String, String> {
+    let Ok(v) = serde_json::from_str::<serde_json::Value>(json) else {
+        return BTreeMap::new();
+    };
+    let Some(map) = v.get("data").and_then(|d| d.as_object()) else {
+        return BTreeMap::new();
+    };
+    map.iter()
+        .filter_map(|(k, val)| {
+            let s = val.as_str()?.trim();
+            (!s.is_empty()).then(|| (k.clone(), s.to_string()))
+        })
+        .collect()
+}
+
 /// (Fallback/diagnóstico) última versão via API do GitHub (`releases/latest` → `tag_name`),
 /// sem "v". Limitada a 60/h/IP — por isso NÃO é mais o caminho primário de detecção.
 pub fn latest_release_tag(repo: &str) -> Option<String> {
@@ -447,6 +487,26 @@ pub fn update(it: &Item) -> Result<String, String> {
 
 #[cfg(test)]
 mod tests {
+    use super::parse_versions;
+
+    /// O agregador devolve `{count, data:{slug: versão}}` — o parse extrai só o mapa.
+    #[test]
+    fn parse_versions_extrai_o_mapa() {
+        let m = parse_versions(r#"{"count":2,"data":{"go":"1.9.2","rust":"1.9.2"}}"#);
+        assert_eq!(m.get("go").map(String::as_str), Some("1.9.2"));
+        assert_eq!(m.get("rust").map(String::as_str), Some("1.9.2"));
+        assert_eq!(m.len(), 2);
+    }
+
+    /// API fora do ar/resposta lixo => mapa VAZIO (o chamador cai no fallback por skill),
+    /// nunca panica e nunca inventa versão.
+    #[test]
+    fn parse_versions_resiliente_a_lixo() {
+        for lixo in ["", "não é json", "{}", r#"{"data":null}"#, r#"{"data":{"go":123}}"#] {
+            assert!(parse_versions(lixo).is_empty(), "deveria ser vazio: {lixo:?}");
+        }
+    }
+
     use super::*;
 
     /// Tempdir único por pid + contador (paralelo sem colisão).

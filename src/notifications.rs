@@ -164,10 +164,26 @@ pub fn collect() -> Vec<Notif> {
             Some((slug.clone(), it, installed))
         })
         .collect();
-    // PARALELIZA o `resolve_latest` de cada skill — era um N+1 SEQUENCIAL (1 ida ao GitHub por skill,
-    // uma após a outra) e o principal motivo do sininho ser lento. Agora tudo concorrente (1 thread
-    // por skill, curl bloqueante em cada). ~20 idas em série viram ~1 latência.
-    let handles: Vec<_> = cands
+    // AGREGADOR primeiro: UMA chamada a `{api}/versions?skills=...` traz todas as versões — a
+    // mesma fonte que o site lê (o espelho que o `sync-skills` alimenta a partir dos releases).
+    // Era um N+1 (1 ida ao GitHub por skill); virou 1 request.
+    let slugs: Vec<String> = cands.iter().map(|(s, _, _)| s.clone()).collect();
+    let bulk = skills::latest_versions_bulk(&slugs);
+
+    // O que o agregador respondeu resolve na hora; o resto (API fora, skill nova que a API ainda
+    // não conhece) cai no caminho antigo — raw do GitHub, uma thread por skill, concorrente.
+    let mut fallback: Vec<(String, registry::Item, String)> = Vec::new();
+    for (slug, it, installed) in cands {
+        match bulk.get(&slug) {
+            Some(latest) => {
+                if crate::util::semver_lt(&installed, latest) {
+                    out.push(notif_skill_outdated(&slug, &installed, latest));
+                }
+            }
+            None => fallback.push((slug, it, installed)),
+        }
+    }
+    let handles: Vec<_> = fallback
         .into_iter()
         .map(|(slug, it, installed)| {
             std::thread::spawn(move || match skills::resolve_latest(&it) {
