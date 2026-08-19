@@ -96,7 +96,14 @@ ensure_fonts() {
 ensure_rust() {
   if ! command -v cargo >/dev/null; then
     log "instalando Rust (rustup)"; curl -fsSL https://sh.rustup.rs | sh -s -- -y --profile minimal
-    . "$HOME/.cargo/env"
+    . "$HOME/.cargo/env" 2>/dev/null || true
+  fi
+  # rustup pode ter o shim `cargo` mas SEM toolchain default (ex.: primeira vez, ou rodando como
+  # outro usuário/root cujo ~/.rustup está vazio) → o cargo falha com "no default configured".
+  # Garante um default estável, senão o `cargo build` quebra.
+  if command -v rustup >/dev/null 2>&1 && ! rustup default >/dev/null 2>&1; then
+    log "configurando o toolchain default do Rust (stable)"
+    rustup default stable || rustup toolchain install stable && rustup default stable
   fi
 }
 install_gui_launcher() {
@@ -228,6 +235,13 @@ _sync_repo() { # <url> <dir>
   git clone --depth 1 "$url" "$dir"
 }
 install_source() {
+  # Rodando como ROOT: instala no HOME do root (/root/.cargo/bin), NÃO no seu usuário — a GUI que
+  # você abre não vai ver. O sudo é usado SÓ pras deps do apt; o build/instalação é do usuário.
+  if [ "$(id -u)" = "0" ] && [ -n "${SUDO_USER:-}${LOGNAME:-}" ] && [ "${SUDO_USER:-}" != "root" ]; then
+    warn "você está como ROOT — isso instala em /root, não no seu usuário."
+    warn "SAIA do root (exit) e rode como VOCÊ: curl -fsSL $INSTALL_SH | bash -s -- --from-source"
+    warn "(o instalador já usa sudo sozinho só pras libs do apt — não precisa de su/root)"
+  fi
   ensure_runtime_deps; ensure_rust; gui_build_deps; ensure_fonts
   . "$HOME/.cargo/env" 2>/dev/null || true
   export PATH="$HOME/.cargo/bin:$PATH"
