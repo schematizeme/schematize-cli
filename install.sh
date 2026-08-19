@@ -238,22 +238,23 @@ install_source() {
   local base="$HOME/.schematize/src"; mkdir -p "$base"
   local cli="$base/schematize-cli" gui="$base/schematize_gui_slint"
 
+  # CLI SEM a feature `gui` — NÃO produz o schematize-gui egui. A GUI é SÓ o Slint (repo próprio).
+  # (o egui era instalado como "fallback" e reaparecia como layout velho durante todo update — o
+  #  fantasma. Eliminado na raiz: nunca mais se instala egui.)
   log "compilando o CLI do fonte (incremental — recompila só o que mudou; 1ª vez leva minutos)"
   _sync_repo "https://github.com/$REPO.git" "$cli" || die "clone do CLI falhou"
-  ( cd "$cli" && cargo build --release --features gui ) || die "build do CLI falhou"
+  ( cd "$cli" && cargo build --release ) || die "build do CLI falhou"
   install -m755 "$cli/target/release/schematize" "$HOME/.cargo/bin/schematize"
-  # a GUI egui vem junto como fallback de `schematize-gui` (o Slint sobrescreve abaixo se compilar).
-  [ -f "$cli/target/release/schematize-gui" ] && install -m755 "$cli/target/release/schematize-gui" "$HOME/.cargo/bin/schematize-gui"
   hash -r 2>/dev/null || true
 
-  # GUI DEFAULT = Slint (repo próprio). Sobrescreve o egui; se o build falhar, o egui fica de fallback.
+  # GUI = Slint (a ÚNICA GUI). Se o build falhar, NÃO cai pro egui — melhor sem GUI que o fantasma.
   log "compilando a GUI Slint — schematize-gui (incremental)"
   if _sync_repo "https://github.com/schematizeme/schematize_gui_slint.git" "$gui" 2>/dev/null \
      && ( cd "$gui" && cargo build --release ) \
      && install -m755 "$gui/target/release/schematize-gui" "$HOME/.cargo/bin/schematize-gui"; then
     ok "GUI Slint instalada (schematize-gui)."
   else
-    warn "build da GUI Slint falhou — schematize-gui anterior (ou egui) mantido. Rode de novo depois."
+    warn "build da GUI Slint falhou — rode o install de novo. (Não instalamos GUI egui de fallback.)"
   fi
   install_gui_launcher
   post_config
