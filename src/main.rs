@@ -393,6 +393,19 @@ enum Over {
         #[arg(long)]
         max: Option<u64>,
     },
+    /// SPLIT do checklist em K arquivos `checklist/part-N.md` (pastas multi-arquivo) pra rodar
+    /// multiagents. Respeita o governador (`schematize agents`): mostra quantos subagents por claude
+    /// e recusa passar do teto seguro. `--dispatch` lança os K claudes (cada um no seu part).
+    Split {
+        /// Em quantos claudes principais dividir (2, 4, …).
+        k: usize,
+        /// Lança os K claudes em terminais externos, cada um no seu part-N.md.
+        #[arg(long)]
+        dispatch: bool,
+        /// Ignora o teto do governador (perigoso — pode travar a máquina).
+        #[arg(long)]
+        force: bool,
+    },
     /// (Stop hook) reject stopping while there is an open item.
     Check,
     /// (PreToolUse hook) veto AskUserQuestion during overdev.
@@ -529,6 +542,60 @@ fn lang_cmd(code: Option<String>, list: bool) -> Result<(), String> {
 /// `schematize overdev run [--max N] [--yes]` — dispara o `claude` acoplado no
 /// diretório atual e monitora (auto-continue). Guardrail: mostra o comando do
 /// agente e confirma antes (o agente MEXE no projeto), a menos de `--yes`.
+/// `schematize overdev split K` — divide o checklist em K parts e (com --dispatch) lança K claudes,
+/// tudo dentro do teto seguro do governador (`schematize agents`).
+fn overdev_split(k: usize, dispatch: bool, force: bool) -> Result<(), String> {
+    let project = std::env::current_dir().map_err(|e| format!("cwd inacessível: {e}"))?;
+    let b = schematize::agents::budget();
+    let plan = b.split_plan(k);
+
+    println!("Governador de concorrência (máquina inteira):");
+    println!("  teto seguro: {} · rodando agora: {} · disponível: {}", b.total_cap, b.snap.running_claudes, b.available);
+    println!("  split em {} claude(s): {} subagents cada (total {}/{} do teto)", plan.mains, plan.subagents_each, plan.total_used, plan.cap);
+
+    if k > b.total_cap && !force {
+        return Err(format!(
+            "{k} claudes principais passa do teto seguro ({}). Reduza o K ou use --force (pode travar a máquina).",
+            b.total_cap
+        ));
+    }
+    if dispatch && b.available < k && !force {
+        return Err(format!(
+            "só há {} slot(s) livre(s) na máquina agora (teto {} − {} rodando); lançar {k} travaria. Espere liberar ou use --force.",
+            b.available, b.total_cap, b.snap.running_claudes
+        ));
+    }
+
+    let res = overdev::split(&project, k)?;
+    println!("\n✓ dividido: {} itens em {} parte(s):", res.moved, res.parts.len());
+    for (i, (f, n)) in res.parts.iter().zip(&res.per_part).enumerate() {
+        println!("  part {:>2}: {n:>3} item(ns)  → {}", i + 1, f.display());
+    }
+
+    if !dispatch {
+        println!("\nRevise os parts e rode com --dispatch pra lançar os {k} claudes (ou abra cada um você mesmo).");
+        return Ok(());
+    }
+
+    println!("\nLançando {k} claude(s) — um por part…");
+    for (i, f) in res.parts.iter().enumerate() {
+        let rel = f.strip_prefix(&project).unwrap_or(f);
+        let prompt = format!(
+            "Rode o overdev deste projeto cuidando APENAS do arquivo `{}` (sua fatia do split). Feche \
+             TODOS os itens `- [ ]` dele com prova, seguindo a disciplina do overdev. Você pode usar até \
+             {} subagents em paralelo — NÃO ultrapasse, pra não travar a máquina (há outros claudes \
+             rodando as outras fatias). Não toque nos outros part-*.md.",
+            rel.display(),
+            plan.subagents_each
+        );
+        match agentrun::launch_prompt_in_terminal(&project, &prompt) {
+            Ok(_) => println!("  ✓ claude {} lançado ({})", i + 1, rel.display()),
+            Err(e) => println!("  ✗ claude {} falhou: {e}", i + 1),
+        }
+    }
+    Ok(())
+}
+
 fn overdev_run(max: Option<u64>, yes: bool) -> Result<(), String> {
     let project = std::env::current_dir().map_err(|e| format!("cwd inacessível: {e}"))?;
     let max = max.unwrap_or(agentrun::DEFAULT_MAX_NUDGES);
@@ -1269,6 +1336,7 @@ fn main() {
             Over::Enable => overdev::enable(),
             Over::Disable => overdev::disable(),
             Over::Start { objetivo, max } => overdev::start(&objetivo.join(" "), max),
+            Over::Split { k, dispatch, force } => overdev_split(k, dispatch, force),
             Over::Check => {
                 overdev::check();
                 Ok(())

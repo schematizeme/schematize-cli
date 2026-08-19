@@ -50,6 +50,48 @@ pub fn grafos_dir_at(root: &Path) -> PathBuf {
 }
 
 // ---------------------------------------------------------------------------
+// Documentos multi-arquivo — granularidade (checklist/decisões/plano como PASTA)
+// ---------------------------------------------------------------------------
+//
+// Cada "documento" do overdev pode ser 1 arquivo (`CHECKLIST.md`) OU uma PASTA com vários `.md`
+// (`checklist/part-1.md`, `checklist/auth.md`, …) — pra granularidade máxima e pro SPLIT em
+// multiagents (cada agent cuida de um arquivo). A leitura CONCATENA: o arquivo único primeiro (se
+// existir), depois os `.md` da pasta em ordem alfabética. Assim projetos antigos (arquivo único)
+// seguem funcionando e os novos podem espalhar em vários arquivos. Mesma ideia do dir de grafos.
+
+/// Lista os arquivos que compõem um documento do overdev: o `single` (ex.: `CHECKLIST.md`) se
+/// existir, seguido dos `.md` da pasta `folder` (ex.: `checklist/`) em ordem. Vazio se nada existe.
+pub fn multidoc_files(od_dir: &Path, single: &str, folder: &str) -> Vec<PathBuf> {
+    let mut out = Vec::new();
+    let s = od_dir.join(single);
+    if s.is_file() {
+        out.push(s);
+    }
+    let dir = od_dir.join(folder);
+    if dir.is_dir() {
+        let mut mds: Vec<PathBuf> = std::fs::read_dir(&dir)
+            .into_iter()
+            .flatten()
+            .flatten()
+            .map(|e| e.path())
+            .filter(|p| p.is_file() && p.extension().and_then(|x| x.to_str()) == Some("md"))
+            .collect();
+        mds.sort();
+        out.extend(mds);
+    }
+    out
+}
+
+/// Lê e CONCATENA um documento multi-arquivo (arquivo único + pasta). Junta com `\n` entre partes.
+pub fn read_multidoc(od_dir: &Path, single: &str, folder: &str) -> String {
+    let parts: Vec<String> = multidoc_files(od_dir, single, folder)
+        .iter()
+        .filter_map(|p| std::fs::read_to_string(p).ok())
+        .collect();
+    parts.join("\n")
+}
+
+// ---------------------------------------------------------------------------
 // cwd-relative — hooks (Stop/PreToolUse)
 // ---------------------------------------------------------------------------
 

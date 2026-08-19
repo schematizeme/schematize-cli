@@ -389,7 +389,9 @@ pub fn load_overdev(root: &Path) -> Overdev {
             .to_string()
     };
     let mut items = Vec::new();
-    let cl = fs::read_to_string(od.join("CHECKLIST.md")).unwrap_or_default();
+    // Checklist pode ser 1 arquivo (CHECKLIST.md) OU a pasta checklist/ com vários .md (granularidade
+    // / split multiagent) — lê e concatena todos.
+    let cl = crate::paths::read_multidoc(&od, "CHECKLIST.md", "checklist");
     for line in cl.lines() {
         let t = line.trim_start();
         let (st, rest) = if let Some(r) = t.strip_prefix("- [ ]") {
@@ -407,8 +409,8 @@ pub fn load_overdev(root: &Path) -> Overdev {
         objetivo: get("objetivo", ""),
         mode: get("mode", "inativo"),
         items,
-        decisoes: fs::read_to_string(od.join("DECISOES.md")).unwrap_or_default(),
-        plano: fs::read_to_string(od.join("PLAN.md")).unwrap_or_default(),
+        decisoes: crate::paths::read_multidoc(&od, "DECISOES.md", "decisoes"),
+        plano: crate::paths::read_multidoc(&od, "PLAN.md", "plan"),
         perguntas: fs::read_to_string(root.join("PERGUNTAS-OVERDEV.txt")).unwrap_or_default(),
     }
 }
