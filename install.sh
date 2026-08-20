@@ -95,11 +95,14 @@ gui_build_deps() {
   log "instalando libs de build da GUI (X11/Wayland/GL + fontconfig p/ o Slint)"
   case "$FAMILY" in
     # libfontconfig1-dev: o Slint 1.17 (fontique no núcleo) LINKA a libfontconfig no build.
+    # libsqlite3-dev: PREFERIR a lib da distro a compilar o SQLite embutido (~250 mil
+    # linhas de C a cada build limpo). Se ela estiver aqui, o build do CLI linka a dela.
     debian) pkg_install build-essential pkg-config libx11-dev libxcursor-dev libxrandr-dev libxi-dev \
               libxkbcommon-dev libwayland-dev libgl1-mesa-dev libxcb1-dev libxcb-render0-dev \
-              libxcb-shape0-dev libxcb-xfixes0-dev libfontconfig1-dev ;;
+              libxcb-shape0-dev libxcb-xfixes0-dev libfontconfig1-dev libsqlite3-dev ;;
     rpm)    pkg_install gcc gcc-c++ make pkg-config libX11-devel libXcursor-devel libXrandr-devel \
-              libXi-devel libxkbcommon-devel wayland-devel Mesa-libGL-devel libxcb-devel fontconfig-devel ;;
+              libXi-devel libxkbcommon-devel wayland-devel Mesa-libGL-devel libxcb-devel fontconfig-devel \
+              sqlite-devel ;;
     *) die "GUI do fonte: instale manualmente as libs de X11/Wayland/GL/fontconfig da sua distro." ;;
   esac
 }
@@ -226,7 +229,16 @@ install_updater() {
   if as_user sh -c "curl -fsSL -o '$dst' '$url'" 2>/dev/null && [ -s "$dst" ]; then
     as_user chmod +x "$dst" 2>/dev/null || true
     ok "schematize-updater instalado ($dst) — atualize com: schematize-updater update"
+    return 0
   fi
+  # Falhar aqui não derruba o install do app, mas NÃO pode passar calado: sem o
+  # updater o caminho de atualização degrada, e "atualizei e não veio nada" volta.
+  # O app tenta de novo sozinho no arranque (ver `updaterboot`), e o `schematize
+  # doctor` instala sob demanda — mas o usuário merece saber agora.
+  as_user rm -f "$dst" 2>/dev/null || true
+  warn "não consegui baixar o schematize-updater (rede?). O app tenta sozinho ao abrir;"
+  warn "se quiser forçar agora: schematize doctor"
+  return 0
 }
 post_config() {
   local BIN="$TARGET_HOME/.cargo/bin/schematize"
@@ -305,11 +317,27 @@ install_source() {
   local cli="$base/schematize-cli" gui="$base/schematize_gui_slint"
   local bin="$TARGET_HOME/.cargo/bin"; as_user mkdir -p "$bin"
 
+  # TARGET COMPARTILHADO pelos três repos (CLI, GUI Slint, GUI do updater).
+  # 226 das dependências são as MESMAS nos três; com um `target/` por checkout elas
+  # compilavam TRÊS vezes (e ocupavam três vezes o disco). Com um só, compilam uma.
+  # Exige perfil de release idêntico nos três — está documentado no Cargo.toml deles.
+  local tgt="$TARGET_HOME/.schematize/target"; as_user mkdir -p "$tgt"
+  export CARGO_TARGET_DIR="$tgt"
+
+  # SQLite: se a distro tem a lib de desenvolvimento, LINKA a dela em vez de
+  # compilar ~250 mil linhas de C a cada build limpo. (Isso vale só pra biblioteca
+  # C — crate de Rust não dá pra reusar da distro: Rust não tem ABI estável.)
+  local feats=""
+  if pkg-config --exists sqlite3 2>/dev/null; then
+    log "usando a libsqlite3 da distro (não compila o SQLite embutido)"
+    feats="--no-default-features --features sqlite-do-sistema"
+  fi
+
   # CLI SEM a feature `gui` — NÃO produz o schematize-gui egui (a única GUI é o Slint, repo próprio).
   log "compilando o CLI do fonte (incremental — recompila só o que mudou; 1ª vez leva minutos)"
   _sync_repo "https://github.com/$REPO.git" "$cli" || die "clone do CLI falhou"
-  as_user sh -c "cd '$cli' && cargo build --release" || die "build do CLI falhou"
-  as_user install -m755 "$cli/target/release/schematize" "$bin/schematize"
+  as_user sh -c "cd '$cli' && CARGO_TARGET_DIR='$tgt' cargo build --release $feats" || die "build do CLI falhou"
+  as_user install -m755 "$tgt/release/schematize" "$bin/schematize"
 
   # GUI = Slint (a ÚNICA GUI). Se o build falhar, NÃO cai pro egui — melhor sem GUI que o fantasma.
   # A GUI depende do crate `schematize` como git-dep (branch=main); o Cargo.lock commitado FIXA um
@@ -318,9 +346,9 @@ install_source() {
   # de compilar (best-effort: offline segue com o lock). Sem isso, "atualizei mas abre versão antiga".
   log "compilando a GUI Slint — schematize-gui (incremental)"
   if _sync_repo "https://github.com/schematizeme/schematize_gui_slint.git" "$gui" 2>/dev/null \
-     && { as_user sh -c "cd '$gui' && cargo update -p schematize" 2>/dev/null || true; } \
-     && as_user sh -c "cd '$gui' && cargo build --release" \
-     && as_user install -m755 "$gui/target/release/schematize-gui" "$bin/schematize-gui"; then
+     && { as_user sh -c "cd '$gui' && CARGO_TARGET_DIR='$tgt' cargo update -p schematize" 2>/dev/null || true; } \
+     && as_user sh -c "cd '$gui' && CARGO_TARGET_DIR='$tgt' cargo build --release" \
+     && as_user install -m755 "$tgt/release/schematize-gui" "$bin/schematize-gui"; then
     ok "GUI Slint instalada (schematize-gui)."
     # Encerra GUI antiga ainda aberta — fechar a janela não matava o processo, e o relaunch reusava
     # a versão anterior. `pkill -x` casa só o nome exato do binário (não o updater nem o CLI).
@@ -335,8 +363,8 @@ install_source() {
   local ugui="$base/schematize-updater-gui"
   log "compilando a GUI do updater — schematize-updater-gui (opcional)"
   if _sync_repo "https://github.com/schematizeme/schematize-updater-gui.git" "$ugui" 2>/dev/null \
-     && as_user sh -c "cd '$ugui' && cargo build --release" \
-     && as_user install -m755 "$ugui/target/release/schematize-updater-gui" "$bin/schematize-updater-gui"; then
+     && as_user sh -c "cd '$ugui' && CARGO_TARGET_DIR='$tgt' cargo build --release" \
+     && as_user install -m755 "$tgt/release/schematize-updater-gui" "$bin/schematize-updater-gui"; then
     ok "GUI do updater instalada (schematize-updater-gui)."
   else
     warn "GUI do updater não compilou (opcional) — segue sem ela."

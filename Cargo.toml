@@ -1,6 +1,6 @@
 [package]
 name = "schematize"
-version = "0.37.0"
+version = "0.38.0"
 edition = "2021"
 description = "Gerenciador do ecossistema schematize: instala/versiona as skills e roda o modo overdev (dev contínuo à prova de parada). Linux-first."
 license = "MIT"
@@ -42,17 +42,42 @@ rfd = { version = "0.17", optional = true, default-features = false, features = 
     "wayland",
 ] }
 portable-pty = "0.9.0"
-# DB local do overdev (SQLite). `bundled` compila o próprio sqlite no binário —
-# não depende de libsqlite do sistema (nem de -dev no build).
-rusqlite = { version = "0.31", features = ["bundled"] }
+# DB local do overdev (SQLite). Duas formas de obter a lib:
+#
+#  - `sqlite-embutido` (DEFAULT): compila o SQLite (~250 mil linhas de C) dentro do
+#    binário. É o que os RELEASES publicados usam — binário que roda em qualquer
+#    distro, sem depender da versão de libsqlite3 de quem baixou.
+#  - `sqlite-do-sistema`: linka a libsqlite3 que já está instalada. Não compila C
+#    nenhum, e é o certo pra quem constrói do FONTE na própria máquina. O
+#    install.sh detecta (`pkg-config --exists sqlite3`) e escolhe sozinho.
+#
+# Crate de Rust não dá pra pegar da distro (Rust não tem ABI estável — os
+# `librust-*-dev` só servem ao rustc da própria distro). Biblioteca C, dá — e é
+# por isso que este é o único ponto onde reusar o pacote do sistema faz sentido.
+rusqlite = { version = "0.31", default-features = false }
 
+# Perfil de release COMPARTILHADO pelos repos do app (CLI, GUI Slint, updater-GUI).
+#
+# Por que idênticos: o install.sh compila os três com um `CARGO_TARGET_DIR` único.
+# 226 das dependências são as MESMAS nos três — com o target compartilhado elas
+# compilam UMA vez em vez de três. Mas cargo só reaproveita um artefato se o
+# perfil bater EXATAMENTE; qualquer divergência aqui (um `opt-level` diferente que
+# seja) parte o cache e a economia evapora. Então: mesmos valores nos três repos.
+#
+# `opt-level = 3` (não "z"): medido na GUI, otimizar pra tamanho custava ~6x de CPU
+# no arranque (a tabela está no Cargo.toml dela). `lto = "thin"` liga menos que o
+# fat e religa mais rápido a cada mudança, com o mesmo binário na prática.
 [profile.release]
 strip = true
-opt-level = "z"
-lto = true
+opt-level = 3
+lto = "thin"
 
 [features]
+default = ["sqlite-embutido"]
 gui = ["dep:eframe", "dep:rfd"]
+# Ver a nota em `rusqlite`, acima.
+sqlite-embutido = ["rusqlite/bundled"]
+sqlite-do-sistema = []
 
 # ---- Empacotamento .deb (Debian/Mint/Ubuntu) — cargo-deb ----
 [package.metadata.deb]
