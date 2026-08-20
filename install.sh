@@ -214,6 +214,75 @@ install_app_icons() {
 # Instala o schematize-updater (gestor de versão SEPARADO do app, cross-OS). Best-effort: nunca
 # falha o install do app. Assim toda instalação/update do app já carrega o updater — quem atualizou
 # passa a ter também o updater novo, sem rodar o bootstrap dele à mão.
+# ---------------------------------------------------------------------------
+# PURGA — mata QUALQUER instalação anterior antes de instalar a nova.
+#
+# Por que isto existe: o schematize já pôde ser instalado em QUATRO lugares —
+# `/usr/bin` (pacote .deb/.rpm), `/usr/local/bin` (self-update via pkexec),
+# `~/.local/bin` (fallback quando os outros não são graváveis) e `~/.cargo/bin`
+# (fonte/updater). Quem instalou por caminhos diferentes ao longo do tempo fica com
+# várias cópias, e quem "ganha" é quem estiver primeiro no PATH — que pode ser a
+# MAIS VELHA. Foi assim que uma máquina "atualizada" voltou a rodar a v0.35: o
+# binário novo entrou num diretório, e o PATH continuou resolvendo pro outro.
+#
+# Atualizar não resolve isso, porque o problema não é a versão — é a ambiguidade.
+# Então: antes de instalar, não sobra nenhum vestígio de instalação anterior.
+#
+# O que NÃO é tocado: dependências do sistema (libs, rustup) e DADOS do usuário —
+# `~/.claude` (skills, settings) e `~/.schematize` (config, overdev, cache de
+# build). Purga instalação, não o trabalho de ninguém.
+# ---------------------------------------------------------------------------
+BINS="schematize schematize-gui schematize-updater schematize-updater-gui"
+
+purge_previous() {
+  log "removendo instalações anteriores (binário, pacote, lançador) — dados e deps ficam"
+
+  # 1) Processos vivos: um binário em execução segura o inode e reabre a versão velha.
+  for b in $BINS; do pkill -x "$b" 2>/dev/null || true; done
+
+  # 2) Pacotes da distro. Enquanto o pacote existir, ele repõe /usr/bin no próximo
+  #    `apt/zypper upgrade` — remover só o arquivo não bastaria.
+  if command -v dpkg >/dev/null && dpkg -l schematize 2>/dev/null | grep -q '^ii'; then
+    log "removendo o pacote .deb do schematize"
+    $SUDO apt-get remove -y schematize >/dev/null 2>&1 || $SUDO dpkg -r schematize >/dev/null 2>&1 || \
+      warn "não removi o .deb — rode: sudo apt remove schematize"
+  fi
+  if command -v rpm >/dev/null && rpm -q schematize >/dev/null 2>&1; then
+    log "removendo o pacote .rpm do schematize"
+    { command -v zypper >/dev/null && $SUDO zypper -n rm schematize; } >/dev/null 2>&1 \
+      || $SUDO dnf -y remove schematize >/dev/null 2>&1 \
+      || warn "não removi o .rpm — rode: sudo zypper rm schematize (ou dnf remove)"
+  fi
+
+  # 3) Binários soltos, em todo diretório que algum caminho de instalação já usou —
+  #    MENOS o destino desta instalação ($1). Lá o binário é SUBSTITUÍDO no fim; apagar
+  #    antes abriria uma janela em que um build longo que falha deixa a máquina sem app
+  #    nenhum. As cópias que causam o bug são as OUTRAS: são elas que o PATH pega
+  #    primeiro. Some com elas e a ambiguidade acaba, sem desarmar ninguém no caminho.
+  local destino="${1:-}"
+  for b in $BINS; do
+    for d in "$TARGET_HOME/.cargo/bin" "$TARGET_HOME/.local/bin"; do
+      [ "$d" = "$destino" ] && continue
+      as_user rm -f "$d/$b" "$d/$b.novo" "$d/$b.old" 2>/dev/null || true
+    done
+    for d in /usr/local/bin /usr/bin; do
+      [ "$d" = "$destino" ] && continue
+      [ -e "$d/$b" ] && { $SUDO rm -f "$d/$b" 2>/dev/null || true; }
+    done
+  done
+
+  # 4) Lançadores, autostart e ícones — senão o menu do sistema segue abrindo o que
+  #    não existe mais (ou pior: uma cópia antiga que sobrou).
+  $SUDO rm -f /usr/share/applications/schematize-gui.desktop \
+              /etc/xdg/autostart/schematize-agent.desktop 2>/dev/null || true
+  as_user rm -f "$TARGET_HOME/.local/share/applications/schematize-gui.desktop" \
+                "$TARGET_HOME/.config/autostart/schematize-agent.desktop" 2>/dev/null || true
+  $SUDO rm -f /usr/share/icons/hicolor/*/apps/schematize.png 2>/dev/null || true
+  as_user rm -f "$TARGET_HOME"/.local/share/icons/hicolor/*/apps/schematize.png 2>/dev/null || true
+
+  ok "instalação anterior removida — instalando do zero."
+}
+
 install_updater() {
   local os arch asset
   os="$(uname -s)"; arch="$(uname -m)"
@@ -251,8 +320,9 @@ install_updater() {
 }
 post_config() {
   local BIN="$TARGET_HOME/.cargo/bin/schematize"
-  # No modo source, o .deb/.rpm do schematize (se existir) CONFLITA (dois binários/launchers). Remove
-  # (as libs do apt são root — $SUDO="" quando já root). A fonte no HOME do usuário é a verdade única.
+  # A remoção de pacote/binário antigo agora é da `purge_previous`, que roda ANTES de
+  # instalar qualquer coisa. Este bloco fica como rede: se alguém reinstalou o pacote
+  # no meio do caminho, ele ainda conflita com a fonte.
   if [ "$MODE" = source ]; then
     if command -v dpkg >/dev/null && dpkg -l schematize 2>/dev/null | grep -q '^ii'; then
       log "removendo o pacote .deb antigo do schematize (conflitava com a fonte)"
@@ -278,6 +348,7 @@ post_config() {
 }
 
 install_binary() {
+  purge_previous "$TARGET_HOME/.cargo/bin"
   ensure_runtime_deps; gui_runtime_deps; ensure_fonts
   local DL; DL="$(resolve_dl)"
   local dst; if [ -n "$SUDO" ] || [ -w /usr/local/bin ]; then dst="/usr/local/bin"; else dst="$HOME/.local/bin"; fi
@@ -293,6 +364,7 @@ install_binary() {
   post_config
 }
 install_deb() {
+  purge_previous /usr/bin
   ensure_runtime_deps; ensure_fonts
   local DL; DL="$(resolve_dl)"
   local t; t="$(mktemp --suffix=.deb)"; log "baixando .deb (CLI + GUI)"; curl -fSL -o "$t" "$DL/schematize_amd64.deb"
@@ -301,6 +373,7 @@ install_deb() {
   rm -f "$t"; post_config
 }
 install_rpm() {
+  purge_previous /usr/bin
   ensure_fonts
   local DL; DL="$(resolve_dl)"
   local t; t="$(mktemp --suffix=.rpm)"; log "baixando .rpm (CLI + GUI)"; curl -fSL -o "$t" "$DL/schematize.x86_64.rpm"; chmod 644 "$t"
@@ -320,6 +393,7 @@ install_source() {
   # Deps do apt como root ($SUDO); build/instalação como o USUÁRIO REAL (as_user + TARGET_HOME) —
   # o app mora no HOME do usuário, nunca em /root, mesmo que tenham rodado via su/sudo.
   ensure_runtime_deps; ensure_rust; gui_build_deps; ensure_fonts
+  purge_previous "$TARGET_HOME/.cargo/bin"
   # Checkouts PERSISTENTES no HOME do usuário: `target/` cacheado → `cargo build` incremental (só o
   # que mudou recompila; deps pesadas tipo Slint não). Sem `cargo install --force` (que zerava o cache).
   local base="$TARGET_HOME/.schematize/src"; as_user mkdir -p "$base"
@@ -364,6 +438,24 @@ install_source() {
     as_user sh -c "pkill -x schematize-gui" 2>/dev/null || true
   else
     warn "build da GUI Slint falhou — rode o install de novo. (Não instalamos GUI egui de fallback.)"
+  fi
+
+  # GESTOR DE ATUALIZAÇÕES (schematize-updater) — do FONTE, junto com o app.
+  #
+  # Não é acessório: é ele que atualiza tudo depois. Antes vinha só como download do
+  # último RELEASE publicado, que costuma estar atrás do main — então o script do site
+  # instalava um gestor velho, que por sua vez não conseguia entregar correções dele
+  # mesmo. Compilando aqui, quem instala pelo site sai com os DOIS na versão do main.
+  # Se o build falhar, cai no download do release (melhor um gestor velho que nenhum).
+  local upd="$base/schematize-updater"
+  log "compilando o gestor de atualizações — schematize-updater"
+  if _sync_repo "https://github.com/schematizeme/schematize-updater.git" "$upd" 2>/dev/null \
+     && as_user sh -c "cd '$upd' && CARGO_TARGET_DIR='$tgt' cargo build --release" \
+     && as_user install -m755 "$tgt/release/schematize-updater" "$bin/schematize-updater"; then
+    ok "gestor de atualizações instalado (schematize-updater)."
+  else
+    warn "build do schematize-updater falhou — tentando o binário publicado."
+    install_updater || true
   fi
 
   # GUI do updater (janela amigável do gestor de atualizações) — OPCIONAL. Não depende do crate
