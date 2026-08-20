@@ -26,6 +26,38 @@ log() { printf '\033[1;36m▶ %s\033[0m\n' "$*"; }
 ok()  { printf '\033[1;32m✓ %s\033[0m\n' "$*"; }
 die() { printf '\033[1;31m✗ %s\033[0m\n' "$*" >&2; exit 1; }
 
+# ---------------------------------------------------------------------------
+# AUTO-ATUALIZAÇÃO DESTE PRÓPRIO SCRIPT — antes de qualquer outra coisa.
+#
+# O one-liner do site aponta pra releases/latest/download/install.sh, que é um
+# asset CONGELADO na última tag. Mas o que ele instala vem da MAIN. As duas
+# coisas divergem sozinhas com o tempo, e foi exatamente assim que a instalação
+# quebrou: um script publicado na v0.33 mandando `--features gui` a um crate da
+# main onde essa feature já não existe (a GUI egui saiu do CLI).
+#
+# Consertar só o texto do script não resolve — o link do site continuaria
+# servindo o velho até a próxima release. A correção é estrutural: buscar o
+# install.sh da main e passar a bola pra ele. Assim o script que instala é
+# SEMPRE o que casa com o fonte que ele clona, por mais antigo que seja o link
+# que a pessoa usou.
+#
+# Escapes: SCHEMATIZE_INSTALL_NO_SELF=1 pra testar um script local sem que ele
+# se troque; SCHEMATIZE_INSTALL_SELF corta o laço (o script novo não busca de
+# novo). Sem rede pro raw, segue com este mesmo script — degradar é melhor que
+# falhar, e quem está offline não ia clonar nada mesmo.
+# ---------------------------------------------------------------------------
+RAW_INSTALL="https://raw.githubusercontent.com/$REPO/main/install.sh"
+if [ -z "${SCHEMATIZE_INSTALL_SELF:-}" ] && [ -z "${SCHEMATIZE_INSTALL_NO_SELF:-}" ]; then
+  _novo="$(mktemp)"
+  if curl -fsSL "$RAW_INSTALL" -o "$_novo" 2>/dev/null \
+     && [ -s "$_novo" ] \
+     && head -n1 "$_novo" | grep -q '^#!'; then
+    export SCHEMATIZE_INSTALL_SELF=1
+    exec bash "$_novo" "$@"
+  fi
+  rm -f "$_novo"
+fi
+
 [ "$(uname -s)" = "Linux" ] || die "só Linux por enquanto."
 SUDO=""; [ "$(id -u)" -eq 0 ] || SUDO="sudo"
 
