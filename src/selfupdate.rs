@@ -360,16 +360,32 @@ pub fn run() -> Result<String, String> {
     }
 }
 
-/// Move o binário novo pro destino de forma atômica (rename no mesmo FS; fallback cp).
+/// Move o binário novo pro destino de forma atômica, mesmo com ele EM EXECUÇÃO.
+///
+/// O caso que isto cobre: `Text file busy` (ETXTBSY). No Linux não se abre pra escrita
+/// um arquivo que está sendo executado — e o `schematize` está, porque o agente do
+/// autostart roda o tempo todo. Um `fs::copy` direto no destino falha; um `rename(2)`
+/// por cima, não: quem já roda continua no inode antigo e a próxima execução pega o
+/// novo. Por isso o fallback também renomeia (grava ao lado, no MESMO diretório, pra
+/// não cair em EXDEV) em vez de copiar por cima.
 #[cfg(not(target_os = "windows"))]
 fn place(src: &Path, dst: &Path) -> Result<(), String> {
     if fs::rename(src, dst).is_ok() {
+        let _ = util::run("chmod", &["+x", dst.to_str().unwrap_or_default()]);
         return Ok(());
     }
-    // FS diferente: copia e ajusta permissão.
-    fs::copy(src, dst).map_err(|e| format!("não consegui escrever {}: {e}", dst.display()))?;
-    let _ = util::run("chmod", &["+x", dst.to_str().unwrap()]);
-    Ok(())
+    // FS diferente: grava ao lado do destino e renomeia por cima (nunca copia por cima).
+    let tmp = dst.with_file_name(format!(
+        "{}.novo",
+        dst.file_name().and_then(|s| s.to_str()).unwrap_or("schematize")
+    ));
+    let _ = fs::remove_file(&tmp);
+    fs::copy(src, &tmp).map_err(|e| format!("não consegui escrever {}: {e}", tmp.display()))?;
+    let _ = util::run("chmod", &["+x", tmp.to_str().unwrap_or_default()]);
+    fs::rename(&tmp, dst).map_err(|e| {
+        let _ = fs::remove_file(&tmp);
+        format!("não consegui substituir {}: {e}", dst.display())
+    })
 }
 
 #[cfg(unix)]

@@ -1,6 +1,6 @@
 [package]
 name = "schematize"
-version = "0.39.2"
+version = "0.39.3"
 edition = "2021"
 description = "Gerenciador do ecossistema schematize: instala/versiona as skills e roda o modo overdev (dev contínuo à prova de parada). Linux-first."
 license = "MIT"
