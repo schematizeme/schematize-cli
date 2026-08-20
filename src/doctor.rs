@@ -109,7 +109,7 @@ pub fn run(fix: bool) {
     if updaterboot::present() {
         line(&Lv::Ok, "gestor de atualizações (schematize-updater)", "");
     } else {
-        match updaterboot::ensure_now() {
+        match updaterboot::ensure_now_forcado() {
             updaterboot::Outcome::Instalado(p) => {
                 line(&Lv::Ok, "gestor de atualizações (schematize-updater)", &format!("instalado em {}", p.display()));
             }
@@ -120,7 +120,7 @@ pub fn run(fix: bool) {
                 issues += 1;
                 let detalhe = match outcome {
                     updaterboot::Outcome::Falhou(e) => e,
-                    _ => "tentativa recente falhou — tento de novo mais tarde".to_string(),
+                    _ => "não consegui instalar agora (rede?)".to_string(),
                 };
                 line(&Lv::Warn, "gestor de atualizações (schematize-updater)", &detalhe);
             }

@@ -70,18 +70,39 @@ pub enum Outcome {
     Falhou(String),
 }
 
+/// A janela de retentativa já passou? Puro — o carimbo entra por parâmetro.
+fn pode_tentar(agora: u64, ultima: u64) -> bool {
+    agora.saturating_sub(ultima) >= RETRY_EVERY
+}
+
 /// Garante o updater instalado. BLOQUEIA (baixa da rede quando falta) — chame de
 /// uma thread, nunca do event loop da GUI.
 ///
-/// Nunca propaga erro pro chamador como `Err`: um app que não conseguiu instalar
-/// o gestor de atualizações continua funcionando: o [`Outcome`] diz o que houve
-/// pra quem quiser mostrar/logar.
+/// Automático: respeita a janela de [`RETRY_EVERY`], pra máquina offline não bater
+/// no GitHub a cada abertura. Quando o usuário PEDIU (o `doctor`), use
+/// [`ensure_now_forcado`] — aí a janela não se aplica.
+///
+/// Nunca propaga erro como `Err`: um app que não conseguiu instalar o gestor de
+/// atualizações continua funcionando; o [`Outcome`] diz o que houve pra quem
+/// quiser mostrar/logar.
 pub fn ensure_now() -> Outcome {
     if present() {
         return Outcome::JaTinha;
     }
-    if util::now_unix().saturating_sub(last_try()) < RETRY_EVERY {
+    if !pode_tentar(util::now_unix(), last_try()) {
         return Outcome::Adiado;
+    }
+    ensure_now_forcado()
+}
+
+/// Igual a [`ensure_now`], mas IGNORA a janela de retentativa.
+///
+/// É o que o `schematize doctor` chama: ali o usuário pediu explicitamente pra
+/// consertar a máquina, e responder "tento de novo mais tarde" a um pedido direto
+/// é o tipo de resposta que faz a ferramenta parecer quebrada.
+pub fn ensure_now_forcado() -> Outcome {
+    if present() {
+        return Outcome::JaTinha;
     }
     mark_try();
     match selfupdate::ensure_updater() {
@@ -114,11 +135,17 @@ mod tests {
         }
     }
 
-    /// O carimbo é o que segura a tentativa numa máquina offline: gravado agora,
-    /// a janela de retry ainda não passou.
+    /// A janela de retentativa é o que segura a tentativa numa máquina offline.
+    /// Testa a REGRA (pura) — não o carimbo em disco: um teste que escreve o
+    /// carimbo de verdade envenena a janela do usuário que roda `cargo test`
+    /// (foi o que aconteceu: o `doctor` respondeu "tento de novo mais tarde"
+    /// porque a suíte tinha acabado de carimbar).
     #[test]
-    fn carimbo_segura_a_retentativa() {
-        mark_try();
-        assert!(util::now_unix().saturating_sub(last_try()) < RETRY_EVERY);
+    fn janela_de_retentativa() {
+        let agora = 1_000_000u64;
+        assert!(!pode_tentar(agora, agora), "acabou de tentar: não insiste");
+        assert!(!pode_tentar(agora, agora - RETRY_EVERY + 1), "ainda dentro da janela");
+        assert!(pode_tentar(agora, agora - RETRY_EVERY), "janela fechada: pode tentar");
+        assert!(pode_tentar(agora, 0), "nunca tentou: pode tentar");
     }
 }
