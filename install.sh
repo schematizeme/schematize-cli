@@ -369,6 +369,22 @@ install_source() {
   else
     warn "GUI do updater não compilou (opcional) — segue sem ela."
   fi
+  # Os `target/` por-repo de antes do target compartilhado não são mais lidos por
+  # build nenhum — viram dezenas de GB de lixo. O script mudou o layout, o script
+  # limpa: pedir pro usuário apagar à mão é o oposto do piso da casa. Só DEPOIS dos
+  # builds (se algum falhar, o cache antigo continua lá) e só nos caminhos que este
+  # script criou — nada de varrer por padrão.
+  local liberado=0 mb
+  for antigo in "$cli/target" "$gui/target" "$ugui/target"; do
+    [ -d "$antigo" ] || continue
+    mb="$(du -sm "$antigo" 2>/dev/null | cut -f1)"; mb="${mb:-0}"
+    as_user rm -rf "$antigo" 2>/dev/null || true
+    liberado=$(( liberado + mb ))
+  done
+  if [ "$liberado" -gt 0 ]; then
+    ok "liberados ${liberado} MB de target/ antigo (agora há um só, compartilhado)."
+  fi
+
   install_gui_launcher
   post_config
 }
