@@ -74,6 +74,11 @@ pub(crate) enum Cmd {
         #[arg(long, value_name = "K")]
         split: Option<usize>,
     },
+    /// Contas de git/GitHub, repositórios e o que ainda não saiu da máquina.
+    Git {
+        #[command(subcommand)]
+        sub: GitCmd,
+    },
     /// Inventário e limpeza do lixo recriável: artefato de build, cache de toolchain
     /// e camada de Docker — agrupado por DISCO (é o principal que costuma encher).
     Disco {
@@ -310,6 +315,53 @@ pub(crate) enum ProjectsCmd {
 }
 
 /// `schematize disco` — inventário e limpeza do lixo recriável (build, cache, docker).
+/// `schematize git` — contas, repositórios e o que ainda não saiu da máquina.
+#[derive(Subcommand)]
+pub(crate) enum GitCmd {
+    /// Lista as contas cadastradas.
+    Accounts,
+    /// Cadastra (ou substitui) uma conta.
+    Add {
+        /// Rótulo curto e sem espaço ("pessoal", "volucer").
+        rotulo: String,
+        #[arg(long)]
+        usuario: String,
+        #[arg(long)]
+        email: String,
+        /// Arquivo da chave em ~/.ssh (sem isto, a conta usa o `gh`).
+        #[arg(long)]
+        chave: Option<String>,
+        /// Host do serviço (default github.com).
+        #[arg(long)]
+        servico: Option<String>,
+    },
+    /// Remove uma conta pelo rótulo.
+    Remove { rotulo: String },
+    /// Aplica uma conta ao repositório do diretório atual.
+    Use {
+        rotulo: String,
+        /// Nome do remoto (default origin).
+        #[arg(long)]
+        remoto: Option<String>,
+    },
+    /// Escreve o alias SSH da conta no ~/.ssh/config.
+    SshConfig { rotulo: String },
+    /// Lista os repositórios do serviço (via `gh`).
+    Repos {
+        /// Só desta conta (default: todas).
+        rotulo: Option<String>,
+        #[arg(long, default_value_t = 50)]
+        limite: usize,
+    },
+    /// O que ainda NÃO saiu da máquina, projeto a projeto.
+    Status,
+    /// Commits do projeto atual, marcando os já enviados.
+    Log {
+        #[arg(long, default_value_t = 20)]
+        limite: usize,
+    },
+}
+
 #[derive(Subcommand)]
 pub(crate) enum DiscoCmd {
     /// Lista o que dá pra recuperar, agrupado por DISCO e por tipo.

@@ -17,6 +17,7 @@ pub mod diagnostics;
 pub mod environments;
 pub mod disco;
 pub mod doctor;
+pub mod gitcontas;
 pub mod githist;
 pub mod guiactions;
 pub mod i18n;

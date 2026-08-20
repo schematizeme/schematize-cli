@@ -10,6 +10,7 @@ use cli::args::*;
 use cli::conta::*;
 use cli::db::*;
 use cli::disco::*;
+use cli::git::*;
 use cli::diversos::*;
 use cli::overdev::*;
 use cli::skills::*;
@@ -102,6 +103,7 @@ fn main() {
             r
         }
         Cmd::Disco { sub } => disco_cmd(sub),
+        Cmd::Git { sub } => git_cmd(sub),
         Cmd::Doctor { fix } => {
             doctor::run(fix);
             Ok(())

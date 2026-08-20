@@ -12,4 +12,5 @@ pub(crate) mod ssh;
 pub(crate) mod conta;
 pub(crate) mod db;
 pub(crate) mod disco;
+pub(crate) mod git;
 pub(crate) mod diversos;
