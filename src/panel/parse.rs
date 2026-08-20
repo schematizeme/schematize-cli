@@ -1,0 +1,253 @@
+//! Parsers do índice/MAPA: arestas, nós de função (tabela e bullet) e descrições.
+//! Tudo PURO (string -> dado) — é o que torna o formato do índice testável.
+
+use super::*;
+
+/// Limpa a decoração mermaid de um nó (`id[label]`, `id((label))`, aspas, crases).
+pub(crate) fn clean_node(s: &str) -> String {
+    let s = s.trim().trim_matches('`').trim();
+    for (o, c) in [("[[", "]]"), ("((", "))"), ("[", "]"), ("(", ")"), ("{", "}")] {
+        if let (Some(op), Some(cl)) = (s.find(o), s.rfind(c)) {
+            if cl > op + o.len() - 1 {
+                let inner = s[op + o.len()..cl].trim().trim_matches('"').trim();
+                if !inner.is_empty() {
+                    return inner.to_string();
+                }
+            }
+        }
+    }
+    s.trim_matches('"').trim().to_string()
+}
+
+/// Tenta ler uma aresta `A -> B` (adjacência) ou `A -->|label| B` (mermaid).
+pub(crate) fn parse_edge(l: &str) -> Option<(String, String, Option<String>)> {
+    // Normaliza toda variante de seta pra `->`: mermaid (`-->`,`-.->`,`==>`) E unicode (`→`,`⟶`,`⇒`),
+    // que o índice às vezes grava na lista de adjacência pesquisável e que o parser antes ignorava.
+    let s = l
+        .replace("-->", "->")
+        .replace("-.->", "->")
+        .replace("==>", "->")
+        .replace('→', "->")
+        .replace('⟶', "->")
+        .replace('⇒', "->");
+    let idx = s.find("->")?;
+    let left = s[..idx].trim();
+    let mut right = s[idx + 2..].trim().to_string();
+    if left.is_empty() || right.is_empty() {
+        return None;
+    }
+    let mut label: Option<String> = None;
+    // mermaid: right pode vir "|contrato| B"
+    if right.starts_with('|') {
+        if let Some(end) = right[1..].find('|') {
+            label = Some(right[1..1 + end].trim().to_string());
+            right = right[1 + end + 1..].trim().to_string();
+        }
+    }
+    // adjacência: "B (contrato)"
+    if right.ends_with(')') {
+        if let Some(op) = right.rfind('(') {
+            label = Some(right[op + 1..right.len() - 1].trim().to_string());
+            right = right[..op].trim().to_string();
+        }
+    }
+    let a = clean_node(left);
+    let b = clean_node(&right);
+    if a.is_empty() || b.is_empty() || a.len() > 48 || b.len() > 48 {
+        return None;
+    }
+    // `|` = célula de tabela vazando um "->" interno (ex.: "api->db"); não é aresta de grafo.
+    if a.contains('|') || b.contains('|') {
+        return None;
+    }
+    // nós são identificadores/serviços curtos; frase com muitos espaços é legenda, não nó.
+    let spaces = |s: &str| s.matches(' ').count();
+    if spaces(&a) > 3 || spaces(&b) > 3 {
+        return None;
+    }
+    Some((a, b, label.filter(|s| !s.is_empty())))
+}
+
+/// True se a célula parece `caminho/arquivo.ext:123`.
+pub(crate) fn looks_like_loc(c: &str) -> bool {
+    if let Some(idx) = c.rfind(':') {
+        let after = &c[idx + 1..];
+        return !after.is_empty()
+            && after.chars().all(|ch| ch.is_ascii_digit())
+            && (c.contains('/') || c.contains('.'));
+    }
+    false
+}
+
+/// Lê uma microfunção em BULLET do MAPA/§39: `- \`nome\` — descrição · arquivo:linha` (ou sem loc).
+/// Devolve `(nome, Option<loc>)`. None se não for um bullet com nome curto e um em-dash de descrição.
+/// NUNCA trata aresta (`->`) como função. É o que faz as microfunções em lista virarem nós do grafo.
+pub(crate) fn parse_func_bullet(l: &str) -> Option<(String, Option<String>)> {
+    // Precisa ser bullet (`-`/`*`) — evita casar linhas de texto corrido.
+    let t = l.trim_start();
+    if !(t.starts_with("- ") || t.starts_with("* ")) {
+        return None;
+    }
+    let s = t[2..].trim();
+    if s.is_empty() || s.contains("->") {
+        return None;
+    }
+    // Precisa do em-dash separando nome — descrição (mesma convenção de `parse_desc_line`).
+    let i = s.find('—')?;
+    let name = clean_node(s[..i].trim());
+    if name.is_empty() || name.len() > 80 || name.matches(' ').count() > 4 {
+        return None;
+    }
+    // Localização opcional: a última célula que parecer `arquivo.ext:linha` (após `·`, `—` ou espaço).
+    let rest = &s[i + '—'.len_utf8()..];
+    let loc = rest
+        .split(['·', '—', '|', '(', ')'])
+        .flat_map(|seg| seg.split_whitespace())
+        .map(|c| c.trim_matches('`').trim())
+        .find(|c| looks_like_loc(c))
+        .map(|c| c.to_string());
+    Some((name, loc))
+}
+
+/// Lê uma linha de tabela de índice `nome | ... | arquivo:linha` → (nome, loc).
+pub(crate) fn parse_func_row(l: &str) -> Option<(String, String)> {
+    if !l.contains('|') {
+        return None;
+    }
+    let cells: Vec<&str> = l.trim().trim_matches('|').split('|').map(|c| c.trim()).collect();
+    if cells.len() < 2 {
+        return None;
+    }
+    let name = cells[0].trim_matches('`').trim();
+    if name.is_empty()
+        || name.len() > 80
+        || name.eq_ignore_ascii_case("função")
+        || name.eq_ignore_ascii_case("funcao")
+        || name.starts_with("---")
+        || name.starts_with(":--")
+    {
+        return None;
+    }
+    let loc = cells.iter().find(|c| looks_like_loc(c))?;
+    Some((name.to_string(), loc.trim().to_string()))
+}
+
+/// Varre TODOS os `.md` do dir do index e monta (nós, arestas) — funde tudo (visão legada).
+pub fn parse_graph(dir: &Path) -> (Vec<Node>, Vec<Edge>) {
+    let mut files: Vec<PathBuf> = Vec::new();
+    if let Ok(rd) = fs::read_dir(dir) {
+        for e in rd.flatten() {
+            let p = e.path();
+            if p.extension().and_then(|s| s.to_str()) == Some("md") {
+                files.push(p);
+            }
+        }
+    }
+    files.sort();
+    parse_graph_files(&files)
+}
+
+/// Monta (nós, arestas) parseando SÓ os arquivos dados (ex.: apenas `GRAFO_GLOBAL.md`, ou um
+/// `<servico>.md`). Base compartilhada por [`parse_graph`], [`load_graph`] e [`load_service_graph`].
+pub fn parse_graph_files(files: &[PathBuf]) -> (Vec<Node>, Vec<Edge>) {
+    let mut locs: BTreeMap<String, String> = BTreeMap::new();
+    let mut edges: Vec<Edge> = Vec::new();
+    let mut ids: BTreeSet<String> = BTreeSet::new();
+    let mut seen_edge: BTreeSet<(String, String)> = BTreeSet::new();
+    {
+        for p in files {
+            let text = fs::read_to_string(p).unwrap_or_default();
+            for line in text.lines() {
+                let l = line.trim();
+                // Arestas: linhas de adjacência/mermaid (ASCII `->`/`-->` OU unicode `→`/`⟶`/`⇒`) —
+                // nunca linhas de tabela (`|`).
+                let has_arrow = l.contains("->") || l.contains('→') || l.contains('⟶') || l.contains('⇒');
+                if has_arrow && !l.starts_with('|') {
+                    if let Some((a, b, lab)) = parse_edge(l) {
+                        ids.insert(a.clone());
+                        ids.insert(b.clone());
+                        if seen_edge.insert((a.clone(), b.clone())) {
+                            edges.push(Edge { from: a, to: b, label: lab });
+                        }
+                    }
+                }
+                if l.contains('|') {
+                    if let Some((name, loc)) = parse_func_row(l) {
+                        ids.insert(name.clone());
+                        locs.insert(name, loc);
+                    }
+                } else if let Some((name, loc)) = parse_func_bullet(l) {
+                    // Microfunção em bullet `- \`nome\` — desc · arquivo:linha` (formato comum do
+                    // MAPA §39) — vira nó com localização, senão essas funções nunca apareciam.
+                    ids.insert(name.clone());
+                    if let Some(loc) = loc {
+                        locs.insert(name, loc);
+                    }
+                }
+            }
+        }
+    }
+    let nodes = ids
+        .into_iter()
+        .map(|id| {
+            let loc = locs.get(&id).cloned();
+            Node { id, loc }
+        })
+        .collect();
+    (nodes, edges)
+}
+
+/// Lê uma linha de tabela de índice e extrai (nó, descrição curta): o nome é a 1ª
+/// célula (mesma normalização de `parse_func_row`), a descrição é a 1ª célula
+/// seguinte que NÃO é um `arquivo:linha`, separador ou vazia (tipicamente a coluna
+/// "O quê"). Best-effort: None se não parecer uma linha de dado.
+pub(crate) fn parse_desc_row(l: &str) -> Option<(String, String)> {
+    if !l.contains('|') {
+        return None;
+    }
+    let cells: Vec<&str> = l.trim().trim_matches('|').split('|').map(|c| c.trim()).collect();
+    if cells.len() < 2 {
+        return None;
+    }
+    let name = cells[0].trim_matches('`').trim();
+    if name.is_empty()
+        || name.len() > 80
+        || name.starts_with("---")
+        || name.starts_with(":--")
+        || name.eq_ignore_ascii_case("função")
+        || name.eq_ignore_ascii_case("funcao")
+        || name.eq_ignore_ascii_case("repo/serviço")
+        || name.eq_ignore_ascii_case("origem")
+        || name.eq_ignore_ascii_case("pasta top-level")
+    {
+        return None;
+    }
+    let desc = cells[1..]
+        .iter()
+        .map(|c| c.trim_matches('`').trim())
+        .find(|c| !c.is_empty() && !looks_like_loc(c) && !c.starts_with("---") && !c.starts_with(":--"))?;
+    if desc.is_empty() || desc.len() > 240 {
+        return None;
+    }
+    Some((name.to_string(), desc.to_string()))
+}
+
+/// Lê uma linha de doc/hub `nó — descrição` (aceita bullet e `[[nó]]`); usa o
+/// em-dash como separador. None se não casar. Nunca trata aresta (`->`) como desc.
+pub(crate) fn parse_desc_line(l: &str) -> Option<(String, String)> {
+    let s = l.trim_start_matches(['-', '*', '>']).trim();
+    if s.is_empty() || s.contains("->") {
+        return None;
+    }
+    let i = s.find('—')?;
+    let left = s[..i].trim();
+    let right = s[i + '—'.len_utf8()..].trim().trim_matches('`').trim();
+    if left.is_empty() || right.is_empty() || right.len() > 240 {
+        return None;
+    }
+    let name = clean_node(left);
+    if name.is_empty() || name.len() > 80 {
+        return None;
+    }
+    Some((name, right.to_string()))
+}

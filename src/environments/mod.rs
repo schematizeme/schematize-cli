@@ -16,63 +16,26 @@ use defs::{Env, Recipe, Step, Tool};
 use detect::Family;
 use std::io::{self, BufRead, Write};
 
+// Submódulos (piso da casa: <=750 linhas, uma unidade lógica por arquivo).
+mod maquina;
+mod estado;
+mod plano;
+mod acoes;
+mod path;
+use maquina::*;
+pub use estado::*;
+pub use plano::*;
+pub use acoes::*;
+pub use path::*;
+
+
 // Re-exporta `Method` no nível do módulo (traz pra escopo interno E expõe como
 // `environments::Method` pra consumidores externos, ex.: a GUI).
 pub use defs::Method;
 
 
-/// Snapshot do que a máquina oferece — calculado uma vez por comando.
-struct Machine {
-    family: Family,
-    mise: bool,
-    docker: bool,
-}
 
-impl Machine {
-    /// Sonda a máquina (família da distro, mise/docker presentes).
-    fn probe() -> Machine {
-        Machine {
-            family: detect::family(),
-            mise: detect::has_mise(),
-            docker: detect::has_docker(),
-        }
-    }
 
-    /// Métodos DISPONÍVEIS nesta máquina, em ordem estável.
-    /// mise/official sempre disponíveis (bootstrappáveis); docker só com docker; distro só com família.
-    fn available(&self) -> Vec<Method> {
-        Method::ALL
-            .into_iter()
-            .filter(|m| self.method_reason(*m).is_ok())
-            .collect()
-    }
-
-    /// Ok se o método é utilizável aqui; Err(razão) caso contrário (deny-by-default).
-    fn method_reason(&self, m: Method) -> Result<(), String> {
-        match m {
-            Method::Docker if !self.docker => Err("docker não encontrado no PATH.".into()),
-            Method::Distro if self.family == Family::Unknown => {
-                Err("família da distro não detectada (/etc/os-release).".into())
-            }
-            _ => Ok(()),
-        }
-    }
-}
-
-/// Como um environment está instalado nesta máquina (pra tabela e idempotência).
-fn installed_method(env: &Env, m: &Machine) -> Option<Method> {
-    if m.docker {
-        if let Some(img) = defs::docker_image(env.lang) {
-            if detect::docker_image_present(img) {
-                return Some(Method::Docker);
-            }
-        }
-    }
-    if m.mise && detect::mise_has(defs::mise_tools(env.lang).last().copied().unwrap_or("")) {
-        return Some(Method::Mise);
-    }
-    None
-}
 
 // ---------------------------------------------------------------------------
 // API de DADOS pública (aditiva): o status estruturado de cada environment nesta
@@ -80,319 +43,21 @@ fn installed_method(env: &Env, m: &Machine) -> Option<Method> {
 // consumir isto (fonte única; nada de duplicar a detecção). O egui não usa.
 // ---------------------------------------------------------------------------
 
-/// Status estruturado de UM environment nesta máquina.
-/// Cobre linguagens E ferramentas: a GUI agrupa/distingue por `category`
-/// ("language" | "tool"). Ferramentas não têm método (`methods_available` vazio,
-/// `installed` sempre None) — seu status vem só de `runtime_present` (bin no PATH).
-pub struct LangEnv {
-    /// slug curto ("go", "rust", "claude", "code", ...).
-    pub lang: &'static str,
-    /// nome de exibição ("Go", "C# / .NET", "Claude Code", ...).
-    pub display: &'static str,
-    /// categoria pra a GUI agrupar: "language" (runtime) | "tool" (ferramenta de dev).
-    pub category: &'static str,
-    /// rótulo do caminho de instalação (linguagem: métodos disponíveis; ferramenta: fonte canônica).
-    pub install_hint: String,
-    /// métodos utilizáveis NESTA máquina (docker só com docker; distro só com família).
-    /// Vazio pra ferramentas (não usam os 4 métodos).
-    pub methods_available: Vec<Method>,
-    /// método de instalação DETECTADO (docker/mise), quando rastreável; None caso contrário
-    /// (e sempre None pra ferramentas).
-    pub installed: Option<Method>,
-    /// runtime/binário já presente no PATH (cobre distro/official e TODAS as ferramentas).
-    pub runtime_present: bool,
-}
 
-impl LangEnv {
-    /// A GUI/tabela consideram "instalado" se há método detectado OU o runtime no PATH.
-    pub fn is_installed(&self) -> bool {
-        self.installed.is_some() || self.runtime_present
-    }
-}
 
-/// Status de TODOS os environments nesta máquina (sonda a máquina UMA vez).
-/// Lista linguagens PRIMEIRO, ferramentas depois. Fonte única (o `list()` e a GUI
-/// consomem isto). Reaproveita exatamente a detecção que a tabela usa.
-pub fn status() -> Vec<LangEnv> {
-    let m = Machine::probe();
-    let available = m.available();
-    let langs = defs::ENVS.iter().map(|env| LangEnv {
-        lang: env.lang,
-        display: env.display,
-        category: "language",
-        install_hint: available.iter().map(|x| x.slug()).collect::<Vec<_>>().join(", "),
-        methods_available: available.clone(),
-        installed: installed_method(env, &m),
-        runtime_present: detect::has_bin(env.bin),
-    });
-    let tools = defs::TOOLS.iter().map(|tool| LangEnv {
-        lang: tool.slug,
-        display: tool.display,
-        category: "tool",
-        install_hint: tool.source_hint.to_string(),
-        methods_available: Vec::new(),
-        installed: None,
-        runtime_present: detect::has_bin(tool.bin),
-    });
-    langs.chain(tools).collect()
-}
 
-/// Texto de status pra a tabela: instalado por qual método, ou só "instalado", ou não.
-fn status_text(le: &LangEnv) -> String {
-    if let Some(method) = le.installed {
-        return tf("env.installed_via", &[("method", method.slug())]);
-    }
-    if le.runtime_present {
-        return t("env.installed");
-    }
-    t("env.not_installed")
-}
 
-/// `schematize env list` — tabela: nome, caminho de instalação, e status.
-/// Linguagens e ferramentas na mesma tabela, com um cabeçalho por seção.
-pub fn list() {
-    let envs = status();
-    println!("{}", t("env.header"));
-    println!(
-        "  {:<14} {:<34} {}",
-        t("env.col_lang"),
-        t("env.col_methods"),
-        t("env.col_status")
-    );
-    let mut printed_tools_header = false;
-    for le in &envs {
-        // Um cabeçalho de seção quando começam as ferramentas.
-        if le.category == "tool" && !printed_tools_header {
-            println!("{}", t("env.tools_header"));
-            printed_tools_header = true;
-        }
-        println!("  {:<14} {:<34} {}", le.display, le.install_hint, status_text(le));
-    }
-}
 
-/// Imprime o plano de uma LINGUAGEM (título + passos).
-fn print_plan(env: &Env, method: Method, steps: &[Step]) {
-    println!(
-        "{}",
-        tf("env.plan_title", &[("lang", env.display), ("method", method.slug())])
-    );
-    print_steps(steps);
-}
 
-/// Imprime o plano de uma FERRAMENTA (título próprio + passos).
-fn print_tool_plan(tool: &Tool, steps: &[Step]) {
-    println!("{}", tf("env.tool_plan_title", &[("tool", tool.display)]));
-    print_steps(steps);
-}
 
-/// Imprime a lista de passos (comando exato + procedência + selos sudo/pipe|sh).
-/// Compartilhado por linguagens e ferramentas — o guardrail é o mesmo pra ambos.
-fn print_steps(steps: &[Step]) {
-    for s in steps {
-        if s.source == "nota" {
-            // passo informativo (no-op) — mostra só a orientação, não como comando.
-            let msg = s.cmd.trim_start_matches(": # ");
-            println!("    · {msg}");
-            continue;
-        }
-        let mut tags = String::new();
-        if s.sudo {
-            tags.push_str(&format!(" {}", t("env.tag_sudo")));
-        }
-        if s.pipe_sh {
-            tags.push_str(&format!(" {}", t("env.tag_pipe")));
-        }
-        println!("    $ {}{}", s.cmd, tags);
-        println!("        {} {}", t("env.source"), s.source);
-    }
-}
 
-/// Pergunta interativa de consentimento (y/N). Falha fechada: erro/EOF = não.
-fn confirm() -> bool {
-    print!("{} ", t("env.confirm"));
-    let _ = io::stdout().flush();
-    let mut line = String::new();
-    if io::stdin().lock().read_line(&mut line).is_err() {
-        return false;
-    }
-    matches!(line.trim().to_lowercase().as_str(), "y" | "yes" | "s" | "sim")
-}
 
-/// O que fazer com um plano depois de exibido — decisão PURA (testável sem I/O).
-#[derive(Debug, PartialEq, Eq)]
-pub enum PlanAction {
-    /// dry-run: nada executado.
-    DryRun,
-    /// sem consentimento: abortado, nada executado.
-    Aborted,
-    /// executado (todos os passos rodaram).
-    Executed,
-}
 
-/// Núcleo testável da execução: decide e roda os passos via o runner injetado.
-/// Com `dry_run` NUNCA chama o runner; sem `consent` também não. Retorna o que ocorreu.
-pub fn run_steps<R>(steps: &[Step], dry_run: bool, consent: bool, mut run: R) -> Result<PlanAction, String>
-where
-    R: FnMut(&Step) -> Result<(), String>,
-{
-    if dry_run {
-        return Ok(PlanAction::DryRun);
-    }
-    if !consent {
-        return Ok(PlanAction::Aborted);
-    }
-    for s in steps {
-        run(s)?;
-    }
-    Ok(PlanAction::Executed)
-}
 
-/// Executa um passo de verdade (a menos que seja nota/no-op).
-fn exec_step(s: &Step) -> Result<(), String> {
-    if s.source == "nota" {
-        return Ok(());
-    }
-    util::run_shell(&s.cmd)
-}
 
-/// `schematize env install <slug> [--method <m>] [--dry-run] [--yes]`.
-/// Aceita linguagem (go/rust/...) OU ferramenta (claude/code/codex). Pra ferramenta
-/// o `--method` é ignorado (não há seletor — cada uma tem 1 caminho canônico).
-pub fn install(lang: &str, method: Option<String>, dry_run: bool, yes: bool) -> Result<(), String> {
-    if let Some(tool) = defs::find_tool(lang) {
-        return install_tool(tool, method, dry_run, yes);
-    }
-    let env = defs::find(lang).ok_or_else(|| tf("env.unknown_lang", &[("lang", lang)]))?;
-    let m = Machine::probe();
 
-    // Sem --method: lista os disponíveis e PEDE um (não escolhe sozinho).
-    let method = match method {
-        Some(s) => Method::parse(&s).ok_or_else(|| tf("env.method_unknown", &[("method", &s)]))?,
-        None => {
-            let avail: Vec<&str> = m.available().iter().map(|x| x.slug()).collect();
-            return Err(tf("env.method_required", &[("methods", &avail.join(", "))]));
-        }
-    };
-    // Método inválido/indisponível → erro claro.
-    if let Err(reason) = m.method_reason(method) {
-        return Err(tf(
-            "env.method_unavailable",
-            &[("method", method.slug()), ("reason", &reason)],
-        ));
-    }
 
-    // Idempotência: se já instalado por esse método (ou runtime já presente p/ distro/official).
-    if already_installed(env, method, &m) {
-        println!("{}", tf("env.already", &[("lang", env.display), ("method", method.slug())]));
-        return Ok(());
-    }
 
-    let recipe = defs::install_recipe(env, method, m.family, m.mise);
-    let steps = match recipe {
-        Recipe::Steps(s) => s,
-        Recipe::Todo(note) => {
-            println!("{}", tf("env.todo", &[("lang", env.display), ("method", method.slug()), ("note", &note)]));
-            return Ok(());
-        }
-        Recipe::Na(note) => return Err(tf("env.na", &[("note", &note)])),
-    };
-
-    print_plan(env, method, &steps);
-    for c in defs::tool_caveats(env.lang, method) {
-        println!("    ! {} {}", t("env.caveat"), c);
-    }
-    if method == Method::Mise && !m.mise {
-        println!("    ! {}", t("env.mise_bootstrap"));
-    }
-
-    // Consentimento (deny-by-default): dry-run não executa; senão --yes ou confirmação.
-    let consent = if dry_run { false } else { yes || confirm() };
-    match run_steps(&steps, dry_run, consent, exec_step)? {
-        PlanAction::DryRun => {
-            println!("{}", t("env.dry_run"));
-            return Ok(());
-        }
-        PlanAction::Aborted => {
-            println!("{}", t("env.aborted"));
-            return Ok(());
-        }
-        PlanAction::Executed => {}
-    }
-
-    println!("{}", tf("env.done", &[("lang", env.display), ("method", method.slug())]));
-    if method == Method::Docker {
-        if let Some(img) = defs::docker_image(env.lang) {
-            print_docker_usage(env, img);
-        }
-    }
-    Ok(())
-}
-
-/// Idempotência: environment já satisfeito por este método?
-fn already_installed(env: &Env, method: Method, m: &Machine) -> bool {
-    match method {
-        Method::Docker => defs::docker_image(env.lang)
-            .map(detect::docker_image_present)
-            .unwrap_or(false),
-        Method::Mise => {
-            m.mise && detect::mise_has(defs::mise_tools(env.lang).last().copied().unwrap_or(""))
-        }
-        // distro/official: se o runtime já está no PATH, o objetivo do env está atendido.
-        Method::Distro | Method::Official => detect::has_bin(env.bin),
-    }
-}
-
-/// Imprime como USAR a imagem docker recém-baixada (docker run + snippet devcontainer).
-fn print_docker_usage(env: &Env, img: &str) {
-    println!("{}", t("env.docker_usage"));
-    println!(
-        "    $ docker run --rm -it -v \"$PWD\":/work -w /work {img} {}",
-        env.bin
-    );
-    println!("    .devcontainer/devcontainer.json:");
-    println!("      {{ \"image\": \"{img}\" }}");
-}
-
-/// `schematize env remove <slug> [--method <m>] [--dry-run]`.
-/// Aceita linguagem OU ferramenta; pra ferramenta o `--method` é ignorado.
-pub fn remove(lang: &str, method: Option<String>, dry_run: bool) -> Result<(), String> {
-    if let Some(tool) = defs::find_tool(lang) {
-        return remove_tool(tool, method, dry_run);
-    }
-    let env = defs::find(lang).ok_or_else(|| tf("env.unknown_lang", &[("lang", lang)]))?;
-    let m = Machine::probe();
-
-    // Sem --method: detecta como foi instalado (docker/mise); se ambíguo, pede.
-    let method = match method {
-        Some(s) => Method::parse(&s).ok_or_else(|| tf("env.method_unknown", &[("method", &s)]))?,
-        None => match installed_method(env, &m) {
-            Some(mm) => mm,
-            None => return Err(tf("env.remove_no_method", &[("lang", env.display)])),
-        },
-    };
-
-    let recipe = defs::remove_recipe(env, method, m.family);
-    let steps = match recipe {
-        Recipe::Steps(s) => s,
-        Recipe::Todo(note) => {
-            println!("{}", tf("env.todo", &[("lang", env.display), ("method", method.slug()), ("note", &note)]));
-            return Ok(());
-        }
-        Recipe::Na(note) => return Err(tf("env.na", &[("note", &note)])),
-    };
-
-    println!("{}", tf("env.removing", &[("lang", env.display), ("method", method.slug())]));
-    print_plan(env, method, &steps);
-
-    // Remoção também respeita dry-run e consentimento.
-    let consent = if dry_run { false } else { confirm() };
-    match run_steps(&steps, dry_run, consent, exec_step)? {
-        PlanAction::DryRun => println!("{}", t("env.dry_run")),
-        PlanAction::Aborted => println!("{}", t("env.aborted")),
-        PlanAction::Executed => println!("{}", tf("env.done", &[("lang", env.display), ("method", method.slug())])),
-    }
-    Ok(())
-}
 
 // ---------------------------------------------------------------------------
 // FERRAMENTAS: instalação/remoção. Reusa o MESMO guardrail (mostra o comando,
@@ -400,74 +65,8 @@ pub fn remove(lang: &str, method: Option<String>, dry_run: bool) -> Result<(), S
 // seletor de método: se vier `--method`, avisa e ignora.
 // ---------------------------------------------------------------------------
 
-/// Avisa (uma vez) que o `--method` é ignorado pra ferramentas.
-fn warn_method_ignored(tool: &Tool, method: &Option<String>) {
-    if let Some(mm) = method {
-        println!("{}", tf("env.tool_method_ignored", &[("tool", tool.display), ("method", mm)]));
-    }
-}
 
-/// `schematize env install <tool>` — caminho canônico da ferramenta (por família no VS Code).
-fn install_tool(tool: &Tool, method: Option<String>, dry_run: bool, yes: bool) -> Result<(), String> {
-    warn_method_ignored(tool, &method);
-    let m = Machine::probe();
 
-    // Idempotência: se o binário já está no PATH, nada a fazer.
-    if detect::has_bin(tool.bin) {
-        println!("{}", tf("env.tool_already", &[("tool", tool.display)]));
-        return Ok(());
-    }
-
-    let steps = match defs::tool_install_recipe(tool, m.family) {
-        Recipe::Steps(s) => s,
-        Recipe::Todo(note) => {
-            println!("{}", tf("env.tool_todo", &[("tool", tool.display), ("note", &note)]));
-            return Ok(());
-        }
-        Recipe::Na(note) => return Err(tf("env.na", &[("note", &note)])),
-    };
-
-    print_tool_plan(tool, &steps);
-
-    // Consentimento (deny-by-default): dry-run não executa; senão --yes ou confirmação.
-    let consent = if dry_run { false } else { yes || confirm() };
-    match run_steps(&steps, dry_run, consent, exec_step)? {
-        PlanAction::DryRun => println!("{}", t("env.dry_run")),
-        PlanAction::Aborted => println!("{}", t("env.aborted")),
-        PlanAction::Executed => {
-            println!("{}", tf("env.tool_done", &[("tool", tool.display)]));
-            // Prontidão pós-instalação: garante que o bin fique utilizável (PATH pronto).
-            ensure_tool_ready(tool);
-        }
-    }
-    Ok(())
-}
-
-/// `schematize env remove <tool>` — desfaz o caminho canônico (por família no VS Code).
-fn remove_tool(tool: &Tool, method: Option<String>, dry_run: bool) -> Result<(), String> {
-    warn_method_ignored(tool, &method);
-    let m = Machine::probe();
-
-    let steps = match defs::tool_remove_recipe(tool, m.family) {
-        Recipe::Steps(s) => s,
-        Recipe::Todo(note) => {
-            println!("{}", tf("env.tool_todo", &[("tool", tool.display), ("note", &note)]));
-            return Ok(());
-        }
-        Recipe::Na(note) => return Err(tf("env.na", &[("note", &note)])),
-    };
-
-    println!("{}", tf("env.tool_removing", &[("tool", tool.display)]));
-    print_tool_plan(tool, &steps);
-
-    let consent = if dry_run { false } else { confirm() };
-    match run_steps(&steps, dry_run, consent, exec_step)? {
-        PlanAction::DryRun => println!("{}", t("env.dry_run")),
-        PlanAction::Aborted => println!("{}", t("env.aborted")),
-        PlanAction::Executed => println!("{}", tf("env.tool_done", &[("tool", tool.display)])),
-    }
-    Ok(())
-}
 
 // ---------------------------------------------------------------------------
 // PRONTIDÃO PÓS-INSTALAÇÃO. Muitos instaladores oficiais (Claude Code, e qualquer
@@ -478,82 +77,10 @@ fn remove_tool(tool: &Tool, method: Option<String>, dry_run: bool) -> Result<(),
 // orienta como recarregar. Best-effort: NUNCA quebra a instalação já concluída.
 // ---------------------------------------------------------------------------
 
-/// A linha de export que garante ~/.local/bin no PATH do usuário.
-const LOCAL_BIN_EXPORT: &str = "export PATH=\"$HOME/.local/bin:$PATH\"";
 
-/// Decisão PURA: precisa consertar o PATH? Só quando o binário NÃO está no PATH
-/// mas EXISTE em ~/.local/bin — nesse caso, pôr ~/.local/bin no PATH resolve. Se
-/// nem no PATH nem no ~/.local/bin, o problema é outro (instalação falhou) e não
-/// há PATH a consertar. Testável sem tocar o disco.
-pub fn needs_path_fix(bin_in_path: bool, bin_in_local_bin: bool) -> bool {
-    !bin_in_path && bin_in_local_bin
-}
 
-/// Decisão PURA e idempotente: o conteúdo de um rc já garante ~/.local/bin no PATH?
-/// Considera presente qualquer linha NÃO-comentada que exporte um PATH mencionando
-/// `.local/bin`. Assim não duplicamos a linha em quem já a tem. Testável com string.
-pub fn rc_already_has_local_bin(content: &str) -> bool {
-    content.lines().any(|l| {
-        let l = l.trim();
-        !l.starts_with('#') && l.contains(".local/bin") && l.contains("PATH")
-    })
-}
 
-/// Garante (idempotente, best-effort) a linha de export num arquivo rc. Cria o
-/// arquivo se não existir (ex.: ~/.bashrc ausente). Retorna Ok(true) se ADICIONOU
-/// a linha, Ok(false) se já estava lá, Err se não deu pra escrever.
-fn ensure_export_in_rc(path: &std::path::Path) -> Result<bool, String> {
-    let existing = std::fs::read_to_string(path).unwrap_or_default();
-    if rc_already_has_local_bin(&existing) {
-        return Ok(false);
-    }
-    let mut new = existing;
-    if !new.is_empty() && !new.ends_with('\n') {
-        new.push('\n');
-    }
-    new.push_str("\n# schematize: garante ~/.local/bin no PATH\n");
-    new.push_str(LOCAL_BIN_EXPORT);
-    new.push('\n');
-    std::fs::write(path, &new).map_err(|e| format!("{}: {e}", path.display()))?;
-    Ok(true)
-}
 
-/// Prontidão pós-instalação de uma ferramenta — deixa o binário USÁVEL de verdade.
-/// (i) reconfere o bin no PATH (`command -v`); (ii) se não estiver mas existir em
-/// ~/.local/bin, garante ~/.local/bin no PATH (~/.bashrc E ~/.profile, idempotente)
-/// e orienta reabrir o terminal ou `source`; (iii) se não apareceu em lugar nenhum,
-/// avisa que a instalação pode ter falhado. Best-effort: nunca propaga erro.
-fn ensure_tool_ready(tool: &Tool) {
-    // (i) reconfere no PATH — se já resolve, está pronto pra uso.
-    if detect::has_bin(tool.bin) {
-        println!("{}", tf("env.ready_ok", &[("bin", tool.bin)]));
-        return;
-    }
-    // (ii) não está no PATH — está em ~/.local/bin? Aí é só faltar o dir no PATH.
-    let local_bin = util::home().join(".local").join("bin").join(tool.bin);
-    if needs_path_fix(false, local_bin.exists()) {
-        let mut changed = false;
-        let mut failed = false;
-        for rc in [".bashrc", ".profile"] {
-            match ensure_export_in_rc(&util::home().join(rc)) {
-                Ok(true) => changed = true,
-                Ok(false) => {}
-                Err(e) => {
-                    failed = true;
-                    println!("{}", tf("env.path_fix_failed", &[("error", &e)]));
-                }
-            }
-        }
-        if changed {
-            println!("{}", t("env.path_fixed"));
-        } else if !failed {
-            println!("{}", t("env.path_already"));
-        }
-        return;
-    }
-    // (iii) nem no PATH nem em ~/.local/bin — a instalação pode ter falhado.
-    println!("{}", tf("env.ready_missing", &[("bin", tool.bin)]));
-}
 
 #[cfg(test)]
 mod tests {
