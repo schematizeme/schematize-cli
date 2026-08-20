@@ -64,9 +64,27 @@ pub fn run(fix: bool) {
         }
     }
 
-    // overdev hooks (informativo)
-    let od = if settings::overdev_enabled() { t("common.on") } else { t("common.off") };
-    line(&Lv::Ok, &t("doctor.check_overdev"), &od);
+    // overdev hooks. Além de ligado/desligado, checa se o COMANDO gravado é o desta
+    // versão: o `settings.json` guarda o comando de quem ligou o overdev, e atualizar
+    // o app não regravava. Quem ligou numa versão antiga seguia com um caminho
+    // absoluto (`/usr/bin/schematize`, do pacote .deb) que o install do fonte removeu
+    // — `not found` em toda parada do agente. Aqui a gente regrava.
+    if settings::overdev_enabled() {
+        let exe = util::self_exe();
+        if settings::hooks_atualizados(&exe) {
+            line(&Lv::Ok, &t("doctor.check_overdev"), &t("common.on"));
+        } else {
+            match settings::refresh_hooks(&exe) {
+                Ok(_) => line(&Lv::Ok, &t("doctor.check_overdev"), "comando desatualizado — regravado"),
+                Err(e) => {
+                    issues += 1;
+                    line(&Lv::Warn, &t("doctor.check_overdev"), &e);
+                }
+            }
+        }
+    } else {
+        line(&Lv::Ok, &t("doctor.check_overdev"), &t("common.off"));
+    }
 
     // agente (informativo)
     let ag = if autostart::is_active() { t("status.agent_active") } else { t("status.agent_inactive") };

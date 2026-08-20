@@ -89,6 +89,45 @@ pub fn enable(exe: &str) -> Result<(), String> {
     save(&root)
 }
 
+/// Os hooks registrados batem com o comando que ESTA versão gravaria?
+///
+/// `false` quando o `settings.json` guarda um comando de uma versão anterior — o caso
+/// real: um hook com caminho absoluto (`/usr/bin/schematize`, do pacote .deb) que o
+/// install do fonte removeu, deixando `not found` em todo Stop. O `enable` já grava o
+/// resolvedor resiliente, mas ninguém re-roda `enable` ao atualizar o app: o comando
+/// velho fica lá pra sempre.
+pub fn hooks_atualizados(exe: &str) -> bool {
+    let root = load();
+    let esperado = [("Stop", "overdev check"), ("PreToolUse", "overdev guard")];
+    esperado.iter().all(|(event, sub)| {
+        let alvo = hook_cmd(exe, sub);
+        root.get("hooks")
+            .and_then(|h| h.get(event))
+            .and_then(|a| a.as_array())
+            .is_some_and(|arr| {
+                arr.iter().any(|g| {
+                    g.get("hooks").and_then(|h| h.as_array()).is_some_and(|hs| {
+                        hs.iter().any(|h| h.get("command").and_then(|c| c.as_str()) == Some(alvo.as_str()))
+                    })
+                })
+            })
+    })
+}
+
+/// Regrava os hooks com o comando desta versão — SÓ se o overdev já estiver ligado.
+///
+/// É a auto-cura: quem ligou o overdev numa versão antiga carrega o comando daquela
+/// versão no `settings.json`, e atualizar o app não mexia nisso. Chamado de onde roda
+/// com frequência (o agente) e do `doctor`. Devolve `true` se regravou.
+/// Não liga hook em quem não pediu: overdev desligado → não faz nada.
+pub fn refresh_hooks(exe: &str) -> Result<bool, String> {
+    if !overdev_enabled() || hooks_atualizados(exe) {
+        return Ok(false);
+    }
+    enable(exe)?;
+    Ok(true)
+}
+
 /// Remove os grupos de hook do overdev (Stop/PreToolUse) sem tocar no resto.
 pub fn disable() -> Result<(), String> {
     let mut root = load();
@@ -100,4 +139,47 @@ pub fn disable() -> Result<(), String> {
         }
     }
     save(&root)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// REGRESSÃO: hook gravado por uma versão ANTIGA continua no settings.json depois
+    /// do update. Foi o caso real de uma máquina já na versão mais nova recebendo
+    /// `/usr/bin/schematize: not found` em todo Stop: o pacote .deb que instalou aquele
+    /// caminho tinha sido removido pelo install do fonte, mas o comando ficou.
+    #[test]
+    fn hook_de_versao_antiga_e_detectado_como_desatualizado() {
+        // O que a v-antiga gravava: caminho absoluto, cru, sem resolvedor.
+        let antigo = json!({
+            "hooks": {
+                "Stop": [ { "hooks": [ { "type": "command", "command": "/usr/bin/schematize overdev check" } ] } ],
+                "PreToolUse": [ { "matcher": "AskUserQuestion",
+                                  "hooks": [ { "type": "command", "command": "/usr/bin/schematize overdev guard" } ] } ]
+            }
+        });
+        // Continua "ligado" (é por isso que ninguém percebia): o needle casa.
+        assert!(
+            antigo.get("hooks").and_then(|h| h.get("Stop")).and_then(|a| a.as_array())
+                .is_some_and(|arr| arr.iter().any(|g| group_has(g, "overdev check"))),
+            "o hook velho ainda casa como 'ligado' — por isso o enable pulava"
+        );
+        // Mas NÃO é o comando desta versão: é isso que passa a ser detectado.
+        let alvo = hook_cmd("/home/x/.cargo/bin/schematize", "overdev check");
+        assert_ne!(alvo, "/usr/bin/schematize overdev check");
+        assert!(alvo.contains("command -v schematize"), "o comando atual resolve em runtime");
+    }
+
+    /// O comando gravado hoje sobrevive ao binário mudar de lugar: tenta o exe atual,
+    /// depois ~/.cargo/bin, /usr/local/bin, /usr/bin e o PATH — e sai 0 se não achar
+    /// nenhum (hook que não bloqueia é melhor que hook que quebra toda parada).
+    #[test]
+    fn comando_do_hook_tenta_todos_os_caminhos_e_nunca_falha() {
+        let c = hook_cmd("/opt/schematize", "overdev check");
+        for esperado in ["/opt/schematize", "$HOME/.cargo/bin/schematize", "/usr/local/bin/schematize", "/usr/bin/schematize"] {
+            assert!(c.contains(esperado), "faltou {esperado} em: {c}");
+        }
+        assert!(c.ends_with("exit 0"), "sem binário nenhum, o hook sai limpo: {c}");
+    }
 }

@@ -172,6 +172,10 @@ fn main() {
             // pra garantir o gestor de atualizações sem o usuário pedir. Sai na
             // hora se já estiver instalado (só um stat, sem rede).
             schematize::updaterboot::ensure_in_background();
+            // Auto-cura dos hooks do overdev: quem ligou numa versão antiga carrega o
+            // comando daquela versão no settings.json, e atualizar o app não regravava.
+            // No-op se o overdev está desligado ou o comando já é o atual.
+            let _ = schematize::settings::refresh_hooks(&util::self_exe());
             agent::run_loop();
             Ok(())
         }
