@@ -175,7 +175,12 @@ fn main() {
             // Auto-cura dos hooks do overdev: quem ligou numa versão antiga carrega o
             // comando daquela versão no settings.json, e atualizar o app não regravava.
             // No-op se o overdev está desligado ou o comando já é o atual.
-            let _ = schematize::settings::refresh_hooks(&util::self_exe());
+            // Auto-cura só do settings do USUÁRIO. O do projeto é reparado pelo
+            // `doctor` — escrever no repo de alguém sem pedido explícito não é papel
+            // de um daemon que subiu no login.
+            let exe = util::self_exe();
+            let _ = schematize::settings::refresh_hooks(&exe);
+            let _ = schematize::settings::repara_hooks_em(&util::settings_path(), &exe);
             agent::run_loop();
             Ok(())
         }

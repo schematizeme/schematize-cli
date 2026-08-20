@@ -82,6 +82,21 @@ pub fn run(fix: bool) {
                 }
             }
         }
+        // Hook QUEBRADO (aponta pra caminho que não existe) — inclusive no settings do
+        // PROJETO, onde vive o hook shell legado registrado com caminho RELATIVO. Esse
+        // só funciona se o Claude Code rodar exatamente naquela pasta; em qualquer outra
+        // dá "arquivo ou diretório inexistente" em toda parada.
+        let projeto = std::env::current_dir().ok();
+        for arquivo in settings::arquivos_de_settings(projeto.as_deref()) {
+            match settings::repara_hooks_em(&arquivo, &exe) {
+                Ok(true) => line(&Lv::Ok, "hook quebrado", &format!("regravado em {}", arquivo.display())),
+                Ok(false) => {}
+                Err(e) => {
+                    issues += 1;
+                    line(&Lv::Warn, "hook quebrado", &format!("{}: {e}", arquivo.display()));
+                }
+            }
+        }
     } else {
         line(&Lv::Ok, &t("doctor.check_overdev"), &t("common.off"));
     }
