@@ -14,6 +14,7 @@ use std::path::{Path, PathBuf};
 // Caixa de entrada (injetar demandas com outro agente rodando) e as primitivas de
 // concorrência que ela exige. `pub` porque a GUI e o CLI as usam direto.
 pub mod caixa;
+pub mod resposta;
 pub mod trava;
 
 mod progresso;

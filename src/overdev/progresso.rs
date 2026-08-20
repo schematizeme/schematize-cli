@@ -17,6 +17,8 @@ pub struct Progress {
     pub hold: usize,
     /// Humanos abertos (`- [H ]`) — só a pessoa fecha.
     pub human: usize,
+    /// Recusados/cancelados (`- [H -]`, `- [-]`): resolvidos e NÃO feitos.
+    pub recusado: usize,
     /// Ciclos já gastos (arquivo `iterations`).
     pub iterations: u64,
     /// Teto de ciclos do run.
@@ -43,6 +45,7 @@ pub fn progress_at(root: &Path) -> Progress {
         done: c.done(),
         hold: c.hold,
         human: c.human,
+        recusado: c.recusado,
         iterations: it,
         max_iters: st.as_ref().map(|s| s.max_iters).unwrap_or(0),
     }
@@ -81,12 +84,24 @@ pub(crate) struct Counts {
     pub(crate) done_h: usize, // - [H x] (humano feito)
     pub(crate) hold: usize,   // - [~]  (on-hold, pergunta parkeada)
     pub(crate) human: usize,  // - [H ] (humano aberto, só a pessoa fecha)
+    /// `- [H r]` — a pessoa RESPONDEU (decidiu; não executou). Fecha o item humano e,
+    /// se havia vínculo, o item de máquina volta pra `- [ ]` sozinho.
+    pub(crate) respondido: usize,
+    /// `- [H -]` e `- [-]` — recusados/cancelados. Resolvidos, mas NÃO feitos.
+    ///
+    /// Conta à parte de propósito. Somar em `done` inflaria o progresso com trabalho
+    /// que ninguém fez; deixar em `open` travaria o overdev pra sempre, porque o gate
+    /// se recusa a parar enquanto houver item de máquina aberto. Nenhuma das duas
+    /// gavetas existentes servia — por isso a terceira.
+    pub(crate) recusado: usize,
 }
 
 impl Counts {
     /// Feitos totais (contrato do check): máquina + humano.
     pub(crate) fn done(&self) -> usize {
-        self.done_m + self.done_h
+        // Respondido conta como resolvido: a pendência humana acabou. Recusado NÃO —
+        // ver a nota no campo.
+        self.done_m + self.done_h + self.respondido
     }
 }
 
@@ -100,6 +115,10 @@ pub(crate) fn count_str(s: &str) -> Counts {
             c.human += 1;
         } else if t.starts_with("- [H x]") || t.starts_with("- [H X]") {
             c.done_h += 1;
+        } else if t.starts_with("- [H r]") || t.starts_with("- [H R]") {
+            c.respondido += 1;
+        } else if t.starts_with("- [H -]") || t.starts_with("- [-]") {
+            c.recusado += 1;
         } else if t.starts_with("- [ ]") {
             c.open += 1;
         } else if t.starts_with("- [x]") || t.starts_with("- [X]") {

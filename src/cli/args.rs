@@ -545,6 +545,20 @@ pub(crate) enum Over {
         #[arg(long, default_value = "correcao")]
         kind: String,
     },
+    /// Answer a human item with text — this RELEASES the machine item it was blocking.
+    Answer {
+        /// Nth open human item (1-based), or a text fragment of it.
+        alvo: String,
+        /// The answer / decision. Goes to the checklist and to DECISOES.md.
+        texto: Vec<String>,
+    },
+    /// Refuse a human item — the machine item it blocked is CANCELLED, not resumed.
+    Refuse {
+        /// Nth open human item (1-based), or a text fragment of it.
+        alvo: String,
+        /// Why it is not applicable.
+        texto: Vec<String>,
+    },
     /// Add a demand to the inbox WITHOUT touching the checklist (safe while an agent runs).
     Add {
         texto: Vec<String>,

@@ -69,6 +69,19 @@ use schematize::{
 
 
 
+/// Um alvo de item humano digitado na linha de comando.
+///
+/// Número puro = a POSIÇÃO entre os humanos abertos (é o que a UI numera, e o que a
+/// pessoa tem à mão ao olhar a lista). Qualquer outra coisa = trecho do texto. Aceitar
+/// os dois evita obrigar alguém a copiar e colar um item inteiro pra respondê-lo.
+fn alvo_humano(s: &str) -> schematize::overdev::resposta::Alvo {
+    use schematize::overdev::resposta::Alvo;
+    match s.trim().parse::<usize>() {
+        Ok(n) if n > 0 => Alvo::Indice(n),
+        _ => Alvo::Texto(s.trim().to_string()),
+    }
+}
+
 fn main() {
     let cli = Cli::parse();
     let r: Result<(), String> = match cli.cmd {
@@ -147,6 +160,12 @@ fn main() {
                 overdev::human_done(sub, done)
             }
             Over::Note { texto, kind } => overdev::note(&kind, &texto.join(" ")),
+            Over::Answer { alvo, texto } => {
+                overdev::resolver(alvo_humano(&alvo), overdev::resposta::Acao::Responder, &texto.join(" "))
+            }
+            Over::Refuse { alvo, texto } => {
+                overdev::resolver(alvo_humano(&alvo), overdev::resposta::Acao::Recusar, &texto.join(" "))
+            }
             Over::Add { texto } => caixa_add(&texto.join(" ")),
             Over::Caixa { sub } => caixa_cmd(sub),
             Over::Stop => overdev::stop(),

@@ -5,13 +5,70 @@ use super::*;
 
 /// Parkeia uma pergunta: registra no txt da base e marca o item como on-hold.
 pub fn park(item_substr: &str, pergunta: &str) -> Result<(), String> {
-    // 1) registra a pergunta na base do projeto.
+    let pergunta = pergunta.trim();
+    if pergunta.is_empty() {
+        return Err("pergunta vazia".into());
+    }
+    // Id do VÍNCULO: é ele que, mais tarde, faz a resposta saber qual item de máquina
+    // liberar. Sem isso a pergunta é um bilhete solto e o item fica on-hold pra sempre.
+    let id = super::caixa::id_curto();
+
+    let cl = checklist();
+    super::trava::com_trava(&cl, || {
+        let s = fs::read_to_string(&cl).map_err(|e| e.to_string())?;
+        let out = super::resposta::parkear_str(&s, item_substr, pergunta, &id)?;
+        super::trava::escreve_atomico(&cl, &out)
+    })?;
+
+    // O txt na base do projeto continua sendo escrito: é onde o agente foi instruído a
+    // olhar e onde a pessoa costuma procurar. Agora com o id, pra casar com o checklist.
     let mut q = fs::read_to_string(QUESTIONS_FILE).unwrap_or_default();
-    q.push_str(&format!("[{}] item: {item_substr}\n  pergunta: {pergunta}\n\n", util::now_unix()));
-    fs::write(QUESTIONS_FILE, q).map_err(|e| e.to_string())?;
-    // 2) marca o primeiro item aberto que casa como on-hold.
-    hold(item_substr)?;
-    println!("pergunta parkeada em ./{QUESTIONS_FILE}; item marcado on-hold. Siga os demais.");
+    q.push_str(&format!(
+        "[{}] ({id}) item: {item_substr}\n  pergunta: {pergunta}\n\n",
+        util::now_unix()
+    ));
+    let _ = fs::write(QUESTIONS_FILE, q);
+
+    println!("pergunta parkeada como subtask do item ({id}); o item ficou on-hold.");
+    println!("responder libera a máquina:  overflow overdev answer 1 \"...\"");
+    println!("recusar cancela o item:      overflow overdev refuse 1 \"...\"");
+    Ok(())
+}
+
+/// Resolve um item humano: responde (libera a máquina) ou recusa (cancela).
+///
+/// Todo o ciclo ler-modificar-escrever sob a MESMA trava — o agente pode estar
+/// escrevendo no checklist agora, e o alvo é posicional.
+pub fn resolver(alvo: super::resposta::Alvo, acao: super::resposta::Acao, texto: &str) -> Result<(), String> {
+    let cl = checklist();
+    let r = super::trava::com_trava(&cl, || {
+        let s = fs::read_to_string(&cl).map_err(|e| e.to_string())?;
+        let r = super::resposta::resolver_str(&s, &alvo, acao, texto)?;
+        super::trava::escreve_atomico(&cl, &r.texto)?;
+        Ok(r)
+    })?;
+
+    // A decisão também vai pro registro durável do projeto. O checklist é operacional
+    // (some quando o item fecha); DECISOES.md é a memória de POR QUE se decidiu assim.
+    let rotulo = if acao == super::resposta::Acao::Responder { "RESPOSTA" } else { "RECUSA" };
+    let bloco = format!("\n## {rotulo}: {}\n\n{texto}\n", r.item);
+    let dec = dir().join("DECISOES.md");
+    let mut atual = fs::read_to_string(&dec).unwrap_or_default();
+    atual.push_str(&bloco);
+    let _ = super::trava::escreve_atomico(&dec, &atual);
+
+    match (&r.vinculado, acao) {
+        (Some(m), super::resposta::Acao::Responder) => {
+            println!("respondido: {}", r.item);
+            println!("→ liberado pra máquina: {m}");
+        }
+        (Some(m), super::resposta::Acao::Recusar) => {
+            println!("recusado: {}", r.item);
+            println!("→ cancelado: {m}");
+        }
+        (None, _) => println!("{}: {}", if acao == super::resposta::Acao::Responder { "respondido" } else { "recusado" }, r.item),
+    }
+    let _ = crate::overdevdb::snapshot(Path::new("."));
     Ok(())
 }
 

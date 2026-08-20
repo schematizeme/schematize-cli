@@ -68,6 +68,12 @@ fn dir_feito(root: &Path) -> PathBuf {
 ///
 /// Colidir exigiria dois processos capturando no MESMO nanossegundo com o MESMO pid —
 /// impossível. E o id é ordenável por tempo, o que faz a caixa processar em ordem.
+/// Id curto e ordenável, reusado por quem precisa vincular duas linhas do checklist
+/// (ver `overdev::resposta`). Mesma forma do id de demanda: base36 do relógio + pid.
+pub fn id_curto() -> String {
+    novo_id()
+}
+
 fn novo_id() -> String {
     let nanos = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
