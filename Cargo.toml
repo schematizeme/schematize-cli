@@ -1,6 +1,6 @@
 [package]
 name = "schematize"
-version = "0.38.2"
+version = "0.39.0"
 edition = "2021"
 description = "Gerenciador do ecossistema schematize: instala/versiona as skills e roda o modo overdev (dev contínuo à prova de parada). Linux-first."
 license = "MIT"
@@ -13,12 +13,11 @@ path = "src/lib.rs"
 name = "schematize"
 path = "src/main.rs"
 
-# GUI (janela egui) — só compila com --features gui (precisa de libs X11/Wayland/GL).
-[[bin]]
-name = "schematize-gui"
-path = "src/bin/schematize-gui.rs"
-required-features = ["gui"]
-
+# O binário `schematize-gui` NÃO é produzido aqui. Ele é a GUI Slint, que mora no
+# repo schematizeme/schematize_gui_slint — o CI o compila de lá e empacota junto
+# (ver .github/workflows/release.yml). A GUI egui que existia neste crate foi
+# REMOVIDA: era só um fallback, e era ela que os .deb/.rpm e os binários publicados
+# instalavam — daí o sintoma recorrente de "o lançador abre a versão antiga".
 [dependencies]
 clap = { version = "4", features = ["derive"] }
 serde = { version = "1", features = ["derive"] }
@@ -27,20 +26,6 @@ notify-rust = "4"
 # Encoder PNG — gera o ícone (appicon) em PNG A PARTIR DO CÓDIGO, pros hicolor/.desktop, sem depender
 # de rasterizador externo (ImageMagick/rsvg) que falha em SVG. Já está no dep tree (transitivo).
 png = "0.18"
-# Backend glow (OpenGL), NÃO wgpu: o wgpu-hal (DX12) não compila no Windows com a
-# versão atual do crate `windows`. glow compila limpo em Linux/macOS/Windows.
-eframe = { version = "0.36.1", optional = true, default-features = false, features = [
-    "glow",
-    "default_fonts",
-    "wayland",
-    "x11",
-] }
-# Seletor de pasta NATIVO do sistema (só na GUI). Backend padrão = xdg-portal +
-# wayland + pollster (blocking): funciona em Wayland/X11 via portal, SEM puxar GTK.
-rfd = { version = "0.17", optional = true, default-features = false, features = [
-    "xdg-portal",
-    "wayland",
-] }
 portable-pty = "0.9.0"
 # DB local do overdev (SQLite). Duas formas de obter a lib:
 #
@@ -74,7 +59,6 @@ lto = "thin"
 
 [features]
 default = ["sqlite-embutido"]
-gui = ["dep:eframe", "dep:rfd"]
 # Ver a nota em `rusqlite`, acima.
 sqlite-embutido = ["rusqlite/bundled"]
 sqlite-do-sistema = []

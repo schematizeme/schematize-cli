@@ -40,5 +40,3 @@ pub mod upgrade;
 pub mod usage;
 pub mod util;
 
-#[cfg(feature = "gui")]
-pub mod gui;

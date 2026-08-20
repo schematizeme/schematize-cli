@@ -199,16 +199,16 @@ fn main() {
             match std::process::Command::new("schematize-gui").status() {
                 Ok(st) if st.success() => Ok(()),
                 Ok(st) => Err(format!("schematize-gui saiu com {st}")),
-                Err(_) => {
-                    #[cfg(feature = "gui")]
-                    {
-                        schematize::gui::run().map_err(|e| e.to_string())
-                    }
-                    #[cfg(not(feature = "gui"))]
-                    {
-                        Err("GUI indisponível — reinstale (o install.sh instala o schematize-gui).".to_string())
-                    }
-                }
+                // Sem fallback: a GUI é UMA só (Slint, binário `schematize-gui`).
+                // Existia aqui uma segunda GUI (egui) como rede de segurança, e era
+                // justamente ela que aparecia quando o PATH resolvia pro pacote em vez
+                // do fonte — o "abre a versão antiga". Melhor uma mensagem clara do que
+                // uma janela diferente da que o usuário espera.
+                Err(_) => Err(
+                    "não achei o `schematize-gui` no PATH. Rode `schematize doctor` \
+                     (ele diagnostica e conserta) ou reinstale pelo install.sh."
+                        .to_string(),
+                ),
             }
         }
         Cmd::Archive => {

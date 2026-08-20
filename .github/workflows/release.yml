@@ -46,7 +46,8 @@ jobs:
             pkg-config dpkg-dev \
             libx11-dev libxcursor-dev libxrandr-dev libxi-dev \
             libxkbcommon-dev libwayland-dev libgl1-mesa-dev \
-            libxcb1-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev
+            libxcb1-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev \
+            libfontconfig1-dev
       - uses: dtolnay/rust-toolchain@stable
       - name: cache cargo
         uses: actions/cache@v4
@@ -60,8 +61,22 @@ jobs:
         run: |
           cargo install cargo-deb --locked || cargo install cargo-deb
           cargo install cargo-generate-rpm --locked || cargo install cargo-generate-rpm
-      - name: build release (com GUI)
-        run: cargo build --release --features gui --bins
+      - name: build release (CLI)
+        run: cargo build --release --bins
+      - name: GUI Slint (repo próprio) — a ÚNICA GUI
+        # O binário `schematize-gui` é a GUI Slint, que vive em outro repo. Antes o CI
+        # publicava aqui a GUI egui deste crate — por isso .deb/.rpm e binários
+        # instalavam a janela ANTIGA enquanto o install.sh do fonte instalava a nova.
+        # Compilamos a Slint e a colocamos em target/release/, que é de onde o
+        # cargo-deb / cargo-generate-rpm leem (Cargo.toml não muda).
+        run: |
+          set -euo pipefail
+          git clone --depth 1 https://github.com/schematizeme/schematize_gui_slint.git /tmp/gui
+          cd /tmp/gui
+          # usa o CÓDIGO desta tag, não o HEAD do main (o git-dep aponta pra branch).
+          cargo update -p schematize
+          cargo build --release
+          cp target/release/schematize-gui "$GITHUB_WORKSPACE/target/release/schematize-gui"
       - name: empacota .deb / .rpm
         run: |
           cargo deb --no-build
@@ -113,8 +128,17 @@ jobs:
             ~/.cargo/git
             target
           key: ${{ matrix.runner }}-cargo-${{ hashFiles('Cargo.lock', 'Cargo.toml') }}
-      - name: build release (com GUI)
-        run: cargo build --release --features gui --bins --target ${{ matrix.target }}
+      - name: build release (CLI)
+        run: cargo build --release --bins --target ${{ matrix.target }}
+      - name: GUI Slint (repo próprio) — a ÚNICA GUI
+        run: |
+          set -euo pipefail
+          git clone --depth 1 https://github.com/schematizeme/schematize_gui_slint.git /tmp/gui
+          cd /tmp/gui
+          cargo update -p schematize
+          cargo build --release --target ${{ matrix.target }}
+          cp "target/${{ matrix.target }}/release/schematize-gui" \
+             "$GITHUB_WORKSPACE/target/${{ matrix.target }}/release/schematize-gui"
       - name: empacota (binários + .app zipado)
         run: |
           mkdir -p dist
@@ -177,8 +201,17 @@ jobs:
             ~/.cargo/git
             target
           key: windows-cargo-${{ hashFiles('Cargo.lock', 'Cargo.toml') }}
-      - name: build release (com GUI)
-        run: cargo build --release --features gui --bins
+      - name: build release (CLI)
+        run: cargo build --release --bins
+      - name: GUI Slint (repo próprio) — a ÚNICA GUI
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --depth 1 https://github.com/schematizeme/schematize_gui_slint.git /tmp/gui
+          cd /tmp/gui
+          cargo update -p schematize
+          cargo build --release
+          cp target/release/schematize-gui.exe "$GITHUB_WORKSPACE/target/release/schematize-gui.exe"
       - name: empacota
         shell: pwsh
         run: |
