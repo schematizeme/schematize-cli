@@ -15,6 +15,7 @@ pub mod debug;
 pub mod debugreport;
 pub mod diagnostics;
 pub mod environments;
+pub mod disco;
 pub mod doctor;
 pub mod githist;
 pub mod guiactions;

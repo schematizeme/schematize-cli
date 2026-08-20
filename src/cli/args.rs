@@ -74,6 +74,12 @@ pub(crate) enum Cmd {
         #[arg(long, value_name = "K")]
         split: Option<usize>,
     },
+    /// Inventário e limpeza do lixo recriável: artefato de build, cache de toolchain
+    /// e camada de Docker — agrupado por DISCO (é o principal que costuma encher).
+    Disco {
+        #[command(subcommand)]
+        sub: DiscoCmd,
+    },
     /// Diagnose the environment (add --fix to repair what's safe).
     Doctor {
         #[arg(long)]
@@ -301,6 +307,41 @@ pub(crate) enum ProjectsCmd {
     Mark { path: Option<String> },
     /// Remove the `.schematize` marker from the folder (default: cwd).
     Unmark { path: Option<String> },
+}
+
+/// `schematize disco` — inventário e limpeza do lixo recriável (build, cache, docker).
+#[derive(Subcommand)]
+pub(crate) enum DiscoCmd {
+    /// Lista o que dá pra recuperar, agrupado por DISCO e por tipo.
+    List {
+        /// Só o que está parado há pelo menos N dias.
+        #[arg(long, default_value_t = 0)]
+        min_dias: u64,
+    },
+    /// Apaga os artefatos que casam com os filtros (mostra a lista antes).
+    Clean {
+        /// Só o que está parado há pelo menos N dias.
+        #[arg(long, default_value_t = 30)]
+        min_dias: u64,
+        /// Filtra por tipo (ex.: "target", "node_modules", "cache").
+        #[arg(long)]
+        tipo: Option<String>,
+        /// Só neste disco (ponto de montagem, ex.: "/" ou "/home").
+        #[arg(long)]
+        montagem: Option<String>,
+        /// Não perguntar.
+        #[arg(long, short = 'y')]
+        yes: bool,
+    },
+    /// Uso e podas do Docker.
+    Docker {
+        /// Executa uma poda pelo rótulo (sem isto, só lista).
+        #[arg(long)]
+        podar: Option<String>,
+        /// Não perguntar (não vale pras podas que apagam dados).
+        #[arg(long, short = 'y')]
+        yes: bool,
+    },
 }
 
 #[derive(Subcommand)]
