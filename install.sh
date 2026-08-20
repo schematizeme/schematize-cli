@@ -347,7 +347,7 @@ install_source() {
   log "compilando a GUI Slint — schematize-gui (incremental)"
   if _sync_repo "https://github.com/schematizeme/schematize_gui_slint.git" "$gui" 2>/dev/null \
      && { as_user sh -c "cd '$gui' && CARGO_TARGET_DIR='$tgt' cargo update -p schematize" 2>/dev/null || true; } \
-     && as_user sh -c "cd '$gui' && CARGO_TARGET_DIR='$tgt' cargo build --release" \
+     && as_user sh -c "cd '$gui' && CARGO_TARGET_DIR='$tgt' cargo build --release $feats" \
      && as_user install -m755 "$tgt/release/schematize-gui" "$bin/schematize-gui"; then
     ok "GUI Slint instalada (schematize-gui)."
     # Encerra GUI antiga ainda aberta — fechar a janela não matava o processo, e o relaunch reusava
