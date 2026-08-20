@@ -226,6 +226,15 @@ install_updater() {
   local url="https://github.com/schematizeme/schematize-updater/releases/latest/download/$asset"
   local dst="$TARGET_HOME/.cargo/bin/schematize-updater"
   as_user mkdir -p "$TARGET_HOME/.cargo/bin"
+  # Se já existe, NÃO mexe. Este download vem do último RELEASE publicado, que pode
+  # estar ATRÁS do que a máquina tem — o updater agora se reconstrói do fonte a cada
+  # `update`, e sobrescrever aqui rebaixaria ele pra uma versão mais velha, desfazendo
+  # correções (foi assim que uma correção no próprio updater deixou de chegar).
+  # Aqui é só o BOOTSTRAP de quem ainda não tem nenhum.
+  if [ -x "$dst" ]; then
+    ok "schematize-updater já instalado ($("$dst" --version 2>/dev/null | head -1))"
+    return 0
+  fi
   if as_user sh -c "curl -fsSL -o '$dst' '$url'" 2>/dev/null && [ -s "$dst" ]; then
     as_user chmod +x "$dst" 2>/dev/null || true
     ok "schematize-updater instalado ($dst) — atualize com: schematize-updater update"
