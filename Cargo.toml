@@ -1,6 +1,6 @@
 [package]
 name = "schematize"
-version = "0.45.0"
+version = "0.45.1"
 edition = "2021"
 description = "Overflow — instala/versiona as skills do catálogo e roda o modo overdev (dev contínuo à prova de parada). Linux-first. O comando `schematize` segue válido."
 license = "MIT"

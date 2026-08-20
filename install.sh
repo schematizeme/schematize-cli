@@ -264,7 +264,13 @@ install_app_icons() {
 # `~/.claude` (skills, settings) e `~/.schematize` (config, overdev, cache de
 # build). Purga instalação, não o trabalho de ninguém.
 # ---------------------------------------------------------------------------
-BINS="schematize schematize-gui schematize-updater schematize-updater-gui"
+# Os binários da casa, nos DOIS nomes. O app virou Overflow; `schematize` não foi
+# aposentado (vira a organização, e deve virar outro produto), então os dois convivem.
+# A purga precisa conhecer OS DOIS: se ela só conhecesse o nome novo, uma cópia antiga
+# chamada `schematize` sobreviveria num dir de maior precedência no PATH e o app
+# "voltaria" pra uma versão velha — que é o bug que a purga existe pra matar.
+BINS="overflow overflow-gui overflow-updater overflow-updater-gui \
+schematize schematize-gui schematize-updater schematize-updater-gui"
 
 purge_previous() {
   log "removendo instalações anteriores (binário, pacote, lançador) — dados e deps ficam"
@@ -452,6 +458,9 @@ install_source() {
   log "compilando o CLI do fonte (incremental — recompila só o que mudou; 1ª vez leva minutos)"
   _sync_repo "https://github.com/$REPO.git" "$cli" || die "clone do CLI falhou"
   as_user sh -c "cd '$cli' && CARGO_TARGET_DIR='$tgt' cargo build --release $feats" || die "build do CLI falhou"
+  # Os DOIS nomes: `overflow` é o app; `schematize` segue funcionando pra não quebrar
+  # hook, script nem dedo acostumado de quem já tinha. O build produz os dois.
+  as_user install -m755 "$tgt/release/overflow" "$bin/overflow"
   as_user install -m755 "$tgt/release/schematize" "$bin/schematize"
 
   # GUI = Slint (a ÚNICA GUI). Se o build falhar, NÃO cai pro egui — melhor sem GUI que o fantasma.
@@ -463,11 +472,12 @@ install_source() {
   if _sync_repo "https://github.com/schematizeme/schematize_gui_slint.git" "$gui" 2>/dev/null \
      && { as_user sh -c "cd '$gui' && CARGO_TARGET_DIR='$tgt' cargo update -p schematize" 2>/dev/null || true; } \
      && as_user sh -c "cd '$gui' && CARGO_TARGET_DIR='$tgt' cargo build --release $feats" \
+     && as_user install -m755 "$tgt/release/overflow-gui" "$bin/overflow-gui" \
      && as_user install -m755 "$tgt/release/schematize-gui" "$bin/schematize-gui"; then
     ok "GUI Slint instalada (schematize-gui)."
     # Encerra GUI antiga ainda aberta — fechar a janela não matava o processo, e o relaunch reusava
     # a versão anterior. `pkill -x` casa só o nome exato do binário (não o updater nem o CLI).
-    as_user sh -c "pkill -x schematize-gui" 2>/dev/null || true
+    as_user sh -c "pkill -x overflow-gui; pkill -x schematize-gui" 2>/dev/null || true
   else
     warn "build da GUI Slint falhou — rode o install de novo. (Não instalamos GUI egui de fallback.)"
   fi
@@ -483,6 +493,7 @@ install_source() {
   log "compilando o gestor de atualizações — schematize-updater"
   if _sync_repo "https://github.com/schematizeme/schematize-updater.git" "$upd" 2>/dev/null \
      && as_user sh -c "cd '$upd' && CARGO_TARGET_DIR='$tgt' cargo build --release" \
+     && as_user install -m755 "$tgt/release/overflow-updater" "$bin/overflow-updater" \
      && as_user install -m755 "$tgt/release/schematize-updater" "$bin/schematize-updater"; then
     ok "gestor de atualizações instalado (schematize-updater)."
   else
@@ -497,6 +508,7 @@ install_source() {
   log "compilando a GUI do updater — schematize-updater-gui (opcional)"
   if _sync_repo "https://github.com/schematizeme/schematize-updater-gui.git" "$ugui" 2>/dev/null \
      && as_user sh -c "cd '$ugui' && CARGO_TARGET_DIR='$tgt' cargo build --release" \
+     && as_user install -m755 "$tgt/release/overflow-updater-gui" "$bin/overflow-updater-gui" 2>/dev/null \
      && as_user install -m755 "$tgt/release/schematize-updater-gui" "$bin/schematize-updater-gui"; then
     ok "GUI do updater instalada (schematize-updater-gui)."
   else
