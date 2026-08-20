@@ -190,6 +190,17 @@ pub(crate) enum Cmd {
 /// Gestão de SKILLS — uma funcionalidade do app, agrupada sob `schematize skills`.
 #[derive(Subcommand)]
 pub(crate) enum SkillsCmd {
+    /// Which skill VERSION shaped THIS project, and which fell behind the installed one.
+    Applied {
+        /// Record that <slug> was just applied here (the agent calls this when it finishes).
+        #[arg(long)]
+        mark: Option<String>,
+    },
+    /// Re-run a skill over this project to refresh its precepts (opens an agent).
+    Rerun {
+        /// Skill slug; omit to re-run every outdated one.
+        slug: Option<String>,
+    },
     /// Install one or more skills (or all with --all) from the latest release.
     Install {
         names: Vec<String>,
@@ -534,6 +545,15 @@ pub(crate) enum Over {
         #[arg(long, default_value = "correcao")]
         kind: String,
     },
+    /// Add a demand to the inbox WITHOUT touching the checklist (safe while an agent runs).
+    Add {
+        texto: Vec<String>,
+    },
+    /// Inbox: list, organize a demand into items, or merge them into the checklist.
+    Caixa {
+        #[command(subcommand)]
+        sub: CaixaCmd,
+    },
     /// End the run (hooks become inert again).
     Stop,
     /// Run overdev with an attached `claude` agent in a PTY (monitors + auto-continue).
@@ -560,4 +580,28 @@ pub(crate) enum Over {
     Index,
     /// Print the completion log (HH:MM:SS local + item) from .schematize/overdev/completions.json.
     Log,
+}
+
+/// Subcomandos da CAIXA DE ENTRADA do overdev.
+///
+/// Três estágios separados de propósito: capturar é instantâneo e infalível,
+/// organizar é lento (um agente pensa) e fundir é curto e serializado. Misturá-los
+/// num comando só significaria segurar a trava do checklist enquanto um agente
+/// pensa — ou seja, travar o projeto. Ver `overdev::caixa`.
+#[derive(Subcommand)]
+pub(crate) enum CaixaCmd {
+    /// Show what is captured and not yet in the checklist.
+    List,
+    /// Record the items an agent extracted from a demand (moves it to `processado`).
+    Organizar {
+        /// Demand id (see `caixa list`).
+        id: String,
+        /// One checklist item; repeat the flag for each.
+        #[arg(long = "item", required = true)]
+        itens: Vec<String>,
+    },
+    /// Merge every organized demand into the checklist (atomic, under lock).
+    Merge,
+    /// Open an agent in a terminal to organize the pending demands.
+    Agente,
 }

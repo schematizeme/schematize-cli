@@ -11,6 +11,11 @@ use std::io::Read;
 use std::path::{Path, PathBuf};
 
 // Submódulos (piso da casa: <=750 linhas, uma unidade lógica por arquivo).
+// Caixa de entrada (injetar demandas com outro agente rodando) e as primitivas de
+// concorrência que ela exige. `pub` porque a GUI e o CLI as usam direto.
+pub mod caixa;
+pub mod trava;
+
 mod progresso;
 mod conclusoes;
 mod divisao;

@@ -17,24 +17,34 @@ pub fn park(item_substr: &str, pergunta: &str) -> Result<(), String> {
 
 /// Marca o primeiro `- [ ]` que contém `substr` como `- [~]` (on-hold).
 pub fn hold(substr: &str) -> Result<(), String> {
-    let s = fs::read_to_string(checklist()).map_err(|e| e.to_string())?;
-    let mut done = false;
-    let out: Vec<String> = s
-        .lines()
-        .map(|l| {
-            if !done && l.trim_start().starts_with("- [ ]") && l.contains(substr) {
-                done = true;
-                l.replacen("- [ ]", "- [~]", 1)
-            } else {
-                l.to_string()
-            }
-        })
-        .collect();
-    fs::write(checklist(), out.join("\n")).map_err(|e| e.to_string())?;
-    if !done {
-        return Err(format!("nenhum item aberto contém '{substr}'"));
-    }
-    Ok(())
+    // A LEITURA fica dentro da trava, junto da escrita.
+    //
+    // Isto é um ciclo ler-modificar-escrever sobre um arquivo que outro processo (o
+    // agente do overdev, a GUI, outra sessão) pode estar reescrevendo agora. Ler fora
+    // da trava é o bug clássico: você decide em cima de um estado que já mudou e grava
+    // por cima do trabalho alheio, sem erro nenhum. Ver `overdev::trava`.
+    let cl = checklist();
+    super::trava::com_trava(&cl, || {
+        let s = fs::read_to_string(&cl).map_err(|e| e.to_string())?;
+        let mut done = false;
+        let out: Vec<String> = s
+            .lines()
+            .map(|l| {
+                if !done && l.trim_start().starts_with("- [ ]") && l.contains(substr) {
+                    done = true;
+                    l.replacen("- [ ]", "- [~]", 1)
+                } else {
+                    l.to_string()
+                }
+            })
+            .collect();
+        if !done {
+            // Nada casou: sai SEM escrever. Reescrever o arquivo idêntico só criaria
+            // uma janela de risco de graça.
+            return Err(format!("nenhum item aberto contém '{substr}'"));
+        }
+        super::trava::escreve_atomico(&cl, &out.join("\n"))
+    })
 }
 
 /// Fecha o primeiro `- [H ]` (humano aberto) → `- [H x]` — PURO, testável.
@@ -74,10 +84,17 @@ pub(crate) fn mark_human_str(s: &str, substr: Option<&str>, index: Option<usize>
 /// CLI: o HUMANO fecha um item `- [H ]` → `- [H x]` (pela CLI ou GUI).
 /// `substr` casa pelo texto; `index` (--done N) casa pela posição entre os humanos abertos.
 pub fn human_done(substr: Option<&str>, index: Option<usize>) -> Result<(), String> {
-    let s = fs::read_to_string(checklist()).map_err(|e| e.to_string())?;
-    let (out, txt) = mark_human_str(&s, substr, index)?;
-    fs::write(checklist(), out).map_err(|e| e.to_string())?;
-    // Versiona a mudança no DB local (best-effort).
+    // Ler e escrever sob a MESMA trava — ver a nota em `hold`. O índice do item humano
+    // é posicional: decidir com uma leitura velha fecharia o item errado.
+    let cl = checklist();
+    let txt = super::trava::com_trava(&cl, || {
+        let s = fs::read_to_string(&cl).map_err(|e| e.to_string())?;
+        let (out, txt) = mark_human_str(&s, substr, index)?;
+        super::trava::escreve_atomico(&cl, &out)?;
+        Ok(txt)
+    })?;
+    // Versiona a mudança no DB local (best-effort). Fora da trava: é I/O em outro
+    // arquivo e não pode segurar o checklist.
     let _ = crate::overdevdb::snapshot(Path::new("."));
     println!("item humano fechado: {txt}");
     Ok(())

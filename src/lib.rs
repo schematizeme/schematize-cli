@@ -35,6 +35,7 @@ pub mod selfupdate;
 pub mod settings;
 pub mod skilledit;
 pub mod skills;
+pub mod skillsproj;
 pub mod sshkeys;
 pub mod status;
 pub mod updaterboot;

@@ -20,6 +20,8 @@ pub(crate) fn resolve(cat: &[registry::Item], names: &[String], all: bool) -> Ve
 /// `schematize skills <sub>` — dispatcher da gestão de skills (a feature).
 pub(crate) fn skills_cmd(sub: SkillsCmd) -> Result<(), String> {
     match sub {
+        SkillsCmd::Applied { mark } => crate::cli::skillsproj::applied_cmd(mark),
+        SkillsCmd::Rerun { slug } => crate::cli::skillsproj::rerun_cmd(slug),
         SkillsCmd::Install { names, all, with_recommended } => {
             skills_install(&names, all, with_recommended)
         }

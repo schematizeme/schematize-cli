@@ -8,6 +8,7 @@
 mod cli;
 use cli::args::*;
 use cli::conta::*;
+use cli::caixa::*;
 use cli::db::*;
 use cli::disco::*;
 use cli::git::*;
@@ -146,6 +147,8 @@ fn main() {
                 overdev::human_done(sub, done)
             }
             Over::Note { texto, kind } => overdev::note(&kind, &texto.join(" ")),
+            Over::Add { texto } => caixa_add(&texto.join(" ")),
+            Over::Caixa { sub } => caixa_cmd(sub),
             Over::Stop => overdev::stop(),
             Over::Run { max, yes } => overdev_run(max, yes),
             Over::Snapshot => overdev_snapshot(),
