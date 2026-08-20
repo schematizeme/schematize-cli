@@ -248,7 +248,7 @@ pub fn status_line(it: &Item, st: &State, check_remote: bool) -> String {
 /// Diretório do STASH das bases oficiais: `~/.schematize/skill-base/`. Guarda a versão oficial
 /// em que cada fork foi baseado (só pra `compare_update` — nunca é a pasta ativa do Claude).
 pub fn base_stash_dir() -> std::path::PathBuf {
-    util::home().join(".schematize").join("skill-base")
+    util::home_app_dir().join("skill-base")
 }
 
 /// Um slug é OFICIAL se está no catálogo/registry (skill da casa/parceiro vetado). Skills

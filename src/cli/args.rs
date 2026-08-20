@@ -4,7 +4,7 @@
 use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
-#[command(name = "schematize", version, about = "Ecosystem manager for Claude — skills, overdev, and more (Linux-first).")]
+#[command(name = "overflow", version, about = "Ecosystem manager for Claude — skills, overdev, and more (Linux-first).")]
 pub(crate) struct Cli {
     #[command(subcommand)]
     pub(crate) cmd: Cmd,

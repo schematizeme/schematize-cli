@@ -15,7 +15,7 @@ const REPORT_CAP: usize = 256 * 1024;
 
 /// Dir operacional do usuário (`~/.schematize`).
 fn home_dir() -> PathBuf {
-    util::home().join(".schematize")
+    util::home_app_dir()
 }
 
 /// ID ANÔNIMO e estável da máquina — NÃO é PII (16 bytes aleatórios em hex, gerados uma vez em

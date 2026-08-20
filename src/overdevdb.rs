@@ -7,7 +7,7 @@
 //! `schematize overdev snapshot|history|restore`. DB em `~/.schematize/overdev.db`
 //! (override por env `SCHEMATIZE_OVERDEV_DB`, usado nos testes).
 
-use crate::util::home;
+use crate::util::home_app_dir;
 use rusqlite::{params, Connection, OptionalExtension};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -34,7 +34,7 @@ fn db_path() -> PathBuf {
     if let Some(p) = std::env::var_os("SCHEMATIZE_OVERDEV_DB") {
         return PathBuf::from(p);
     }
-    home().join(".schematize").join("overdev.db")
+    home_app_dir().join("overdev.db")
 }
 
 /// Segundos desde a época (sem depender de crate de data).

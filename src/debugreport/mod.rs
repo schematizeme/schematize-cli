@@ -94,7 +94,7 @@ pub fn write_report(out: Option<&Path>, online: bool) -> Result<PathBuf, String>
     let path = match out {
         Some(p) => p.to_path_buf(),
         None => {
-            let dir = util::home().join(".schematize");
+            let dir = util::home_app_dir();
             fs::create_dir_all(&dir).map_err(|e| format!("falha ao criar {}: {e}", dir.display()))?;
             let _ = fs::set_permissions(&dir, fs::Permissions::from_mode(0o700));
             dir.join(format!("debug-report-{}.txt", util::now_unix()))

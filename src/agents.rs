@@ -221,7 +221,7 @@ fn looks_like_claude(args: &[String]) -> bool {
 
 /// Caminho do estado do orçamento (global do usuário, não por-projeto).
 pub fn state_path() -> PathBuf {
-    crate::util::home().join(".schematize").join("agents.json")
+    crate::util::home_app_dir().join("agents.json")
 }
 
 /// Persiste o orçamento atual em `~/.schematize/agents.json` (best-effort). Retorna o caminho.

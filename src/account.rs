@@ -108,7 +108,7 @@ pub enum PollResult {
 
 /// Diretório de estado do schematize no HOME (`~/.schematize`) — separado do `~/.claude`.
 fn schematize_home() -> PathBuf {
-    util::home().join(".schematize")
+    util::home_app_dir()
 }
 
 /// Caminho do arquivo de sessão.

@@ -58,7 +58,7 @@ pub(crate) fn bw_import_json(name: &str, notes: &str, pubkey: &str, fingerprint:
 
 /// Caminho default do arquivo de import (`~/.schematize/bw-import-<name>.json`).
 pub(crate) fn bw_import_path(name: &str) -> PathBuf {
-    util::home().join(".schematize").join(format!("bw-import-{name}.json"))
+    util::home_app_dir().join(format!("bw-import-{name}.json"))
 }
 
 /// Exporta a chave `name` pro Bitwarden. Se o `bw` estiver destravado, cria um item (secure note)

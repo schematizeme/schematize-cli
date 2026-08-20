@@ -26,9 +26,52 @@ pub fn commands_dir() -> PathBuf {
     claude_dir().join("commands")
 }
 
-/// Estado do schematize (versões instaladas) em `~/.claude/schematize/state.json`.
+/// Dir de DADOS do app em `~/.claude/` — resolvido pela regra "ler ambos".
+///
+/// O app se chama **Overflow** e escreve em `~/.claude/overflow/`. Mas milhares de
+/// instalações têm os dados em `~/.claude/schematize/`, e o nome `schematize` NÃO foi
+/// aposentado — ele vira a organização, e pode virar outro produto. Ou seja: os dois
+/// vão coexistir, e cada um precisa do seu dir.
+///
+/// Regra: usa `overflow/` se existir; senão `schematize/` se existir; senão `overflow/`
+/// (default de escrita). Resolve UMA vez e escreve onde leu — resolver por arquivo
+/// racharia o estado entre os dois diretórios.
+///
+/// NÃO move nada. Instalação antiga segue exatamente onde está; instalação nova nasce
+/// no nome novo. Migrar é decisão de quem opera, não efeito colateral de atualizar.
+pub fn dados_dir() -> PathBuf {
+    let novo = claude_dir().join("overflow");
+    if novo.is_dir() {
+        return novo;
+    }
+    let legado = claude_dir().join("schematize");
+    if legado.is_dir() {
+        return legado;
+    }
+    novo
+}
+
+/// Dir de dados do app no HOME (`~/.overflow/`) — mesma regra "ler ambos" do
+/// [`dados_dir`], para o que NÃO mora sob `~/.claude`: o DB do overdev, a sessão,
+/// o machine-id, o orçamento de agents e os checkouts de build.
+///
+/// Existe separado de [`dados_dir`] porque são dois lugares distintos com o mesmo
+/// problema — e um resolvedor por lugar é mais honesto que um genérico com flag.
+pub fn home_app_dir() -> PathBuf {
+    let novo = home().join(".overflow");
+    if novo.is_dir() {
+        return novo;
+    }
+    let legado = home().join(".schematize");
+    if legado.is_dir() {
+        return legado;
+    }
+    novo
+}
+
+/// Estado do app (versões instaladas) em `<dados>/state.json`.
 pub fn state_path() -> PathBuf {
-    claude_dir().join("schematize").join("state.json")
+    dados_dir().join("state.json")
 }
 
 /// settings.json do Claude Code (onde os hooks são registrados).
@@ -36,9 +79,9 @@ pub fn settings_path() -> PathBuf {
     claude_dir().join("settings.json")
 }
 
-/// Config do schematize (idioma etc.) em `~/.claude/schematize/config.json`.
+/// Config do app (idioma etc.) em `<dados>/config.json`.
 pub fn config_path() -> PathBuf {
-    claude_dir().join("schematize").join("config.json")
+    dados_dir().join("config.json")
 }
 
 /// Abre uma URL no navegador padrão (xdg-open), sem bloquear. Best-effort.
@@ -55,7 +98,7 @@ pub fn self_exe() -> String {
     std::env::current_exe()
         .ok()
         .and_then(|p| p.to_str().map(String::from))
-        .unwrap_or_else(|| "schematize".to_string())
+        .unwrap_or_else(|| "overflow".to_string())
 }
 
 /// Roda um comando externo capturando stdout; erro traz stderr.

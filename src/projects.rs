@@ -42,7 +42,7 @@ pub struct Project {
     pub name: String,
     /// Caminho absoluto (canônico quando possível) do projeto.
     pub path: String,
-    /// Marcador que identificou o projeto (".overdev", ".schematize", ".git", "_archive").
+    /// Marcador que identificou o projeto (".overdev", ".overflow", ".schematize", ".git", "_archive").
     pub marker: String,
 }
 
@@ -52,7 +52,12 @@ fn marker_of(dir: &Path) -> Option<&'static str> {
     if dir.join(".overdev").is_dir() {
         return Some(".overdev");
     }
-    // `.schematize` pode ser arquivo ou pasta.
+    // `.overflow`/`.schematize` podem ser arquivo (marcador explícito) ou pasta (dir
+    // operacional). Os dois valem: o app virou Overflow, mas projeto marcado com o
+    // nome anterior não pode sumir da lista por causa de um rename nosso.
+    if dir.join(".overflow").exists() {
+        return Some(".overflow");
+    }
     if dir.join(".schematize").exists() {
         return Some(".schematize");
     }

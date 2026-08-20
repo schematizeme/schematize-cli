@@ -128,7 +128,7 @@ pub(crate) fn sec_config(o: &mut String) {
     hdr(o, "5. CONFIG (redigido — sem conteúdo de auth.json/ssh)");
 
     // Listagem de ~/.schematize/ — SÓ nome + tamanho (nunca o conteúdo).
-    let sdir = util::home().join(".schematize");
+    let sdir = util::home_app_dir();
     let _ = writeln!(o, "  ~/.schematize/ (nome + tamanho — conteúdo NÃO lido):");
     match fs::read_dir(&sdir) {
         Ok(rd) => {
@@ -230,7 +230,7 @@ pub(crate) fn sec_doctor(o: &mut String) {
 /// 10) Logs: tail do update.log e de premature-stops.log de cada overdev achado.
 pub(crate) fn sec_logs(o: &mut String, overdev_roots: &[PathBuf]) {
     hdr(o, "10. LOGS");
-    let update_log = util::claude_dir().join("schematize").join("update.log");
+    let update_log = util::dados_dir().join("update.log");
     let _ = writeln!(o, "  {} (últimas 40 linhas):", update_log.display());
     let _ = writeln!(o, "{}", indent(&tail(&update_log, 40), "    "));
 

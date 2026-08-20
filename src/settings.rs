@@ -84,8 +84,13 @@ fn hook_cmd(_exe: &str, sub: &str) -> String {
     // `_exe` fica na assinatura porque os chamadores já a usam e ela documenta a
     // intenção ("registrar apontando pra este binário") — mas o comando é o mesmo em
     // qualquer máquina, e é isso que o torna previsível.
+    //
+    // DOIS NOMES na lista, e a ordem importa: o app virou `overflow`, mas `schematize`
+    // segue instalado em máquina que não atualizou — e não foi aposentado (vira outro
+    // produto). Um hook que só conhecesse um dos nomes quebraria metade do parque.
+    // Tenta o nome novo primeiro em cada diretório; o primeiro executável ganha.
     format!(
-        r#"for c in "$HOME/.cargo/bin/schematize" "$HOME/.local/bin/schematize" /usr/local/bin/schematize /usr/bin/schematize "$(command -v schematize 2>/dev/null)"; do [ -n "$c" ] && [ -x "$c" ] && exec "$c" {sub}; done; exit 0"#
+        r#"for c in "$HOME/.cargo/bin/overflow" "$HOME/.cargo/bin/schematize" "$HOME/.local/bin/overflow" "$HOME/.local/bin/schematize" /usr/local/bin/overflow /usr/local/bin/schematize /usr/bin/overflow /usr/bin/schematize "$(command -v overflow 2>/dev/null)" "$(command -v schematize 2>/dev/null)"; do [ -n "$c" ] && [ -x "$c" ] && exec "$c" {sub}; done; exit 0"#
     )
 }
 

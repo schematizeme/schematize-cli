@@ -83,7 +83,7 @@ impl Conta {
 
 /// Arquivo onde as contas moram.
 pub fn arquivo() -> PathBuf {
-    util::claude_dir().join("schematize").join("contas.json")
+    util::dados_dir().join("contas.json")
 }
 
 /// Lê as contas cadastradas (vazio se não houver / arquivo inválido).
