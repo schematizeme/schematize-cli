@@ -14,7 +14,7 @@
 //!
 //! ## O registro
 //!
-//! Mora em `<projeto>/.overflow/skills.json` — dentro do projeto, porque é um fato
+//! Mora em `<projeto>/.schematize/skills.json` — dentro do projeto, porque é um fato
 //! sobre o projeto, não sobre a máquina. Versionável junto com o código, o que também
 //! responde "com que padrões isto foi feito?" pra quem chegar depois.
 //!
@@ -49,7 +49,7 @@ pub enum Estado {
     NuncaAplicada { instalada: String },
 }
 
-/// `<projeto>/.overflow/skills.json` (ou o nome anterior do dir, se for o em uso).
+/// `<projeto>/.schematize/skills.json` (ou o nome anterior do dir, se for o em uso).
 pub fn arquivo(root: &Path) -> PathBuf {
     crate::paths::schematize_dir_at(root).join("skills.json")
 }
