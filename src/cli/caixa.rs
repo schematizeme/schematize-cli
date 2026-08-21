@@ -1,4 +1,4 @@
-//! `overflow overdev add` / `overflow overdev caixa` — a caixa de entrada do overdev.
+//! `schematize overdev add` / `schematize overdev caixa` — a caixa de entrada do overdev.
 //!
 //! Serve pra jogar "isso também precisa" no projeto ENQUANTO um agente trabalha, sem
 //! interromper ninguém e sem risco de perder a demanda. A lógica (e as garantias de
@@ -19,7 +19,7 @@ pub(crate) fn caixa_add(texto: &str) -> Result<(), String> {
     let id = caixa::adicionar(&root, texto)?;
     println!("demanda capturada ({id}).");
     println!("o checklist NÃO foi tocado — nenhum agente foi interrompido.");
-    println!("organize com: overflow overdev caixa agente");
+    println!("organize com: schematize overdev caixa agente");
     Ok(())
 }
 
@@ -47,13 +47,13 @@ pub(crate) fn caixa_cmd(sub: CaixaCmd) -> Result<(), String> {
                         println!("    - {i}");
                     }
                 }
-                println!("\nfunda com: overflow overdev caixa merge");
+                println!("\nfunda com: schematize overdev caixa merge");
             }
             Ok(())
         }
         CaixaCmd::Organizar { id, itens } => {
             caixa::organizar(&root, &id, itens)?;
-            println!("demanda {id} organizada. funda com: overflow overdev caixa merge");
+            println!("demanda {id} organizada. funda com: schematize overdev caixa merge");
             Ok(())
         }
         CaixaCmd::Merge => {
@@ -83,7 +83,7 @@ fn agente(root: &std::path::Path) -> Result<(), String> {
     }
     let bin = std::env::current_exe()
         .map(|p| p.display().to_string())
-        .unwrap_or_else(|_| "overflow".into());
+        .unwrap_or_else(|_| "schematize".into());
     let prompt = caixa::prompt_agente(&bin, p.len());
     println!("abrindo um agente no terminal pra organizar {} demanda(s)…", p.len());
     match agentrun::launch_prompt_in_terminal(root, &prompt) {

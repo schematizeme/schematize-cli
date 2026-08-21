@@ -17,9 +17,9 @@
 use std::path::{Path, PathBuf};
 
 /// Nome do dir operacional canônico de um projeto.
-pub const OVERFLOW_DIR: &str = ".overflow";
-/// Nome anterior do dir operacional — ainda lido por compat (o app virou Overflow).
 pub const SCHEMATIZE_DIR: &str = ".schematize";
+/// Dir do interregno em que o app se chamou Overflow — ainda LIDO por compat.
+pub const OVERFLOW_DIR: &str = ".overflow";
 /// Nome do dir operacional LEGADO (pré-migração) — ainda lido por compat.
 pub const LEGACY_OVERDEV_DIR: &str = ".overdev";
 
@@ -28,12 +28,12 @@ pub const LEGACY_OVERDEV_DIR: &str = ".overdev";
 /// A ordem É o contrato: quem escreve usa o primeiro; quem lê aceita o primeiro que
 /// existir no disco. Acrescentar um nome novo aqui no topo é tudo o que um rename
 /// futuro precisa — e nenhum projeto existente sente.
-const DIRS_ACEITOS: [&str; 2] = [OVERFLOW_DIR, SCHEMATIZE_DIR];
+const DIRS_ACEITOS: [&str; 2] = [SCHEMATIZE_DIR, OVERFLOW_DIR];
 
 /// O dir operacional EM USO neste `root`: o primeiro de [`DIRS_ACEITOS`] que existe,
 /// ou o canônico se nenhum existe (projeto novo nasce no nome novo).
 ///
-/// NÃO move nada. Projeto que já tem `.schematize/` continua com `.schematize/` até
+/// NÃO move nada. Projeto que ficou com `.overflow/` do interregno continua nele até
 /// alguém decidir o contrário — atualizar o app não remexe a pasta de ninguém.
 fn dir_em_uso(root: &Path) -> PathBuf {
     for nome in DIRS_ACEITOS {
@@ -42,7 +42,7 @@ fn dir_em_uso(root: &Path) -> PathBuf {
             return c;
         }
     }
-    root.join(OVERFLOW_DIR)
+    root.join(SCHEMATIZE_DIR)
 }
 
 // ---------------------------------------------------------------------------
@@ -67,7 +67,7 @@ pub fn overdev_dir_at(root: &Path) -> PathBuf {
     if legado.is_dir() {
         return legado;
     }
-    root.join(OVERFLOW_DIR).join("overdev")
+    root.join(SCHEMATIZE_DIR).join("overdev")
 }
 
 /// `<root>/.schematize/grafos` — dir operacional dos grafos do index (global + por serviço).
@@ -175,60 +175,61 @@ fn copy_dir_all(src: &Path, dst: &Path) -> std::io::Result<()> {
 mod tests {
     use super::*;
 
-    /// A ordem de resolução É o contrato: `.overflow` > `.schematize` > `.overdev`,
-    /// e o default de escrita é o nome novo. Projeto que já tem um nome anterior no
-    /// disco NUNCA é redirecionado — atualizar o app não remexe a pasta de ninguém.
+    /// A ordem de resolução É o contrato: `.schematize` > `.overflow` > `.overdev`,
+    /// e o default de escrita é o canônico. Projeto que já tem um dos outros no disco
+    /// NUNCA é redirecionado — atualizar o app não remexe a pasta de ninguém, e isso
+    /// vale inclusive pro `.overflow` do interregno em que o app mudou de nome.
     #[test]
-    fn resolve_prefere_novo_depois_anterior_depois_legado() {
-        let tmp = std::env::temp_dir().join(format!("ovf-paths-{}", std::process::id()));
+    fn resolve_prefere_canonico_depois_interregno_depois_legado() {
+        let tmp = std::env::temp_dir().join(format!("sz-paths-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&tmp);
         std::fs::create_dir_all(&tmp).unwrap();
 
-        // (1) nada existe -> projeto novo nasce em `.overflow/overdev`
-        assert_eq!(overdev_dir_at(&tmp), tmp.join(".overflow/overdev"));
+        // (1) nada existe -> projeto novo nasce em `.schematize/overdev`
+        assert_eq!(overdev_dir_at(&tmp), tmp.join(".schematize/overdev"));
 
-        // (2) só o legado pré-rename existe -> usa `.overdev`
+        // (2) só o legado pré-migração existe -> usa `.overdev`
         std::fs::create_dir_all(tmp.join(".overdev")).unwrap();
         assert_eq!(overdev_dir_at(&tmp), tmp.join(".overdev"));
 
-        // (3) o nome ANTERIOR existe -> fica nele, mesmo com o legado presente.
-        //     É a garantia de não-disrupção: quem está em `.schematize/` continua lá.
-        std::fs::create_dir_all(tmp.join(".schematize/overdev")).unwrap();
-        assert_eq!(overdev_dir_at(&tmp), tmp.join(".schematize/overdev"));
-
-        // (4) o nome NOVO existe -> ele ganha de todos.
+        // (3) o dir do interregno existe -> fica NELE, mesmo com o legado presente.
+        //     É a garantia de não-disrupção: quem escreveu ali não perde o estado.
         std::fs::create_dir_all(tmp.join(".overflow/overdev")).unwrap();
         assert_eq!(overdev_dir_at(&tmp), tmp.join(".overflow/overdev"));
+
+        // (4) o canônico existe -> ele ganha de todos.
+        std::fs::create_dir_all(tmp.join(".schematize/overdev")).unwrap();
+        assert_eq!(overdev_dir_at(&tmp), tmp.join(".schematize/overdev"));
 
         let _ = std::fs::remove_dir_all(&tmp);
     }
 
     /// Migrar o `.overdev` legado alveja o dir EM USO, não um nome fixo: num projeto
-    /// que já vive em `.schematize/`, o conteúdo tem de cair lá — não criar um
-    /// terceiro diretório e espalhar o estado do projeto por dois lugares.
+    /// que ficou em `.overflow/`, o conteúdo tem de cair lá — não criar um terceiro
+    /// diretório e espalhar o estado do projeto por dois lugares.
     #[test]
     fn migra_legado_para_o_dir_em_uso() {
-        let tmp = std::env::temp_dir().join(format!("ovf-migra-{}", std::process::id()));
+        let tmp = std::env::temp_dir().join(format!("sz-migra-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&tmp);
         std::fs::create_dir_all(tmp.join(".overdev")).unwrap();
         std::fs::write(tmp.join(".overdev/CHECKLIST.md"), b"- [ ] x\n").unwrap();
 
-        // projeto sem dir do app -> migra pro nome novo
+        // projeto sem dir do app -> migra pro canônico
         assert!(migrate_legacy_overdev(&tmp).unwrap());
         assert!(!tmp.join(".overdev").exists(), "legado removido");
-        assert!(tmp.join(".overflow/overdev/CHECKLIST.md").is_file(), "conteúdo movido");
+        assert!(tmp.join(".schematize/overdev/CHECKLIST.md").is_file(), "conteúdo movido");
         assert!(!migrate_legacy_overdev(&tmp).unwrap(), "idempotente");
         let _ = std::fs::remove_dir_all(&tmp);
 
-        // projeto que JÁ vive em `.schematize/` -> migra PRA LÁ, não pro nome novo
-        let tmp2 = std::env::temp_dir().join(format!("ovf-migra2-{}", std::process::id()));
+        // projeto que ficou em `.overflow/` -> migra PRA LÁ, não pro canônico
+        let tmp2 = std::env::temp_dir().join(format!("sz-migra2-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&tmp2);
         std::fs::create_dir_all(tmp2.join(".overdev")).unwrap();
-        std::fs::create_dir_all(tmp2.join(".schematize")).unwrap();
+        std::fs::create_dir_all(tmp2.join(".overflow")).unwrap();
         std::fs::write(tmp2.join(".overdev/CHECKLIST.md"), b"- [ ] x\n").unwrap();
         assert!(migrate_legacy_overdev(&tmp2).unwrap());
-        assert!(tmp2.join(".schematize/overdev/CHECKLIST.md").is_file(), "foi pro dir em uso");
-        assert!(!tmp2.join(".overflow").exists(), "não inventou um terceiro dir");
+        assert!(tmp2.join(".overflow/overdev/CHECKLIST.md").is_file(), "foi pro dir em uso");
+        assert!(!tmp2.join(".schematize").exists(), "não inventou um terceiro dir");
         let _ = std::fs::remove_dir_all(&tmp2);
     }
 }

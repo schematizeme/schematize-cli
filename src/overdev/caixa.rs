@@ -1,7 +1,7 @@
 //! CAIXA DE ENTRADA do overdev — injetar demandas com outro agente trabalhando.
 //!
 //! O quê: um lugar pra jogar "isso também precisa ser feito" enquanto o overdev roda,
-//! sem interromper ninguém e sem risco de a demanda se perder. Onde: `overflow overdev
+//! sem interromper ninguém e sem risco de a demanda se perder. Onde: `schematize overdev
 //! add` no CLI e o campo de texto da tela Overdev na GUI.
 //!
 //! ## Por que não escrever direto no CHECKLIST.md

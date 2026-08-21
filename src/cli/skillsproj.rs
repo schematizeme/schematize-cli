@@ -1,4 +1,4 @@
-//! `overflow skills applied` / `overflow skills rerun` — versão de skill POR PROJETO.
+//! `schematize skills applied` / `schematize skills rerun` — versão de skill POR PROJETO.
 //!
 //! A lógica mora em `schematize::skillsproj`; aqui é a face de linha de comando e o
 //! disparo do agente que reaplica a skill.
@@ -46,7 +46,7 @@ pub(crate) fn applied_cmd(mark: Option<String>) -> Result<(), String> {
         println!(
             "\n\x1b[33m{atrasadas} skill(s) evoluíram desde que moldaram este projeto.\x1b[0m"
         );
-        println!("rodar de novo: overflow skills rerun");
+        println!("rodar de novo: schematize skills rerun");
     }
     Ok(())
 }
@@ -91,7 +91,7 @@ pub(crate) fn rerun_cmd(slug: Option<String>) -> Result<(), String> {
 fn bin_atual() -> String {
     std::env::current_exe()
         .map(|p| p.display().to_string())
-        .unwrap_or_else(|_| "overflow".into())
+        .unwrap_or_else(|_| "schematize".into())
 }
 
 /// Versão instalada de uma skill pelo slug (`None` se não está na máquina).

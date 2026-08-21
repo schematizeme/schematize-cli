@@ -52,14 +52,14 @@ fn marker_of(dir: &Path) -> Option<&'static str> {
     if dir.join(".overdev").is_dir() {
         return Some(".overdev");
     }
-    // `.overflow`/`.schematize` podem ser arquivo (marcador explícito) ou pasta (dir
-    // operacional). Os dois valem: o app virou Overflow, mas projeto marcado com o
-    // nome anterior não pode sumir da lista por causa de um rename nosso.
-    if dir.join(".overflow").exists() {
-        return Some(".overflow");
-    }
+    // `.schematize`/`.overflow` podem ser arquivo (marcador explícito) ou pasta (dir
+    // operacional). Os dois valem: projeto marcado durante o interregno do nome
+    // Overflow não pode sumir da lista por causa de um rename nosso.
     if dir.join(".schematize").exists() {
         return Some(".schematize");
+    }
+    if dir.join(".overflow").exists() {
+        return Some(".overflow");
     }
     if dir.join(".git").is_dir() {
         return Some(".git");

@@ -1,7 +1,7 @@
 //! Qual versão de cada skill foi APLICADA A ESTE PROJETO.
 //!
 //! O quê: um registro por projeto de "a skill X, na versão Y, já rodou aqui". Onde:
-//! `overflow skills applied` no CLI e o aviso/botão da tela do projeto na GUI.
+//! `schematize skills applied` no CLI e o aviso/botão da tela do projeto na GUI.
 //!
 //! ## O problema
 //!

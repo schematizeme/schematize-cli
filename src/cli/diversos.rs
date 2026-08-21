@@ -163,7 +163,7 @@ pub(crate) fn projects_cmd(sub: ProjectsCmd) -> Result<(), String> {
         ProjectsCmd::Mark { path } => {
             let dir = path.unwrap_or_else(|| ".".to_string());
             let dir = canon_or(&dir);
-            let marker = std::path::Path::new(&dir).join(".overflow");
+            let marker = std::path::Path::new(&dir).join(".schematize");
             std::fs::write(&marker, "{}\n").map_err(|e| format!("falha ao criar marcador: {e}"))?;
             println!("Marcado como projeto: {}", marker.display());
             Ok(())
@@ -174,11 +174,11 @@ pub(crate) fn projects_cmd(sub: ProjectsCmd) -> Result<(), String> {
             // Desmarcar tem de achar o marcador com QUALQUER um dos nomes — senão
             // um projeto marcado antes do rename fica impossível de desmarcar.
             let base = std::path::Path::new(&dir);
-            let marker = [".overflow", ".schematize"]
+            let marker = [".schematize", ".overflow"]
                 .iter()
                 .map(|n| base.join(n))
                 .find(|p| p.exists())
-                .unwrap_or_else(|| base.join(".overflow"));
+                .unwrap_or_else(|| base.join(".schematize"));
             if marker.exists() {
                 std::fs::remove_file(&marker).map_err(|e| format!("falha ao remover marcador: {e}"))?;
                 println!("Marcador removido: {}", marker.display());

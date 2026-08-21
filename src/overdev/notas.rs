@@ -30,8 +30,8 @@ pub fn park(item_substr: &str, pergunta: &str) -> Result<(), String> {
     let _ = fs::write(QUESTIONS_FILE, q);
 
     println!("pergunta parkeada como subtask do item ({id}); o item ficou on-hold.");
-    println!("responder libera a máquina:  overflow overdev answer 1 \"...\"");
-    println!("recusar cancela o item:      overflow overdev refuse 1 \"...\"");
+    println!("responder libera a máquina:  schematize overdev answer 1 \"...\"");
+    println!("recusar cancela o item:      schematize overdev refuse 1 \"...\"");
     Ok(())
 }
 

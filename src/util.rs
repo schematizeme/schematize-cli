@@ -28,45 +28,41 @@ pub fn commands_dir() -> PathBuf {
 
 /// Dir de DADOS do app em `~/.claude/` — resolvido pela regra "ler ambos".
 ///
-/// O app se chama **Overflow** e escreve em `~/.claude/overflow/`. Mas milhares de
-/// instalações têm os dados em `~/.claude/schematize/`, e o nome `schematize` NÃO foi
-/// aposentado — ele vira a organização, e pode virar outro produto. Ou seja: os dois
-/// vão coexistir, e cada um precisa do seu dir.
+/// Canônico é `~/.claude/schematize/`. `overflow/` ainda é LIDO: houve um período
+/// curto em que o app se chamou Overflow e escreveu lá — apagar esse caminho da
+/// resolução tornaria invisível o estado de quem instalou naquela janela.
 ///
-/// Regra: usa `overflow/` se existir; senão `schematize/` se existir; senão `overflow/`
-/// (default de escrita). Resolve UMA vez e escreve onde leu — resolver por arquivo
-/// racharia o estado entre os dois diretórios.
-///
-/// NÃO move nada. Instalação antiga segue exatamente onde está; instalação nova nasce
-/// no nome novo. Migrar é decisão de quem opera, não efeito colateral de atualizar.
+/// Resolve UMA vez e escreve onde leu; resolver por arquivo racharia o estado entre
+/// os dois diretórios. E não move nada: migrar é decisão de quem opera, não efeito
+/// colateral de atualizar.
 pub fn dados_dir() -> PathBuf {
-    let novo = claude_dir().join("overflow");
-    if novo.is_dir() {
-        return novo;
+    let canonico = claude_dir().join("schematize");
+    if canonico.is_dir() {
+        return canonico;
     }
-    let legado = claude_dir().join("schematize");
-    if legado.is_dir() {
-        return legado;
+    let interregno = claude_dir().join("overflow");
+    if interregno.is_dir() {
+        return interregno;
     }
-    novo
+    canonico
 }
 
-/// Dir de dados do app no HOME (`~/.overflow/`) — mesma regra "ler ambos" do
-/// [`dados_dir`], para o que NÃO mora sob `~/.claude`: o DB do overdev, a sessão,
-/// o machine-id, o orçamento de agents e os checkouts de build.
+/// Dir de dados do app no HOME (`~/.schematize/`) — mesma regra do [`dados_dir`],
+/// para o que NÃO mora sob `~/.claude`: o DB do overdev, a sessão, o machine-id, o
+/// orçamento de agents e os checkouts de build.
 ///
 /// Existe separado de [`dados_dir`] porque são dois lugares distintos com o mesmo
 /// problema — e um resolvedor por lugar é mais honesto que um genérico com flag.
 pub fn home_app_dir() -> PathBuf {
-    let novo = home().join(".overflow");
-    if novo.is_dir() {
-        return novo;
+    let canonico = home().join(".schematize");
+    if canonico.is_dir() {
+        return canonico;
     }
-    let legado = home().join(".schematize");
-    if legado.is_dir() {
-        return legado;
+    let interregno = home().join(".overflow");
+    if interregno.is_dir() {
+        return interregno;
     }
-    novo
+    canonico
 }
 
 /// Estado do app (versões instaladas) em `<dados>/state.json`.
@@ -98,7 +94,7 @@ pub fn self_exe() -> String {
     std::env::current_exe()
         .ok()
         .and_then(|p| p.to_str().map(String::from))
-        .unwrap_or_else(|| "overflow".to_string())
+        .unwrap_or_else(|| "schematize".to_string())
 }
 
 /// Roda um comando externo capturando stdout; erro traz stderr.

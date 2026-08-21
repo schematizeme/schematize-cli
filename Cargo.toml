@@ -1,26 +1,13 @@
 [package]
 name = "schematize"
-version = "0.48.0"
+version = "0.49.0"
 edition = "2021"
-description = "Overflow — instala/versiona as skills do catálogo e roda o modo overdev (dev contínuo à prova de parada). Linux-first. O comando `schematize` segue válido."
+description = "Gerenciador do ecossistema schematize: instala/versiona as skills e roda o modo overdev (dev contínuo à prova de parada). Linux-first."
 license = "MIT"
 
 [lib]
 name = "schematize"
 path = "src/lib.rs"
-
-# DOIS binários da MESMA fonte, e é de propósito.
-#
-# O app passou a se chamar **Overflow**. Mas `schematize` não foi aposentado: vira a
-# organização, e a intenção é que ele venha a ser outro produto (instalador de
-# aplicativos). Enquanto isso, quem já tem hook, script ou dedo acostumado no
-# `schematize` continua funcionando — sem alias, sem symlink, sem depender do pacote.
-#
-# Quando `schematize` virar um produto próprio, basta apontar o `path` dele pra outro
-# `main.rs`. É o caminho de evolução mais barato que existe pro que você quer fazer.
-[[bin]]
-name = "overflow"
-path = "src/main.rs"
 
 [[bin]]
 name = "schematize"
@@ -90,10 +77,6 @@ priority = "optional"
 # curl/unzip/git são do CLI (baixar skills). GUI vai pré-compilada — sem libs -dev.
 depends = "$auto, curl, unzip, git, libx11-6, libxcursor1, libxrandr2, libxi6, libxkbcommon0, libwayland-client0, libgl1"
 assets = [
-    # Os DOIS nomes vão no pacote: `overflow` é o app, `schematize` segue funcionando
-    # pra não quebrar hook/script de quem já tinha. Sem `Conflicts` de propósito — a
-    # ideia é que `schematize` venha a ser OUTRO produto, e os dois coexistam.
-    ["target/release/overflow", "usr/bin/", "755"],
     ["target/release/schematize", "usr/bin/", "755"],
     ["target/release/schematize-gui", "usr/bin/", "755"],
     ["packaging/schematize-agent.desktop", "etc/xdg/autostart/schematize-agent.desktop", "644"],
@@ -110,7 +93,6 @@ license = "MIT"
 # sem depender do rpm no host de build; o zypper resolve pro pacote da distro.
 auto-req = "builtin"
 assets = [
-    { source = "target/release/overflow", dest = "/usr/bin/overflow", mode = "755" },
     { source = "target/release/schematize", dest = "/usr/bin/schematize", mode = "755" },
     { source = "target/release/schematize-gui", dest = "/usr/bin/schematize-gui", mode = "755" },
     { source = "packaging/schematize-agent.desktop", dest = "/etc/xdg/autostart/schematize-agent.desktop", mode = "644" },
