@@ -26,7 +26,8 @@
 use crate::overdev;
 use portable_pty::{native_pty_system, Child, CommandBuilder, MasterPty, PtySize};
 use std::io::{Read, Write};
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc::{self, Receiver};
 use std::sync::Mutex;
 use std::thread::{self, JoinHandle};
@@ -230,6 +231,79 @@ pub fn launch_in_terminal(project: &Path, objetivo: &str) -> Result<String, Stri
     launch_prompt_in_terminal(project, &overdev_prompt(objetivo))
 }
 
+/// Sequência monotônica de lançamentos DENTRO deste processo. Junto do pid e do relógio,
+/// dá o par de arquivos exclusivo de cada `launch_prompt_in_terminal` (ver
+/// [`arquivos_de_lancamento`]).
+static LANCAMENTO_SEQ: AtomicU64 = AtomicU64::new(0);
+
+/// Par de arquivos EXCLUSIVO de um lançamento: `(prompt, wrapper)`.
+///
+/// ## Por que existe (o bug que ela mata)
+/// Os dois arquivos eram de nome FIXO (`run-prompt.txt`, `run.sh`) e o wrapper lê o prompt
+/// com `$(cat …)` **quando o terminal sobe**, não quando o app grava. Como `overdev split
+/// --dispatch` chama isto K vezes em sequência e `spawn` não espera o terminal subir, o app
+/// (microssegundos por escrita) sempre vencia o emulador de terminal (centenas de
+/// milissegundos até o `cat`): **todos** os K agentes liam a ÚLTIMA fatia escrita. Com K=2,
+/// dois agentes no `part-02` e o `part-01` órfão — com os itens dele já movidos pra fora do
+/// `CHECKLIST.md` primário, ou seja, ninguém trabalhando neles. Não era intermitente: o app
+/// ganhava a corrida em toda execução.
+///
+/// ## Comportamento
+/// Nome único por `pid`+relógio+sequência: `pid` separa processos, o relógio cobre reuso de
+/// pid depois que o processo morre, e a sequência separa os lançamentos do MESMO processo —
+/// que é exatamente o caso do split. Pura de propósito (só monta caminho, não toca disco),
+/// pra ser testável sem abrir terminal.
+///
+/// **Entrada:** `od` — o dir do control-plane (`.schematize/overdev/`).
+/// **Saída:** `(promptfile, script)`, ambos dentro de `od`, distintos a cada chamada.
+/// **Efeitos:** nenhum no disco; só incrementa o contador em memória.
+fn arquivos_de_lancamento(od: &Path) -> (PathBuf, PathBuf) {
+    let seq = LANCAMENTO_SEQ.fetch_add(1, Ordering::Relaxed);
+    let pid = std::process::id();
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or(0);
+    let token = format!("{pid}-{nanos:x}-{seq}");
+    (od.join(format!("run-prompt-{token}.txt")), od.join(format!("run-{token}.sh")))
+}
+
+/// Apaga os pares de lançamento com mais de 24h do control-plane.
+///
+/// Por que: o nome único (§ [`arquivos_de_lancamento`]) resolve a corrida mas acumula
+/// arquivo — o wrapper precisa sobreviver até o terminal lê-lo, então não dá pra apagar na
+/// saída. Limpar o que é velho o bastante pra nenhum terminal ainda estar subindo mantém o
+/// dir enxuto sem janela de corrida. Leva junto os nomes FIXOS legados (`run.sh`,
+/// `run-prompt.txt`), resíduo das versões anteriores.
+///
+/// **Entrada:** `od` — o dir do control-plane. **Saída:** nenhuma (best-effort).
+/// **Efeitos:** remove arquivo do disco; erro é ignorado de propósito — falhar a limpeza
+/// nunca pode impedir um lançamento.
+fn purga_lancamentos_velhos(od: &Path) {
+    const VELHO_SEGS: u64 = 24 * 60 * 60;
+    let agora = std::time::SystemTime::now();
+    for e in std::fs::read_dir(od).into_iter().flatten().flatten() {
+        let p = e.path();
+        let Some(n) = p.file_name().and_then(|n| n.to_str()) else { continue };
+        let alvo = (n.starts_with("run-prompt-") && n.ends_with(".txt"))
+            || (n.starts_with("run-") && n.ends_with(".sh"))
+            || n == "run.sh"
+            || n == "run-prompt.txt";
+        if !alvo {
+            continue;
+        }
+        let velho = e
+            .metadata()
+            .and_then(|m| m.modified())
+            .ok()
+            .and_then(|t| agora.duration_since(t).ok())
+            .is_some_and(|d| d.as_secs() > VELHO_SEGS);
+        if velho {
+            let _ = std::fs::remove_file(&p);
+        }
+    }
+}
+
 /// Igual à [`launch_in_terminal`], mas dispara um PROMPT ARBITRÁRIO (linguagem natural) num
 /// terminal externo — reusada pelo (re)index ([`reindex_prompt`]) e por qualquer ação one-shot
 /// que a GUI/CLI queira delegar ao `claude` fora do processo do app. Escreve o prompt num arquivo
@@ -244,9 +318,9 @@ pub fn launch_prompt_in_terminal(project: &Path, prompt: &str) -> Result<String,
     // ainda estiver no layout antigo — resolvido pelo módulo `paths`).
     let od = crate::paths::overdev_dir_at(project);
     std::fs::create_dir_all(&od).map_err(|e| format!("criar .schematize/overdev: {e}"))?;
-    let promptfile = od.join("run-prompt.txt");
+    purga_lancamentos_velhos(&od);
+    let (promptfile, script) = arquivos_de_lancamento(&od);
     std::fs::write(&promptfile, prompt).map_err(|e| format!("gravar prompt: {e}"))?;
-    let script = od.join("run.sh");
     // O terminal roda `bash run.sh` (non-login): NÃO lê ~/.bashrc, então reforçamos o PATH com os
     // dirs de usuário (o próprio claude, node e ripgrep resolvem daqui) e chamamos o claude pelo
     // caminho ABSOLUTO — assim funciona mesmo com o app aberto pelo lançador do desktop.
@@ -689,5 +763,60 @@ mod tests {
         }
         let _ = std::fs::remove_dir_all(&tmp);
         assert_eq!(got.as_deref(), Some(fake.as_path()), "deve achar no fallback ~/.local/bin");
+    }
+
+    /// O QUE: prova que dois lançamentos seguidos NÃO compartilham arquivo.
+    ///
+    /// POR QUE: com nome fixo (`run-prompt.txt`/`run.sh`), o 2º lançamento sobrescrevia o 1º
+    /// antes de o terminal do 1º ler — e os K agentes do `overdev split --dispatch` recebiam
+    /// todos a última fatia. Esta asserção reprova se alguém voltar ao nome fixo.
+    #[test]
+    fn cada_lancamento_ganha_seu_par_de_arquivos() {
+        let od = Path::new("/tmp/sz-lanc-teste");
+        let (p1, s1) = arquivos_de_lancamento(od);
+        let (p2, s2) = arquivos_de_lancamento(od);
+
+        assert_ne!(p1, p2, "dois lançamentos gravaram no MESMO arquivo de prompt");
+        assert_ne!(s1, s2, "dois lançamentos gravaram no MESMO wrapper");
+        assert_ne!(p1, s1, "prompt e wrapper não podem ser o mesmo arquivo");
+        for f in [&p1, &s1, &p2, &s2] {
+            let n = f.file_name().and_then(|n| n.to_str()).unwrap_or_default();
+            assert!(n != "run.sh" && n != "run-prompt.txt", "voltou ao nome FIXO: {n}");
+            assert_eq!(f.parent(), Some(od), "arquivo saiu do control-plane");
+        }
+    }
+
+    /// O QUE: reproduz o `overdev split --dispatch` com K fatias e prova que cada terminal lê
+    /// A SUA — a corrida real, não só a unicidade do nome.
+    ///
+    /// COMO: escreve os K prompts como o dispatch faz (em sequência, sem esperar ninguém) e só
+    /// DEPOIS lê todos, que é a ordem que o bug expunha — o terminal só faz `cat` centenas de
+    /// milissegundos após o app ter escrito o próximo. Com nome fixo, os K lidos seriam todos
+    /// iguais ao último; aqui têm que ser exatamente os K escritos.
+    #[test]
+    fn dispatch_de_k_fatias_nao_embaralha_os_prompts() {
+        const K: usize = 5;
+        let od = std::env::temp_dir().join(format!("sz-dispatch-{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&od);
+
+        // Fase 1 — o app escreve as K fatias em rajada (nenhum "terminal" leu ainda).
+        let mut escritos = Vec::new();
+        for i in 1..=K {
+            let (pf, _sh) = arquivos_de_lancamento(&od);
+            let corpo = format!("cuide APENAS de checklist/part-{i:02}.md");
+            std::fs::write(&pf, &corpo).expect("gravar prompt");
+            escritos.push((pf, corpo));
+        }
+
+        // Fase 2 — só agora os terminais sobem e fazem o `cat`.
+        for (pf, esperado) in &escritos {
+            let lido = std::fs::read_to_string(pf).expect("ler prompt");
+            assert_eq!(&lido, esperado, "terminal leu a fatia de outro agente");
+        }
+        let distintos: std::collections::HashSet<_> =
+            escritos.iter().map(|(_, c)| c.as_str()).collect();
+        assert_eq!(distintos.len(), K, "as {K} fatias não chegaram distintas aos agentes");
+
+        let _ = std::fs::remove_dir_all(&od);
     }
 }
