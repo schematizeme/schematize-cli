@@ -227,6 +227,30 @@ pub fn mesclar(root: &Path) -> Result<usize, String> {
     Ok(entrou)
 }
 
+/// O prompt do agente que organiza as demandas.
+///
+/// Vive na lib porque CLI e GUI disparam o MESMO agente. E a REGRA DURA do meio é o
+/// que impede o desenho de se desfazer: se o organizador editasse o checklist, ele
+/// seria mais um escritor concorrente — exatamente o que a caixa existe pra evitar.
+pub fn prompt_agente(bin: &str, quantas: usize) -> String {
+    format!(
+        "Você vai organizar demandas novas de um projeto que JÁ TEM um overdev rodando.\n\
+         \n\
+         REGRA DURA: não edite `CHECKLIST.md` nem nenhum arquivo do overdev. Outro agente \
+         pode estar escrevendo neles agora, e sua edição sobrescreveria o trabalho dele.\n\
+         \n\
+         Para cada demanda listada por `{bin} overdev caixa list`:\n\
+         1. leia o texto cru;\n\
+         2. quebre em itens de checklist pequenos, verificáveis e independentes;\n\
+         3. registre com: {bin} overdev caixa organizar <id> --item \"...\" --item \"...\"\n\
+         \n\
+         Quando terminar todas, rode: {bin} overdev caixa merge\n\
+         Esse comando é o ÚNICO que toca o checklist, e ele o faz sob trava.\n\
+         \n\
+         Demandas a organizar: {quantas}"
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -140,6 +140,45 @@ pub fn desatualizadas(root: &Path) -> Vec<(String, String, String)> {
         .collect()
 }
 
+/// O prompt que reaplica as skills. Vive na lib porque CLI e GUI disparam o MESMO
+/// agente — duplicá-lo faria as duas faces divergirem em silêncio.
+///
+/// Duas instruções carregam o peso: reaplicar é ATUALIZAR o que divergiu (não refazer
+/// o projeto do zero), e o registro da nova versão sai por comando NO FIM — só depois
+/// de o trabalho existir. Marcar antes diria "aplicado" sobre algo que talvez tenha
+/// falhado no meio, e o próximo a olhar confiaria numa mentira.
+pub fn prompt_rerun(bin: &str, alvos: &[(String, String, String)]) -> String {
+    let lista: Vec<String> = alvos
+        .iter()
+        .map(|(s, de, para)| format!("  - {s}: este projeto seguiu a v{de}; a instalada agora é a v{para}"))
+        .collect();
+    let marcas: Vec<String> = alvos
+        .iter()
+        .map(|(s, _, _)| format!("  {bin} skills applied --mark {s}"))
+        .collect();
+    format!(
+        "Este projeto foi moldado por versões ANTIGAS de skills que desde então evoluíram.\n\
+         Sua tarefa é ATUALIZAR os preceitos do projeto para a versão atual de cada uma.\n\
+         \n\
+         {}\n\
+         \n\
+         Como trabalhar:\n\
+         1. leia a skill instalada (~/.claude/skills/schematize-<slug>/) e o CHANGELOG dela;\n\
+         2. compare com o que este projeto já faz;\n\
+         3. aplique SÓ o que divergiu. Isto é uma atualização, não uma reescrita — não\n\
+            refaça o que já está de acordo, e não troque decisões que o projeto tomou\n\
+            de propósito;\n\
+         4. se algo exigir uma decisão humana, registre com `{bin} overdev add \"...\"`\n\
+            em vez de decidir sozinho.\n\
+         \n\
+         AO TERMINAR cada skill, e só então, registre:\n\
+         {}\n",
+        lista.join("\n"),
+        marcas.join("\n"),
+    )
+}
+
+
 #[cfg(test)]
 mod tests {
     use super::*;

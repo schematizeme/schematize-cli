@@ -6,7 +6,11 @@ use crate::i18n::tf;
 use crate::util::open_url;
 
 pub const SITE: &str = "https://schematize.net";
-pub const BLOG: &str = "https://blog.schematize.net";
+pub const BLOG: &str = "https://blog.schematize.org";
+/// Academy — cursos pagos e estruturados de como usar IA (videoaula).
+pub const ACADEMY: &str = "https://academy.schematize.org";
+/// Research — artigos densos, foco em disseminar conhecimento.
+pub const RESEARCH: &str = "https://research.schematize.org";
 pub const GITHUB: &str = "https://github.com/schematizeme";
 
 /// Resolve um alvo textual para uma URL conhecida.
@@ -15,6 +19,8 @@ pub fn url_for(target: &str) -> Option<&'static str> {
         "site" | "website" | "home" => Some(SITE),
         "blog" | "news" => Some(BLOG),
         "github" | "gh" | "repo" => Some(GITHUB),
+        "academy" | "cursos" => Some(ACADEMY),
+        "research" | "artigos" => Some(RESEARCH),
         _ => None,
     }
 }

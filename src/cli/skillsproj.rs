@@ -75,7 +75,7 @@ pub(crate) fn rerun_cmd(slug: Option<String>) -> Result<(), String> {
     for (s, de, para) in &alvos {
         println!("  {s}: v{de} → v{para}");
     }
-    let prompt = prompt_rerun(&alvos);
+    let prompt = skillsproj::prompt_rerun(&bin_atual(), &alvos);
     match agentrun::launch_prompt_in_terminal(&root, &prompt) {
         Ok(msg) => println!("{msg}"),
         // Sem terminal gráfico: entrega o prompt em vez de falhar.
@@ -87,44 +87,11 @@ pub(crate) fn rerun_cmd(slug: Option<String>) -> Result<(), String> {
     Ok(())
 }
 
-/// O prompt que reaplica as skills.
-///
-/// Duas instruções carregam o peso: reaplicar é ATUALIZAR o que divergiu (não refazer
-/// o projeto do zero), e o registro da nova versão sai por comando NO FIM — só depois
-/// de o trabalho existir. Marcar antes diria "aplicado" sobre algo que talvez tenha
-/// falhado no meio, e o próximo a olhar confiaria numa mentira.
-fn prompt_rerun(alvos: &[(String, String, String)]) -> String {
-    let bin = std::env::current_exe()
+/// Caminho do próprio binário, pro prompt mandar o agente chamar ESTE app.
+fn bin_atual() -> String {
+    std::env::current_exe()
         .map(|p| p.display().to_string())
-        .unwrap_or_else(|_| "overflow".into());
-    let lista: Vec<String> = alvos
-        .iter()
-        .map(|(s, de, para)| format!("  - {s}: este projeto seguiu a v{de}; a instalada agora é a v{para}"))
-        .collect();
-    let marcas: Vec<String> = alvos
-        .iter()
-        .map(|(s, _, _)| format!("  {bin} skills applied --mark {s}"))
-        .collect();
-    format!(
-        "Este projeto foi moldado por versões ANTIGAS de skills que desde então evoluíram.\n\
-         Sua tarefa é ATUALIZAR os preceitos do projeto para a versão atual de cada uma.\n\
-         \n\
-         {}\n\
-         \n\
-         Como trabalhar:\n\
-         1. leia a skill instalada (~/.claude/skills/schematize-<slug>/) e o CHANGELOG dela;\n\
-         2. compare com o que este projeto já faz;\n\
-         3. aplique SÓ o que divergiu. Isto é uma atualização, não uma reescrita — não\n\
-            refaça o que já está de acordo, e não troque decisões que o projeto tomou\n\
-            de propósito;\n\
-         4. se algo exigir uma decisão humana, registre com `{bin} overdev add \"...\"`\n\
-            em vez de decidir sozinho.\n\
-         \n\
-         AO TERMINAR cada skill, e só então, registre:\n\
-         {}\n",
-        lista.join("\n"),
-        marcas.join("\n"),
-    )
+        .unwrap_or_else(|_| "overflow".into())
 }
 
 /// Versão instalada de uma skill pelo slug (`None` se não está na máquina).

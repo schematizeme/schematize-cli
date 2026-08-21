@@ -84,23 +84,7 @@ fn agente(root: &std::path::Path) -> Result<(), String> {
     let bin = std::env::current_exe()
         .map(|p| p.display().to_string())
         .unwrap_or_else(|_| "overflow".into());
-    let prompt = format!(
-        "Você vai organizar demandas novas de um projeto que JÁ TEM um overdev rodando.\n\
-         \n\
-         REGRA DURA: não edite `CHECKLIST.md` nem nenhum arquivo do overdev. Outro agente \
-         pode estar escrevendo neles agora, e sua edição sobrescreveria o trabalho dele.\n\
-         \n\
-         Para cada demanda listada por `{bin} overdev caixa list`:\n\
-         1. leia o texto cru;\n\
-         2. quebre em itens de checklist pequenos, verificáveis e independentes;\n\
-         3. registre com: {bin} overdev caixa organizar <id> --item \"...\" --item \"...\"\n\
-         \n\
-         Quando terminar todas, rode: {bin} overdev caixa merge\n\
-         Esse comando é o ÚNICO que toca o checklist, e ele o faz sob trava.\n\
-         \n\
-         Demandas a organizar: {}",
-        p.len()
-    );
+    let prompt = caixa::prompt_agente(&bin, p.len());
     println!("abrindo um agente no terminal pra organizar {} demanda(s)…", p.len());
     match agentrun::launch_prompt_in_terminal(root, &prompt) {
         Ok(msg) => {
