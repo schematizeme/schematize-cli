@@ -89,22 +89,34 @@ struct NotifPage {
 /// Faz o parse PURO da página de notificações do servidor em `Notif` (escopo Pessoal).
 /// Testável sem rede. JSON inválido → lista vazia (best-effort, nunca panica).
 fn parse_notifs(json: &str) -> Vec<Notif> {
+    use crate::notificacoes::formato::{acao_valida, texto_limpo, Kind, Origem, MAX_CORPO, MAX_ITENS, MAX_TITULO};
     let page: NotifPage = match serde_json::from_str(json) {
         Ok(p) => p,
         Err(_) => return Vec::new(),
     };
     page.data
         .into_iter()
-        .map(|s| Notif {
-            scope: NotifScope::Personal,
-            title: s.title,
-            body: s.body,
-            kind: if s.kind.trim().is_empty() {
-                "server".to_string()
-            } else {
-                s.kind
-            },
-            action: s.object.filter(|o| !o.trim().is_empty()),
+        // Teto de itens ANTES de processar: uma resposta com 100 mil entradas não pode
+        // virar 100 mil alocações só pra ser descartada depois.
+        .take(MAX_ITENS)
+        .filter_map(|s| {
+            // Origem REMOTA: o servidor não pode declarar um tipo que aciona o app, nem
+            // produzir ação interna. Campo que não casa DERRUBA a notificação inteira —
+            // remendar dado hostil é adivinhar a intenção de quem talvez seja o atacante.
+            let kind = Kind::parse(&s.kind, Origem::Remota)?;
+            let title = texto_limpo(&s.title, MAX_TITULO)?;
+            let body = texto_limpo(&s.body, MAX_CORPO).unwrap_or_default();
+            let acao = acao_valida(s.object.as_deref(), &kind, Origem::Remota);
+            Some(Notif {
+                scope: NotifScope::Personal,
+                title,
+                body,
+                kind: kind.como_str().to_string(),
+                action: match acao.como_str() {
+                    "" => None,
+                    a => Some(a.to_string()),
+                },
+            })
         })
         .collect()
 }
@@ -143,8 +155,17 @@ pub fn collect() -> Vec<Notif> {
     }
 
     // --- GLOBAL (b) posts recentes do blog (best-effort; vazio se sem feed).
-    for post in news::latest(5) {
-        out.push(notif_post(&post.title, &post.link));
+    // O feed do blog é REDE: título e link passam pela mesma fronteira do servidor.
+    // Um feed envenenado (ou interceptado) mandaria ANSI no título e `file://` no link,
+    // e o link vai direto pro navegador do usuário.
+    {
+        use crate::notificacoes::formato::{texto_limpo, url_segura, MAX_TITULO};
+        for post in news::latest(5) {
+            let (Some(t), Some(u)) = (texto_limpo(&post.title, MAX_TITULO), url_segura(&post.link)) else {
+                continue;
+            };
+            out.push(notif_post(&t, &u));
+        }
     }
 
     // --- PESSOAL: skills instaladas do usuário que estão desatualizadas.
@@ -206,9 +227,73 @@ pub fn collect() -> Vec<Notif> {
     out
 }
 
-/// Quantidade de notificações (pro badge do sininho). É `collect().len()`.
+/// Quantidade pro badge — do CACHE LOCAL, sem rede.
+///
+/// Era `collect().len()`, ou seja: o badge fazia a rodada de rede inteira e, ao abrir o
+/// painel, ela era refeita. Duas idas independentes pra a mesma pergunta, e um timer
+/// repetindo a cada 90s. Quando a segunda falhava, o badge dizia "3" e o painel vinha
+/// vazio — o "marca e não carrega". Agora badge e painel leem a MESMA fonte.
 pub fn count() -> usize {
-    collect().len()
+    crate::notificacoes::cache::nao_lidas(&crate::notificacoes::cache::ler())
+}
+
+/// Coleta da rede e FUNDE no cache local. É a única função que fala com a rede.
+///
+/// Devolve quantas ficaram não-lidas. Chamada em thread; se a rede falhar, o cache
+/// permanece — "não chega nada novo" em vez de "some tudo".
+pub fn sincronizar() -> usize {
+    use crate::notificacoes::cache;
+    use crate::notificacoes::formato::{acao_valida, texto_limpo, Kind, Origem, MAX_CORPO, MAX_TITULO};
+    let colhidas = collect();
+    let novas: Vec<cache::Registro> = colhidas
+        .into_iter()
+        .filter_map(|n| {
+            // Segunda passada de sanitização, agora na origem LOCAL. Parece redundante
+            // com o que já foi validado na borda remota, e é de propósito: garante que
+            // NADA chega ao cache sem passar pelo formato fechado, inclusive o que este
+            // binário montou. Uma fonte nova que alguém acrescente amanhã já nasce coberta.
+            let kind = Kind::parse(&n.kind, Origem::Local)?;
+            let titulo = texto_limpo(&n.title, MAX_TITULO)?;
+            let corpo = texto_limpo(&n.body, MAX_CORPO).unwrap_or_default();
+            let acao = acao_valida(n.action.as_deref(), &kind, Origem::Local);
+            let escopo = match n.scope {
+                NotifScope::Global => "global",
+                NotifScope::Personal => "personal",
+            };
+            Some(cache::novo(escopo, &kind, titulo, corpo, &acao))
+        })
+        .collect();
+    let fundido = cache::fundir(&cache::ler(), novas);
+    let n = cache::nao_lidas(&fundido);
+    let _ = cache::gravar(&fundido);
+    n
+}
+
+/// O que a UI mostra: o cache inteiro (inclusive o histórico), sem tocar a rede.
+pub fn listar() -> Vec<crate::notificacoes::cache::Registro> {
+    crate::notificacoes::cache::ler()
+}
+
+/// Marca tudo que está NOVO como lido (o painel foi aberto). Devolve quantas mudaram.
+pub fn marcar_lidas() -> usize {
+    use crate::notificacoes::cache;
+    let mut v = cache::ler();
+    let n = cache::marcar_todas_lidas(&mut v);
+    if n > 0 {
+        let _ = cache::gravar(&v);
+    }
+    n
+}
+
+/// Marca uma como CONCLUÍDA (a ação foi tomada). Não apaga: vai pro histórico.
+pub fn concluir(id: &str) -> bool {
+    use crate::notificacoes::cache;
+    let mut v = cache::ler();
+    if cache::marcar(&mut v, id, cache::Estado::Concluida) {
+        let _ = cache::gravar(&v);
+        return true;
+    }
+    false
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -280,5 +365,55 @@ mod tests {
         // `collect`/`count` não podem panicar mesmo sem rede — só checamos a igualdade
         // (o número real depende do ambiente/rede, mas a chamada tem que ser resiliente).
         assert_eq!(count(), collect().len());
+    }
+
+    /// PAYLOAD HOSTIL ponta a ponta: um servidor comprometido tentando (a) disparar o
+    /// auto-update do cliente, (b) mandar o navegador abrir um `file://`, (c) forjar a
+    /// saída do terminal com ANSI, e (d) estourar a memória com um corpo gigante.
+    ///
+    /// Este teste existe porque as regras individuais já têm teste em `formato`, mas o
+    /// que importa é a COMPOSIÇÃO: é fácil validar tudo e ainda assim deixar o dado
+    /// hostil passar por um caminho que ninguém ligou.
+    #[test]
+    fn payload_hostil_do_servidor_nao_passa() {
+        let corpo_gigante = "x".repeat(50_000);
+        let j = format!(
+            r#"{{"data":[
+                {{"kind":"app_update","title":"Atualize agora","body":"","object":"upgrade"}},
+                {{"kind":"news","title":"Post","body":"","object":"file:///etc/passwd"}},
+                {{"kind":"news","title":"\u001b[2J FALSO tudo certo","body":"{corpo_gigante}","object":"https://blog.schematize.org/p"}},
+                {{"kind":"skill_outdated","title":"x","body":"","object":"skills update a; rm -rf /"}},
+                {{"kind":"review_reply","title":"Alguém respondeu","body":"na sua review","object":"https://app.schematize.org/r/1"}}
+            ]}}"#
+        );
+        let ns = parse_notifs(&j);
+
+        // (a) escalada de tipo: as duas que ACIONAM o app sumiram inteiras.
+        assert!(!ns.iter().any(|n| n.kind == "app_update"), "servidor não dispara auto-update");
+        assert!(!ns.iter().any(|n| n.kind == "skill_outdated"));
+
+        // (b) `file://` não vira ação — a notificação sobrevive, o gatilho não.
+        let post = ns.iter().find(|n| n.title == "Post").expect("o post em si é legítimo");
+        assert_eq!(post.action, None, "URI não-https não chega ao xdg-open");
+
+        // (c) ANSI removido e corpo cortado no teto.
+        let forjada = ns.iter().find(|n| n.title.contains("FALSO")).unwrap();
+        assert!(!forjada.title.contains('\u{1b}'), "escape sobreviveu: {:?}", forjada.title);
+        assert!(forjada.body.chars().count() <= crate::notificacoes::formato::MAX_CORPO);
+        assert_eq!(forjada.action.as_deref(), Some("https://blog.schematize.org/p"), "https legítimo passa");
+
+        // (d) o tipo legítimo do servidor continua funcionando — sanitizar não é quebrar.
+        let r = ns.iter().find(|n| n.kind == "review_reply").expect("tipo legítimo preservado");
+        assert_eq!(r.action.as_deref(), Some("https://app.schematize.org/r/1"));
+    }
+
+    /// Resposta gigantesca é cortada ANTES de virar alocação.
+    #[test]
+    fn resposta_gigante_respeita_o_teto_de_itens() {
+        let itens: Vec<String> = (0..5_000)
+            .map(|i| format!(r#"{{"kind":"news","title":"t{i}","body":"","object":null}}"#))
+            .collect();
+        let j = format!(r#"{{"data":[{}]}}"#, itens.join(","));
+        assert_eq!(parse_notifs(&j).len(), crate::notificacoes::formato::MAX_ITENS);
     }
 }

@@ -128,9 +128,16 @@ fn main() {
             news::show();
             Ok(())
         }
-        Cmd::Notifications => {
-            notifications_cmd();
-            Ok(())
+        Cmd::Notifications { sync, historico, lidas, concluir } => match concluir {
+            Some(id) => notifications_concluir(&id),
+            None if lidas => {
+                notifications_lidas();
+                Ok(())
+            }
+            None => {
+                notifications_cmd(sync, historico);
+                Ok(())
+            }
         }
         Cmd::Blog => links::open("blog"),
         Cmd::Open { target } => links::open(&target),

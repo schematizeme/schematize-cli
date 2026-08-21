@@ -6,39 +6,78 @@ use schematize::{
 };
 use std::time::Duration;
 
-/// `schematize notifications` — imprime as notificações agregadas, agrupadas por escopo.
-pub(crate) fn notifications_cmd() {
-    let all = notifications::collect();
-    if all.is_empty() {
-        println!("Sem notificações no momento.");
+/// `schematize notifications` — mostra o CACHE local (inclusive o histórico).
+///
+/// Lê do cache e sincroniza com a rede DEPOIS, não antes: assim o comando responde
+/// instantaneamente e funciona offline. Era o contrário — ia à rede e, se ela falhasse,
+/// dizia "sem notificações", que é diferente de "não consegui buscar".
+pub(crate) fn notifications_cmd(sync: bool, historico: bool) {
+    use schematize::notificacoes::cache::Estado;
+    if sync {
+        println!("sincronizando…");
+        notifications::sincronizar();
+    }
+    let all = notifications::listar();
+    let visiveis: Vec<_> = all
+        .iter()
+        .filter(|r| historico || r.estado != Estado::Concluida)
+        .collect();
+    if visiveis.is_empty() {
+        if all.is_empty() {
+            println!("sem notificações no cache — rode `schematize notifications --sync`.");
+        } else {
+            println!("nada pendente ({} no histórico; veja com --historico).", all.len());
+        }
         return;
     }
-    let global: Vec<_> = all
-        .iter()
-        .filter(|n| matches!(n.scope, notifications::NotifScope::Global))
-        .collect();
-    let personal: Vec<_> = all
-        .iter()
-        .filter(|n| matches!(n.scope, notifications::NotifScope::Personal))
-        .collect();
 
-    let print_group = |titulo: &str, ns: &[&notifications::Notif]| {
+    let grupo = |titulo: &str, escopo: &str| {
+        let ns: Vec<_> = visiveis.iter().filter(|r| r.escopo == escopo).collect();
         if ns.is_empty() {
             return;
         }
-        println!("{titulo} ({}):", ns.len());
-        for n in ns {
-            println!("  • [{}] {}", n.kind, n.title);
-            if !n.body.trim().is_empty() {
-                println!("    {}", n.body);
+        println!("\n\x1b[1m{titulo}\x1b[0m ({}):", ns.len());
+        for r in ns {
+            // O marcador diz o ESTADO, que é o que o histórico existe pra mostrar.
+            let m = match r.estado {
+                Estado::Nova => "\x1b[33m●\x1b[0m",
+                Estado::Lida => "\x1b[2m○\x1b[0m",
+                Estado::Concluida => "\x1b[32m✓\x1b[0m",
+            };
+            println!("  {m} [{}] {}", r.kind, r.titulo);
+            if !r.corpo.trim().is_empty() {
+                println!("      {}", r.corpo);
             }
-            if let Some(a) = &n.action {
-                println!("    → {a}");
+            if !r.acao.is_empty() {
+                println!("      → {}", r.acao);
             }
+            println!("      \x1b[2mid {}\x1b[0m", r.id);
         }
     };
-    print_group("Globais", &global);
-    print_group("Pessoais", &personal);
+    grupo("Globais", "global");
+    grupo("Pessoais", "personal");
+
+    let novas = all.iter().filter(|r| r.estado == Estado::Nova).count();
+    if novas > 0 {
+        println!("\n{novas} não lida(s). `schematize notifications --lidas` marca todas como vistas.");
+    }
+    println!("concluir uma:  schematize notifications --concluir <id>");
+}
+
+/// Marca todas as não lidas como vistas. Não apaga nada.
+pub(crate) fn notifications_lidas() {
+    let n = notifications::marcar_lidas();
+    println!("{n} notificação(ões) marcada(s) como lida(s). Nada foi apagado.");
+}
+
+/// Marca uma como concluída — vai pro histórico, não some.
+pub(crate) fn notifications_concluir(id: &str) -> Result<(), String> {
+    if notifications::concluir(id) {
+        println!("concluída. Segue no histórico (`schematize notifications --historico`).");
+        Ok(())
+    } else {
+        Err(format!("não achei a notificação '{id}'"))
+    }
 }
 
 /// `schematize login` — autentica via OAuth device flow: inicia o fluxo, mostra o

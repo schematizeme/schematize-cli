@@ -117,7 +117,20 @@ pub(crate) enum Cmd {
     /// Show the latest posts from blog.schematize.net.
     News,
     /// Show aggregated notifications (app update, blog posts, outdated skills), grouped by scope.
-    Notifications,
+    Notifications {
+        /// Fetch from the network first (default: read the local cache only).
+        #[arg(long)]
+        sync: bool,
+        /// Also show the ones already resolved (history).
+        #[arg(long)]
+        historico: bool,
+        /// Mark every unread one as seen. Deletes nothing.
+        #[arg(long)]
+        lidas: bool,
+        /// Mark one as resolved by id. It moves to history, it is not deleted.
+        #[arg(long)]
+        concluir: Option<String>,
+    },
     /// Open the blog (blog.schematize.net) in the browser.
     Blog,
     /// Open a resource in the browser: site | blog | github.
