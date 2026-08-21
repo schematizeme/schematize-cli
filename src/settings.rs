@@ -176,15 +176,37 @@ fn caminhos_citados(cmd: &str) -> Vec<PathBuf> {
         .collect()
 }
 
-/// O comando do hook está QUEBRADO — cita caminhos e nenhum deles existe?
+/// O comando do hook está QUEBRADO — inexistente OU dependente do cwd?
 ///
-/// O nosso comando resiliente cita quatro caminhos de propósito (é o ponto dele:
-/// tentar todos), então basta UM existir pra ele não ser considerado quebrado.
-/// Comando sem caminho nenhum (ex.: só `schematize overdev check`, resolvido pelo
-/// PATH) não é julgado aqui — não dá pra saber sem executar, e na dúvida não se mexe.
+/// Duas formas de quebra, e a segunda é a que enganou a versão anterior desta função:
+///
+/// 1. **Nenhum caminho citado existe.** O nosso comando resiliente cita quatro de
+///    propósito (o ponto dele é tentar todos), então basta UM existir pra passar.
+/// 2. **Algum caminho é RELATIVO** (`bash .claude/hooks/overdev-stop.sh`). Isso é
+///    quebrado *por construção*, exista o arquivo ou não: quem executa o hook é o
+///    Claude Code, e o cwd dele não é garantido ser a raiz do projeto — em qualquer
+///    outra pasta vira "arquivo ou diretório inexistente" em toda parada.
+///
+/// A versão anterior resolvia o relativo com `.exists()`, isto é, **contra o cwd do
+/// processo `schematize`** — a mesma fragilidade do hook que ela deveria consertar.
+/// Dava "são" exatamente quando o `schematize` rodava na raiz do projeto, que é o
+/// único caso em que o hook também teria funcionado; no caso que quebra, ninguém
+/// reavaliava. Por isso a regra agora é do FORMATO do caminho, não do disco.
+///
+/// **Entrada:** `cmd` — o comando do hook como está no settings.json.
+/// **Saída:** `true` se precisa ser regravado. Comando sem caminho nenhum (ex.: só
+/// `schematize overdev check`, resolvido pelo PATH) não é julgado — não dá pra saber
+/// sem executar, e na dúvida não se mexe.
+/// **Efeitos:** lê o disco (só `exists`), não escreve.
 fn comando_quebrado(cmd: &str) -> bool {
     let caminhos = caminhos_citados(cmd);
-    !caminhos.is_empty() && !caminhos.iter().any(|p| p.exists())
+    if caminhos.is_empty() {
+        return false;
+    }
+    if caminhos.iter().any(|p| p.is_relative()) {
+        return true;
+    }
+    !caminhos.iter().any(|p| p.exists())
 }
 
 /// Repara os hooks do overdev num settings.json específico.
@@ -296,6 +318,24 @@ mod tests {
         // 2) caminho RELATIVO do hook shell legado (a máquina do 3º relato):
         //    só resolveria se o Claude Code rodasse exatamente naquela pasta.
         assert!(comando_quebrado("bash .claude/hooks/overdev-stop.sh"));
+        // 2b) O MESMO relativo, agora com o arquivo EXISTINDO no cwd do teste. É o
+        //     caso real que escapava: o `.exists()` da versão anterior dizia "são"
+        //     e o reparo ia embora, enquanto o Claude Code — rodando de outra pasta —
+        //     seguia falhando em toda parada. Relativo é quebrado independente do disco.
+        let cwd = std::env::current_dir().expect("cwd");
+        let dir = cwd.join(".claude/hooks");
+        let _ = fs::create_dir_all(&dir);
+        let script = dir.join("sz-teste-relativo.sh");
+        let _ = fs::write(&script, "#!/usr/bin/env bash\n");
+        assert!(
+            script.exists(),
+            "o teste precisa do arquivo existindo pra provar que existência não salva o relativo"
+        );
+        assert!(
+            comando_quebrado("bash .claude/hooks/sz-teste-relativo.sh"),
+            "caminho relativo é quebrado mesmo existindo no cwd do processo"
+        );
+        let _ = fs::remove_file(&script);
         // 3) caminho absoluto de uma skill que não está instalada
         assert!(comando_quebrado("bash /nao/existe/overdev-stop.sh"));
 

@@ -74,6 +74,20 @@ pub(crate) fn decide_stop(
 /// Quando só restam `- [H ]` (humanos), PERMITE parar e informa os pendentes.
 pub fn check() {
     drain_stdin();
+    // AUTO-CURA do hook quebrado, ANTES do retorno de inerte (§ UX de massa: o software
+    // se conserta, não manda o usuário editar settings.json).
+    //
+    // Por que aqui: o estrago mora no settings.json de QUEM LIGOU o overdev — muitas vezes
+    // o do projeto, com o hook shell legado em caminho RELATIVO (`bash
+    // .claude/hooks/overdev-stop.sh`). Esse falha em toda parada, com o overdev ativo ou
+    // não, e o `schematize` só é executado ali por este próprio hook: era o único ponto que
+    // roda no projeto certo, na hora certa, e ninguém aproveitava. O `doctor` reparava, mas
+    // exigia o usuário saber que existe e rodar à mão.
+    //
+    // Seguro por construção: `repara_hooks_em` só toca comando que é NOSSO (cita `overdev
+    // check`/`overdev guard` ou o `overdev-stop.sh`) E está quebrado; escreve só nesse caso,
+    // e é idempotente. Best-effort — falhar o reparo nunca pode alterar a decisão de parar.
+    reparar_hooks_do_projeto();
     let st = match load() {
         Some(s) if s.mode == "active" => s,
         _ => return, // inerte
@@ -97,6 +111,21 @@ pub fn check() {
         // Permite a parada (não bloqueia), mas mostra os itens humanos pendentes.
         StopDecision::PermitWithHuman(msg) => println!("{msg}"),
         StopDecision::Block(reason) => print_block(&reason),
+    }
+}
+
+/// Regrava os hooks do overdev que estiverem quebrados, no settings do usuário e no do
+/// projeto corrente. Chamada pelo Stop hook (ver [`check`]).
+///
+/// **Entrada:** nenhuma — usa o cwd como projeto (é onde o Claude Code roda o hook).
+/// **Saída:** nenhuma. **Efeitos:** pode reescrever `.claude/settings.json` (do projeto) e
+/// o settings do usuário; erro é engolido de propósito — um reparo que falha não pode
+/// derrubar o gate nem virar ruído na parada do agente.
+fn reparar_hooks_do_projeto() {
+    let exe = crate::util::self_exe();
+    let projeto = std::env::current_dir().ok();
+    for arquivo in crate::settings::arquivos_de_settings(projeto.as_deref()) {
+        let _ = crate::settings::repara_hooks_em(&arquivo, &exe);
     }
 }
 
