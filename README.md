@@ -31,11 +31,19 @@ curl -fsSL https://raw.githubusercontent.com/schematizeme/schematize-cli/main/in
 
 **Do fonte manualmente:**
 ```bash
+# CLI
 git clone https://github.com/schematizeme/schematize-cli.git
-cd schematize-cli && cargo install --path . --features gui
+cd schematize-cli && cargo install --path .
+
+# GUI (repo SEPARADO — consome o CLI como git-dep)
+git clone https://github.com/schematizeme/schematize_gui_slint.git
+cd schematize_gui_slint
+cargo update -p schematize     # a ordem importa: sem isso a janela abre a versão VELHA
+cargo install --path .
 ```
 
-Instala `schematize` + `schematize-gui` em `~/.cargo/bin` e liga o autostart do agente
+O instalador faz os dois de uma vez. Instala `schematize` + `schematize-gui` em
+`~/.cargo/bin` e liga o autostart do agente
 (inicia com a sessão, checa atualizações e notifica). **`schematize upgrade` recompila do
 fonte** (puxa o main e refaz o build) — sem depender de binário publicado.
 
@@ -61,8 +69,10 @@ Você **escolhe o projeto** num seletor (recentes lembrados + colar caminho + pa
 o Overdev/Grafo mostram aquele projeto — persistente, sempre ali. Roda em **KDE** e
 **Cinnamon** (X11/Wayland).
 
-**A GUI compila junto com o CLI** (`cargo install --features gui`) no install padrão — o
-instalador puxa as **libs de build** (X11/Wayland/GL `-dev`) e cria o lançador no menu.
+**A GUI compila junto com o CLI** no install padrão — ela é um **repo à parte**
+(`schematize_gui_slint`, Slint) que consome o crate `schematize` como git-dep, e o
+instalador clona, roda `cargo update -p schematize`, compila e cria o lançador no menu.
+Puxa também as **libs de build** (X11/Wayland/GL `-dev`).
 Depois é só:
 ```bash
 schematize-gui   # ou procure "schematize" no menu de aplicativos
