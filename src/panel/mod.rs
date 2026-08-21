@@ -251,4 +251,45 @@ mod tests {
         assert_eq!(find_index_dir(&root), Some(root.join(".schematize/grafos")));
         let _ = fs::remove_dir_all(&root);
     }
+    /// Casos REAIS colhidos do MAPA de um projeto da casa — o grafo estava com 127 nós
+    /// e a maioria era pontuação de markdown virando nome de nó.
+    #[test]
+    fn markdown_nao_vira_no() {
+        // Cabeçalho que DOCUMENTA o formato: a seta ali é prosa, não adjacência.
+        assert_eq!(parse_edge("## Microfunções (função → arquivo:linha)"), None);
+        assert_eq!(parse_edge("### fluxo: a -> b"), None);
+
+        // Bullet É adjacência legítima no MAPA — o marcador sai, a aresta fica.
+        let (a, b, _) = parse_edge("- `front` → `api`").unwrap();
+        assert_eq!((a.as_str(), b.as_str()), ("front", "api"));
+        let (a, b, _) = parse_edge("* api --> db").unwrap();
+        assert_eq!((a.as_str(), b.as_str()), ("api", "db"));
+        let (a, b, _) = parse_edge("1. api -> cache").unwrap();
+        assert_eq!((a.as_str(), b.as_str()), ("api", "cache"));
+
+        // Prosa com travessão: o `—` é o separador "nome — descrição" do formato, então
+        // vê-lo dentro de um nó significa que a descrição vazou.
+        assert_eq!(parse_edge("- `row_to_view` — linha → view"), None);
+    }
+
+    /// O marcador de lista sai; o resto do id é preservado como está.
+    #[test]
+    fn sem_marcador_md_so_tira_o_marcador() {
+        assert_eq!(sem_marcador_md("- api"), "api");
+        assert_eq!(sem_marcador_md("  * api"), "api");
+        assert_eq!(sem_marcador_md("12. api"), "api");
+        assert_eq!(sem_marcador_md("api"), "api", "sem marcador, não mexe");
+        assert_eq!(sem_marcador_md("a-b"), "a-b", "hífen no meio do nome sobrevive");
+        assert_eq!(sem_marcador_md("-api"), "-api", "sem espaço não é bullet");
+    }
+
+    /// Aresta normal continua funcionando — a correção não podia estreitar o que já lia.
+    #[test]
+    fn arestas_legitimas_continuam_passando() {
+        assert!(parse_edge("front -> api").is_some());
+        assert!(parse_edge("api -->|contrato| db").is_some());
+        assert!(parse_edge("api ⇒ fila").is_some());
+        let (_, _, lab) = parse_edge("front -> api (Bearer)").unwrap();
+        assert_eq!(lab.as_deref(), Some("Bearer"));
+    }
 }

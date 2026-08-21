@@ -3,9 +3,30 @@
 
 use super::*;
 
+/// Tira a decoração de MARKDOWN do começo de uma linha: bullet (`- `, `* `, `+ `) e
+/// lista numerada (`1. `). PURA.
+///
+/// Existe porque no MAPA a lista de adjacência é escrita como bullets — `- \`front\` →
+/// \`api\`` é uma aresta legítima. Sem tirar o marcador, o id do nó virava
+/// "- \`front", e o grafo enchia de nós fantasma com pontuação de markdown no nome.
+pub(crate) fn sem_marcador_md(s: &str) -> &str {
+    let t = s.trim();
+    for m in ["- ", "* ", "+ "] {
+        if let Some(r) = t.strip_prefix(m) {
+            return r.trim();
+        }
+    }
+    // "1. ", "12. " …
+    let digitos = t.chars().take_while(|c| c.is_ascii_digit()).count();
+    if digitos > 0 && t[digitos..].starts_with(". ") {
+        return t[digitos + 2..].trim();
+    }
+    t
+}
+
 /// Limpa a decoração mermaid de um nó (`id[label]`, `id((label))`, aspas, crases).
 pub(crate) fn clean_node(s: &str) -> String {
-    let s = s.trim().trim_matches('`').trim();
+    let s = sem_marcador_md(s).trim_matches('`').trim();
     for (o, c) in [("[[", "]]"), ("((", "))"), ("[", "]"), ("(", ")"), ("{", "}")] {
         if let (Some(op), Some(cl)) = (s.find(o), s.rfind(c)) {
             if cl > op + o.len() - 1 {
@@ -21,6 +42,12 @@ pub(crate) fn clean_node(s: &str) -> String {
 
 /// Tenta ler uma aresta `A -> B` (adjacência) ou `A -->|label| B` (mermaid).
 pub(crate) fn parse_edge(l: &str) -> Option<(String, String, Option<String>)> {
+    // CABEÇALHO nunca é aresta. O MAPA tem títulos que DOCUMENTAM o formato — por
+    // exemplo `## Microfunções (função → arquivo:linha)` — e a seta ali é prosa. Sem
+    // esta guarda, o título vira um nó chamado "## Microfunções (função".
+    if l.trim_start().starts_with('#') {
+        return None;
+    }
     // Normaliza toda variante de seta pra `->`: mermaid (`-->`,`-.->`,`==>`) E unicode (`→`,`⟶`,`⇒`),
     // que o índice às vezes grava na lista de adjacência pesquisável e que o parser antes ignorava.
     let s = l
@@ -54,6 +81,14 @@ pub(crate) fn parse_edge(l: &str) -> Option<(String, String, Option<String>)> {
     let a = clean_node(left);
     let b = clean_node(&right);
     if a.is_empty() || b.is_empty() || a.len() > 48 || b.len() > 48 {
+        return None;
+    }
+    // Resíduo de MARKDOWN na ponta = a linha não era adjacência, era prosa que por
+    // acaso tinha uma seta. Um id de nó não carrega crase, `#` nem travessão: o `—` é
+    // justamente o separador "nome — descrição" do formato, então vê-lo aqui significa
+    // que a descrição vazou pra dentro do nó.
+    let residuo = |s: &str| s.contains('`') || s.contains('—') || s.starts_with('#') || s.starts_with('|');
+    if residuo(&a) || residuo(&b) {
         return None;
     }
     // `|` = célula de tabela vazando um "->" interno (ex.: "api->db"); não é aresta de grafo.
