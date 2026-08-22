@@ -144,6 +144,33 @@ pub(crate) fn parse_func_bullet(l: &str) -> Option<(String, Option<String>)> {
     Some((name, loc))
 }
 
+/// O nome da 1ª coluna parece um IDENTIFICADOR de função?
+///
+/// O quê: recusa o que nenhuma linguagem aceitaria como nome — começa com dígito, ou tem
+/// espaço no meio. Onde: [`parse_func_row`], antes de aceitar a linha como nó.
+///
+/// Por que existe: exigir uma célula `arquivo:linha` não basta pra saber que a tabela é de
+/// FUNÇÕES. Uma tabela que documenta códigos HTTP e cita onde eles são emitidos tem as duas
+/// coisas — e o parser criava nós chamados `201 created` e `401 UNAUTHORIZED`, lixo que ia
+/// direto pro grafo. Este é o resíduo que sobrou do conserto de arestas da v0.50.1.
+///
+/// **Entrada:** o texto da 1ª célula, já sem crases. **Saída:** `true` se pode ser nome de
+/// função. **Efeitos:** nenhum.
+///
+/// Limite conhecido: um nome curto e maiúsculo (`AX`) é indistinguível de identificador
+/// real pela FORMA, então não é filtrado aqui — separá-lo exigiria saber a linguagem.
+fn parece_identificador(nome: &str) -> bool {
+    let Some(primeiro) = nome.chars().next() else {
+        return false;
+    };
+    // Nenhuma linguagem da casa aceita identificador começando por dígito — mata `201 created`.
+    if primeiro.is_ascii_digit() {
+        return false;
+    }
+    // Espaço no meio é prosa/rótulo, não símbolo — mata `401 UNAUTHORIZED`.
+    !nome.chars().any(char::is_whitespace)
+}
+
 /// Lê uma linha de tabela de índice `nome | ... | arquivo:linha` → (nome, loc).
 pub(crate) fn parse_func_row(l: &str) -> Option<(String, String)> {
     if !l.contains('|') {
@@ -160,6 +187,7 @@ pub(crate) fn parse_func_row(l: &str) -> Option<(String, String)> {
         || name.eq_ignore_ascii_case("funcao")
         || name.starts_with("---")
         || name.starts_with(":--")
+        || !parece_identificador(name)
     {
         return None;
     }

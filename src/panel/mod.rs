@@ -292,4 +292,24 @@ mod tests {
         let (_, _, lab) = parse_edge("front -> api (Bearer)").unwrap();
         assert_eq!(lab.as_deref(), Some("Bearer"));
     }
+
+    /// O QUE: tabela de CÓDIGOS HTTP não vira nó de função.
+    ///
+    /// POR QUE: exigir uma célula `arquivo:linha` não prova que a tabela é de funções —
+    /// uma que documenta status HTTP e cita onde cada um é emitido tem as duas coisas.
+    /// O parser criava nós `201 created` e `401 UNAUTHORIZED`, que iam direto pro grafo.
+    /// É o resíduo que a v0.50.1 deixou ao consertar as arestas (§8 do CONTEXT).
+    #[test]
+    fn tabela_de_codigo_http_nao_vira_funcao() {
+        // Linhas REAIS do formato que produziu o lixo: 1ª coluna é o status, e há loc.
+        assert_eq!(parse::parse_func_row("| 201 created | recurso criado | src/http.rs:88 |"), None);
+        assert_eq!(parse::parse_func_row("| 401 UNAUTHORIZED | sem sessão | src/auth.rs:12 |"), None);
+        // E a linha de função LEGÍTIMA continua passando — o filtro não pode comer o sinal.
+        assert_eq!(
+            parse::parse_func_row("| `criar_usuario` | cria o usuário | src/users.rs:42 |"),
+            Some(("criar_usuario".to_string(), "src/users.rs:42".to_string())),
+        );
+        // Caminhos com `::` e genéricos seguem sendo identificadores válidos.
+        assert!(parse::parse_func_row("| cache::ler | lê o cache | src/cache.rs:7 |").is_some());
+    }
 }
