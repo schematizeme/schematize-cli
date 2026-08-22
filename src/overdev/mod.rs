@@ -21,6 +21,7 @@ mod progresso;
 mod conclusoes;
 mod divisao;
 mod gate;
+pub mod supervisor;
 mod notas;
 mod arquivo;
 pub use progresso::*;

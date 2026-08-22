@@ -81,12 +81,20 @@ pub fn overdev_prompt(objetivo: &str) -> String {
         format!(" O objetivo é: {o}.")
     };
     format!(
-        "Modo OVERDEV neste projeto.{alvo} Leia `.schematize/overdev/CHECKLIST.md` (e `.schematize/overdev/OBJETIVO.md`, \
-         `.schematize/overdev/PLAN.md`, `.schematize/overdev/DECISOES.md` se existirem) e TRABALHE cada item aberto \
-         `- [ ]` até fechar, marcando `- [x]` só COM PROVA (teste/comando/arquivo/gate que passa). \
-         Itens `- [H ]` são de humano — não os faça. NÃO pare enquanto houver `- [ ]` aberto (o Stop \
-         hook do overdev vai te barrar de qualquer forma). Se travar numa dúvida, use \
-         `schematize overdev park` e siga. Comece agora pelo primeiro item aberto."
+        "Modo OVERDEV neste projeto.{alvo}\n\n\
+         PASSO 0 — COMPLETUDE DO CHECKLIST, ANTES DE TICAR QUALQUER COISA. Leia \
+         `.schematize/overdev/CHECKLIST.md` (e `OBJETIVO.md`, `PLAN.md`, `DECISOES.md` se existirem) e \
+         responda: ele cobre o objetivo INTEIRO, ou só a primeira fase? Se estiver PARCIAL/FASEADO — \
+         se você prevê que vai precisar ACRESCENTAR itens depois de fechar os atuais — DERIVE AGORA \
+         os itens que faltam, de TODAS as fases, e grave no CHECKLIST antes de começar. Um item por \
+         linha, cada um com como PROVAR. É proibido encerrar turno para 'planejar a próxima fase': \
+         planejar é agora, executar é depois.\n\n\
+         PASSO 1 — EXECUTE. Trabalhe cada `- [ ]` até fechar, marcando `- [x]` só COM PROVA \
+         (teste/comando/arquivo/gate que passa). Itens `- [H ]` são de humano — não os faça. Se \
+         descobrir trabalho novo no meio, ACRESCENTE ao checklist e siga; nunca pare por causa disso.\n\n\
+         NÃO PARE enquanto houver `- [ ]` aberto — o Stop hook te barra de qualquer forma, e um \
+         supervisor relança você se o processo morrer. Se travar numa dúvida, `schematize overdev park` \
+         e siga (nunca abra pergunta bloqueante). Comece pelo PASSO 0 agora."
     )
 }
 
@@ -228,7 +236,15 @@ fn pre_trust_project(project: &Path) {
 /// a pasta e abre o 1º terminal disponível rodando `claude --dangerously-skip-permissions "<prompt>"`.
 /// Devolve o nome do terminal usado. Erro se `claude` ou nenhum terminal estiver no PATH.
 pub fn launch_in_terminal(project: &Path, objetivo: &str) -> Result<String, String> {
-    launch_prompt_in_terminal(project, &overdev_prompt(objetivo))
+    let term = launch_prompt_in_terminal(project, &overdev_prompt(objetivo))?;
+    // Rede de segurança: o Stop hook só age quando o agente TENTA encerrar o turno; ele não
+    // pode nada se o processo simplesmente morre (contexto, compactação, crash, janela
+    // fechada). O supervisor cobre isso relançando enquanto houver `- [ ]`. Sobe destacado e
+    // é idempotente. NÃO fica no `launch_prompt_in_terminal` de propósito: aquele é genérico
+    // (reindex, partes do split) e o próprio supervisor o usa pra relançar — supervisionar
+    // ali seria recursão.
+    crate::overdev::supervisor::garantir_supervisor(project);
+    Ok(term)
 }
 
 /// Sequência monotônica de lançamentos DENTRO deste processo. Junto do pid e do relógio,

@@ -185,7 +185,7 @@ pub fn count_claude_processes() -> usize {
         if args.is_empty() {
             continue;
         }
-        if looks_like_claude(&args) {
+        if cmdline_e_claude(&args) {
             n += 1;
         }
     }
@@ -193,7 +193,9 @@ pub fn count_claude_processes() -> usize {
 }
 
 /// Decide se um cmdline é uma instância do Claude Code (não o schematize, não um grep/editor).
-fn looks_like_claude(args: &[String]) -> bool {
+/// Público porque o supervisor do overdev (`overdev::supervisor`) precisa do MESMO critério
+/// pra saber se um run tem dono — dois detectores divergentes dariam relançamento indevido.
+pub fn cmdline_e_claude(args: &[String]) -> bool {
     let argv0 = args[0].as_str();
     let base0 = argv0.rsplit(['/', '\\']).next().unwrap_or(argv0);
     // Falsos positivos comuns: qualquer processo com "~/.claude/..." nos args (config/MCP). Só conta

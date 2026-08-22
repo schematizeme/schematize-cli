@@ -520,6 +520,14 @@ pub(crate) enum Over {
         #[arg(long)]
         max: Option<u64>,
     },
+    /// SUPERVISIONA o run deste diretório: se o agente morrer (contexto/crash/janela fechada)
+    /// com item de máquina aberto, RELANÇA. É a rede que o Stop hook não cobre — ele só age
+    /// quando o agente TENTA encerrar o turno, não quando o processo simplesmente acaba.
+    Supervise {
+        /// Teto de relançamentos (guardrail anti-loop).
+        #[arg(long)]
+        max: Option<u32>,
+    },
     /// SPLIT do checklist em K arquivos `checklist/part-N.md` (pastas multi-arquivo) pra rodar
     /// multiagents. Respeita o governador (`schematize agents`): mostra quantos subagents por claude
     /// e recusa passar do teto seguro. `--dispatch` lança os K claudes (cada um no seu part).

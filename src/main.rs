@@ -146,6 +146,15 @@ fn main() {
             Over::Enable => overdev::enable(),
             Over::Disable => overdev::disable(),
             Over::Start { objetivo, max } => overdev::start(&objetivo.join(" "), max),
+            Over::Supervise { max } => cli::overdev::cwd_project().map(|projeto| {
+                let teto = max.unwrap_or(schematize::overdev::supervisor::MAX_RELANCAMENTOS);
+                println!(
+                    "Supervisionando {} — relanço o agente se ele morrer com item de máquina aberto (teto {teto}).",
+                    projeto.display()
+                );
+                let n = schematize::overdev::supervisor::supervise(&projeto, teto);
+                println!("supervisor encerrado após {n} relançamento(s).");
+            }),
             Over::Split { k, dispatch, force } => overdev_split(k, dispatch, force),
             Over::Check => {
                 overdev::check();
