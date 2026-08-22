@@ -360,11 +360,32 @@ mod tests {
         assert!(parse_notifs(r#"{"data":[]}"#).is_empty());
     }
 
+    /// O QUE: o badge (`count`) sai do CACHE, nunca de uma rodada de rede; e nem ele nem
+    /// `collect` panicam sem rede.
+    ///
+    /// POR QUE assim, e não `count() == collect().len()` (o que este teste assertava):
+    /// aquela igualdade era o comportamento ANTERIOR à v0.50.0, quando `count()` era
+    /// literalmente `collect().len()` — e era o BUG: o badge fazia a rodada de rede
+    /// inteira, o painel fazia OUTRA, e quando a segunda falhava o badge dizia "3" com o
+    /// painel vazio. A v0.50.0 desacoplou de propósito (o cache virou a única fonte da UI),
+    /// então a igualdade deixou de valer. O teste só continuava verde por COINCIDÊNCIA de
+    /// ambiente: com cache vazio e rede vazia, `0 == 0`. Assim que o cache encheu (23) e a
+    /// rede devolveu 0 — máquina sem sessão — ele ficou vermelho, acusando o conserto em
+    /// vez do defeito. Uma asserção que depende do estado da máquina não é guarda: é sorte.
+    ///
+    /// A asserção abaixo é o contrato que a v0.50.0 criou. Se alguém voltar `count()` a
+    /// consultar a rede, ela quebra — que é exatamente a regressão a impedir.
     #[test]
-    fn count_bate_com_collect() {
-        // `collect`/`count` não podem panicar mesmo sem rede — só checamos a igualdade
-        // (o número real depende do ambiente/rede, mas a chamada tem que ser resiliente).
-        assert_eq!(count(), collect().len());
+    fn badge_le_o_cache_e_nao_a_rede() {
+        use crate::notificacoes::cache;
+        assert_eq!(
+            count(),
+            cache::nao_lidas(&cache::ler()),
+            "o badge tem que refletir o cache — se voltar a somar o resultado da rede, \
+             o painel e o número divergem de novo (o bug da v0.50.0)"
+        );
+        // Resiliência: sem rede, `collect` degrada pra lista (possivelmente vazia), não panica.
+        let _ = collect();
     }
 
     /// PAYLOAD HOSTIL ponta a ponta: um servidor comprometido tentando (a) disparar o
