@@ -207,3 +207,78 @@ pub(crate) fn tail(path: &Path, n: usize) -> String {
         Err(_) => "(ausente)".to_string(),
     }
 }
+
+/// Primeiro valor de um arquivo `chave: valor` do /proc (ex.: `model name` do cpuinfo).
+///
+/// O quê: varre as linhas, casa a chave antes do `:` e devolve o valor aparado.
+/// Onde: [`cpu_modelo`] e [`ram_total_mb`], na seção de HARDWARE do relatório.
+/// **Entrada:** `path` do arquivo, `chave` exata (sem `:`).
+/// **Saída:** o valor, ou `"(indisponível)"` se o arquivo/chave não existir.
+/// **Efeitos:** lê o disco; nunca panica.
+pub(crate) fn proc_campo(path: &str, chave: &str) -> String {
+    let Ok(txt) = fs::read_to_string(path) else {
+        return "(indisponível)".into();
+    };
+    txt.lines()
+        .find_map(|l| {
+            let (k, v) = l.split_once(':')?;
+            (k.trim() == chave).then(|| v.trim().to_string())
+        })
+        .unwrap_or_else(|| "(indisponível)".into())
+}
+
+/// Modelo do processador. Onde: seção HARDWARE (perf de build e do overdev dependem disto).
+pub(crate) fn cpu_modelo() -> String {
+    proc_campo("/proc/cpuinfo", "model name")
+}
+
+/// RAM total em MB, formatada. Onde: seção HARDWARE — build do fonte e nº de agentes
+/// paralelos são limitados por ela, então é o 1º número a olhar num relato de "travou".
+/// **Saída:** ex. `"15943 MB"`, ou `"(indisponível)"`.
+pub(crate) fn ram_total_mb() -> String {
+    let bruto = proc_campo("/proc/meminfo", "MemTotal"); // ex.: "16321234 kB"
+    match bruto.split_whitespace().next().and_then(|n| n.parse::<u64>().ok()) {
+        Some(kb) => format!("{} MB", kb / 1024),
+        None => "(indisponível)".into(),
+    }
+}
+
+/// Saída COMPLETA de um comando (todas as linhas), com timeout de 5s.
+///
+/// O quê: como [`cmd_out`], mas SEM cortar na 1ª linha. Onde: [`gpu_info`].
+/// Por que existe: `cmd_out` é feito pra `--version` e devolve só a 1ª linha — usá-lo com
+/// `lspci` fazia o filtro de VGA olhar apenas o `Host bridge` e concluir "nenhum adaptador",
+/// numa máquina com Radeon na lista. Saída multi-linha precisa de leitor multi-linha.
+/// **Entrada:** binário + args. **Saída:** stdout aparado, ou `"(indisponível: …)"`.
+/// **Efeitos:** executa processo externo; nunca panica.
+pub(crate) fn cmd_out_full(bin: &str, args: &[&str]) -> String {
+    let mut full: Vec<&str> = vec!["5", bin];
+    full.extend_from_slice(args);
+    match util::run("timeout", &full) {
+        Ok(s) => {
+            let t = s.trim();
+            if t.is_empty() { "(vazio)".to_string() } else { t.to_string() }
+        }
+        Err(e) => format!("(indisponível: {})", e.lines().next().unwrap_or("").trim()),
+    }
+}
+
+/// GPU/renderer — as linhas VGA/3D do `lspci`. Onde: seção HARDWARE.
+/// Por que importa: a GUI é Slint (acelerada); "abre preto"/"não abre" costuma ser
+/// driver/renderer, e sem isto o triador pergunta e espera o usuário responder.
+/// **Saída:** uma linha por adaptador, ou o motivo de não ter dado.
+pub(crate) fn gpu_info() -> String {
+    if !has_bin("lspci") {
+        return "(lspci ausente — instale pciutils p/ detalhar)".into();
+    }
+    let out = cmd_out_full("lspci", &[]);
+    let linhas: Vec<&str> = out
+        .lines()
+        .filter(|l| l.contains("VGA") || l.contains("3D controller") || l.contains("Display controller"))
+        .collect();
+    if linhas.is_empty() {
+        "(nenhum adaptador VGA/3D listado)".into()
+    } else {
+        linhas.join(" | ")
+    }
+}

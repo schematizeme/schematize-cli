@@ -66,6 +66,7 @@ pub fn collect(online: bool) -> String {
     let _ = writeln!(o, "AVISO: segredos são redigidos automaticamente; revise antes de compartilhar.");
 
     sec_sistema(&mut o);
+    sec_hardware(&mut o);
     sec_instalacao(&mut o);
     sec_path_env(&mut o);
     sec_dependencias(&mut o);
@@ -243,4 +244,34 @@ mod tests {
         // 2021-01-01 00:00:00 UTC = 1609459200.
         assert_eq!(fmt_epoch(1_609_459_200), "2021-01-01 00:00:00 UTC");
     }
+}
+
+/// Resumo ESTRUTURADO do ambiente, pro corpo do `POST /diagnostics`.
+///
+/// O quê: os mesmos dados de SO/hardware que a seção 1/1b imprimem, só que como campos
+/// JSON — `os_version`, `kernel`, `arch`, `cpu`, `cores`, `ram_mb`, `gpu`.
+/// Onde: `diagnostics::send`, ao montar o corpo.
+///
+/// Por que existe: o `report` é um blob de texto de centenas de KB. Dá pra LER um relatório
+/// nele, mas não dá pra PERGUNTAR "quantos relatos vieram de Wayland com GPU AMD na 0.50?"
+/// sem reparsear tudo. Triagem sem campo filtrável vira retrabalho — que é justamente o que
+/// coletar hardware deveria evitar. O blob continua indo junto, como fonte da verdade.
+///
+/// **Entrada:** nenhuma. **Saída:** objeto JSON com os campos acima (todos string, exceto
+/// `cores`), sempre presentes — valor `"(indisponível)"` quando a sonda não conseguiu.
+/// **Efeitos:** lê /proc e executa `uname`/`nproc`/`lspci` (best-effort, com timeout).
+pub fn ambiente() -> serde_json::Value {
+    let (os_nome, os_ver) = os_release();
+    serde_json::json!({
+        "os_name": os_nome,
+        "os_version": os_ver,
+        "kernel": cmd_out("uname", &["-r"]),
+        "arch": std::env::consts::ARCH,
+        "cpu": cpu_modelo(),
+        "cores": cmd_out("nproc", &[]).parse::<u32>().unwrap_or(0),
+        "ram_mb": ram_total_mb(),
+        "gpu": gpu_info(),
+        "desktop": getenv("XDG_CURRENT_DESKTOP"),
+        "session_type": getenv("XDG_SESSION_TYPE"),
+    })
 }

@@ -242,3 +242,25 @@ pub(crate) fn sec_logs(o: &mut String, overdev_roots: &[PathBuf]) {
         }
     }
 }
+
+/// 1b) HARDWARE da máquina do usuário.
+///
+/// O quê: CPU (modelo + núcleos), RAM, GPU/renderer e o backend da GUI.
+/// Onde: `collect()`, logo depois de `sec_sistema` — é o bloco que responde "em que
+/// máquina isto aconteceu?".
+///
+/// Por que existe: sem hardware no relatório, todo relato de lentidão, build que estoura
+/// memória, janela que não abre ou paralelismo que trava vira ida-e-volta perguntando o
+/// básico. O piso da casa é não gerar retrabalho: o relatório chega com o que o triador
+/// perguntaria. **Efeitos:** lê /proc e chama `lspci`; tudo best-effort.
+pub(crate) fn sec_hardware(o: &mut String) {
+    hdr(o, "1b. HARDWARE");
+    kv(o, "CPU", &cpu_modelo());
+    kv(o, "núcleos (nproc)", &cmd_out("nproc", &[]));
+    kv(o, "RAM total", &ram_total_mb());
+    kv(o, "GPU", &gpu_info());
+    // Backend da GUI: Slint escolhe por env; é o 1º suspeito em "janela não abre".
+    kv(o, "SLINT_BACKEND", &getenv("SLINT_BACKEND"));
+    kv(o, "WAYLAND_DISPLAY", &getenv("WAYLAND_DISPLAY"));
+    kv(o, "DISPLAY", &getenv("DISPLAY"));
+}
