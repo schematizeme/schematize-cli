@@ -248,8 +248,10 @@ mod tests {
 
 /// Resumo ESTRUTURADO do ambiente, pro corpo do `POST /diagnostics`.
 ///
-/// O quê: os mesmos dados de SO/hardware que a seção 1/1b imprimem, só que como campos
-/// JSON — `os_version`, `kernel`, `arch`, `cpu`, `cores`, `ram_mb`, `gpu`.
+/// O quê: os mesmos dados de SO/hardware da seção 1/1b, na forma ANINHADA do contrato do
+/// servidor (`DiagnosticInput.env` do OpenAPI): `os{}`, `hardware{}`, `display{}`. O schema
+/// aceita campos livres, mas quem CONSULTA usa os caminhos do exemplo publicado — mandar
+/// plano passaria na validação e sumiria de toda query de triagem.
 /// Onde: `diagnostics::send`, ao montar o corpo.
 ///
 /// Por que existe: o `report` é um blob de texto de centenas de KB. Dá pra LER um relatório
@@ -263,15 +265,65 @@ mod tests {
 pub fn ambiente() -> serde_json::Value {
     let (os_nome, os_ver) = os_release();
     serde_json::json!({
-        "os_name": os_nome,
-        "os_version": os_ver,
-        "kernel": cmd_out("uname", &["-r"]),
-        "arch": std::env::consts::ARCH,
-        "cpu": cpu_modelo(),
-        "cores": cmd_out("nproc", &[]).parse::<u32>().unwrap_or(0),
-        "ram_mb": ram_total_mb(),
-        "gpu": gpu_info(),
-        "desktop": getenv("XDG_CURRENT_DESKTOP"),
-        "session_type": getenv("XDG_SESSION_TYPE"),
+        "os": {
+            "name": os_nome,
+            "version": os_ver,
+            "kernel": cmd_out("uname", &["-r"]),
+            "arch": std::env::consts::ARCH,
+        },
+        "hardware": {
+            "cpu": cpu_modelo(),
+            "cores": cmd_out("nproc", &[]).parse::<u32>().unwrap_or(0),
+            "ram_mb": ram_total_mb_num(),
+            "gpu": gpu_modelo(),
+        },
+        "display": {
+            "SLINT_BACKEND": getenv("SLINT_BACKEND"),
+            "WAYLAND_DISPLAY": getenv("WAYLAND_DISPLAY"),
+            "DISPLAY": getenv("DISPLAY"),
+            "XDG_CURRENT_DESKTOP": getenv("XDG_CURRENT_DESKTOP"),
+            "XDG_SESSION_TYPE": getenv("XDG_SESSION_TYPE"),
+        },
     })
+}
+
+#[cfg(test)]
+mod tests_ambiente {
+    /// O QUE: o `env` sai na forma ANINHADA que o servidor documenta, com `ram_mb` NUMÉRICO.
+    ///
+    /// POR QUE trava a forma: o `DiagnosticInput.env` é `additionalProperties: true` — campos
+    /// livres. Ou seja, o formato PLANO que este cliente mandava passava na validação e era
+    /// aceito com 202, mas não casava com nenhuma query de triagem, porque quem consulta usa
+    /// os caminhos do exemplo publicado (`env->'hardware'->>'cpu'`). Aceito ≠ útil: sem esta
+    /// guarda, a regressão é silenciosa dos dois lados.
+    ///
+    /// `ram_mb` numérico tem motivo próprio: como string (`"31478 MB"`) o campo não responde
+    /// "quais máquinas têm menos de X" — a única pergunta que se faz a ele.
+    #[test]
+    fn env_segue_a_forma_do_contrato() {
+        let e = super::ambiente();
+
+        for bloco in ["os", "hardware", "display"] {
+            assert!(e.get(bloco).is_some_and(|b| b.is_object()), "falta o bloco `{bloco}`");
+        }
+        for (bloco, campo) in [
+            ("os", "name"), ("os", "version"), ("os", "kernel"), ("os", "arch"),
+            ("hardware", "cpu"), ("hardware", "cores"), ("hardware", "ram_mb"), ("hardware", "gpu"),
+            ("display", "SLINT_BACKEND"), ("display", "WAYLAND_DISPLAY"), ("display", "DISPLAY"),
+        ] {
+            assert!(e[bloco].get(campo).is_some(), "falta `{bloco}.{campo}`");
+        }
+        assert!(e["hardware"]["cores"].is_number(), "cores tem que ser número");
+        let ram = &e["hardware"]["ram_mb"];
+        assert!(ram.is_number() || ram.is_null(), "ram_mb tem que ser NÚMERO (ou null), veio {ram}");
+
+        // Nada de campo plano legado — se voltar, as duas formas convivem e a query erra.
+        for antigo in ["os_name", "os_version", "cpu", "cores", "ram_mb", "gpu"] {
+            assert!(e.get(antigo).is_none(), "campo plano legado `{antigo}` de volta na raiz");
+        }
+
+        // Teto do contrato: 16 KB serializados.
+        let n = serde_json::to_vec(&e).unwrap().len();
+        assert!(n <= 16 * 1024, "env com {n} bytes passa do teto de 16 KB do servidor");
+    }
 }

@@ -236,10 +236,37 @@ pub(crate) fn cpu_modelo() -> String {
 /// paralelos são limitados por ela, então é o 1º número a olhar num relato de "travou".
 /// **Saída:** ex. `"15943 MB"`, ou `"(indisponível)"`.
 pub(crate) fn ram_total_mb() -> String {
-    let bruto = proc_campo("/proc/meminfo", "MemTotal"); // ex.: "16321234 kB"
-    match bruto.split_whitespace().next().and_then(|n| n.parse::<u64>().ok()) {
-        Some(kb) => format!("{} MB", kb / 1024),
+    match ram_total_mb_num() {
+        Some(mb) => format!("{mb} MB"),
         None => "(indisponível)".into(),
+    }
+}
+
+/// RAM total em MB como NÚMERO. Onde: o `env` do `POST /diagnostics`.
+/// Por que separado da versão formatada: no `env` o campo é filtrável (JSONB), e
+/// `"31478 MB"` como string impede a única pergunta que importa ali — "quais máquinas
+/// têm menos de X?". Comparação numérica exige número. **Saída:** `None` se o /proc não deu.
+pub(crate) fn ram_total_mb_num() -> Option<u64> {
+    proc_campo("/proc/meminfo", "MemTotal")
+        .split_whitespace()
+        .next()
+        .and_then(|n| n.parse::<u64>().ok())
+        .map(|kb| kb / 1024)
+}
+
+/// Modelo da GPU, sem o slot PCI nem o `(rev xx)`.
+///
+/// O quê: de `03:00.0 VGA compatible controller: AMD [ATI] Lucienne (rev c1)` extrai
+/// `AMD [ATI] Lucienne`. Onde: o `env` filtrável. Por que: agrupar por MODELO é a pergunta
+/// de triagem ("os relatos são todos da mesma GPU?"); o slot muda por máquina e só quebra o
+/// agrupamento. A linha CRUA continua na seção de texto do relatório.
+pub(crate) fn gpu_modelo() -> String {
+    let bruto = gpu_info();
+    let primeira = bruto.split(" | ").next().unwrap_or(&bruto).to_string();
+    let depois = primeira.split_once(": ").map(|(_, d)| d.to_string()).unwrap_or(primeira);
+    match depois.rfind(" (rev ") {
+        Some(i) => depois[..i].trim().to_string(),
+        None => depois.trim().to_string(),
     }
 }
 
