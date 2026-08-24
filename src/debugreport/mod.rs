@@ -277,6 +277,15 @@ pub fn ambiente() -> serde_json::Value {
             "ram_mb": ram_total_mb_num(),
             "gpu": gpu_modelo(),
         },
+        // Versões dos OUTROS binários da mesma máquina. Quase todo bug nosso é de
+        // DESCASAMENTO — CLI novo com GUI velha (o `Cargo.lock` da GUI pina o crate por
+        // commit), updater defasado — e sem isto a triagem gasta uma ida-e-volta só pra
+        // descobrir isso. O `version` do topo do corpo é só de quem enviou.
+        "app": {
+            "cli": env!("CARGO_PKG_VERSION"),
+            "gui": versao_de("schematize-gui"),
+            "updater": versao_de("schematize-updater"),
+        },
         "display": {
             "SLINT_BACKEND": getenv("SLINT_BACKEND"),
             "WAYLAND_DISPLAY": getenv("WAYLAND_DISPLAY"),
@@ -299,6 +308,20 @@ mod tests_ambiente {
     ///
     /// `ram_mb` numérico tem motivo próprio: como string (`"31478 MB"`) o campo não responde
     /// "quais máquinas têm menos de X" — a única pergunta que se faz a ele.
+    /// O QUE: só string com CARA de versão é aceita como versão.
+    ///
+    /// POR QUE: `schematize-gui` antigo ignora `--version` e abre a janela; o coletor corta
+    /// no timeout e recebe a 1ª linha do log de ambiente. Sem este filtro, o relatório
+    /// dizia que a versão da GUI era `(WAYLAND_DISPLAY=wayland-0))`.
+    #[test]
+    fn so_aceita_o_que_parece_versao() {
+        assert!(super::parece_versao("0.7.5"));
+        assert!(super::parece_versao("1.2.3-rc1"));
+        assert!(!super::parece_versao("(WAYLAND_DISPLAY=wayland-0))"));
+        assert!(!super::parece_versao("Terminado"));
+        assert!(!super::parece_versao(""));
+    }
+
     #[test]
     fn env_segue_a_forma_do_contrato() {
         let e = super::ambiente();
@@ -326,4 +349,38 @@ mod tests_ambiente {
         let n = serde_json::to_vec(&e).unwrap().len();
         assert!(n <= 16 * 1024, "env com {n} bytes passa do teto de 16 KB do servidor");
     }
+}
+
+/// Versão de um binário irmão (`schematize-gui`, `schematize-updater`), ou por que não deu.
+///
+/// O quê: roda `<bin> --version` e devolve só o número. Onde: o bloco `app` do [`ambiente`].
+/// Por que: descasamento entre os binários é a causa nº 1 de "atualizei mas abre a versão
+/// velha"; saber as três versões de uma vez mata a pergunta antes dela ser feita.
+/// **Saída:** o número, `"(não instalado)"` ou `"(indisponível: …)"`. **Efeitos:** executa
+/// processo externo com timeout; nunca panica.
+fn versao_de(bin: &str) -> String {
+    if which_all(bin).is_empty() {
+        return "(não instalado)".into();
+    }
+    let bruto = cmd_out(bin, &["--version"]);
+    // Só aceita o que PARECE versão. `schematize-gui` de versões antigas ignora
+    // `--version` e ABRE A JANELA; o `cmd_out` corta no timeout e devolve a 1ª linha do log
+    // de ambiente, que virava "versão" no relatório. Confiar na boa vontade do outro
+    // binário é o mesmo bug de sempre: aceitar saída sem conferir o formato.
+    let candidato = bruto.split_whitespace().last().unwrap_or("").trim();
+    if parece_versao(candidato) {
+        candidato.to_string()
+    } else {
+        format!("(não reportou versão: {})", bruto.chars().take(40).collect::<String>())
+    }
+}
+
+/// A string parece um número de versão (`0.7.5`, `1.2.3-rc1`)?
+///
+/// O quê: exige começar com dígito e conter só dígito/ponto/hífen/alfanumérico. Onde:
+/// [`versao_de`]. **Efeitos:** nenhum.
+fn parece_versao(s: &str) -> bool {
+    !s.is_empty()
+        && s.starts_with(|c: char| c.is_ascii_digit())
+        && s.chars().all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '-' || c == '+')
 }

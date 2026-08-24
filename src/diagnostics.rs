@@ -134,12 +134,53 @@ pub fn send(yes: bool) -> Result<(), String> {
     let _ = std::fs::remove_file(&tmp);
 
     let bruto = out.map_err(|e| format!("falha no envio (rede): {e}"))?;
-    match resposta_do_envio(&bruto, &url) {
-        Ok(corpo) => {
-            println!("✓ enviado. resposta do servidor: {}", corpo.trim());
-            Ok(())
-        }
-        Err(e) => Err(e),
+    let corpo = resposta_do_envio(&bruto, &url)?;
+    let id = id_do_recibo(&corpo);
+    registrar_envio(&id, app_ver);
+    match &id {
+        Some(id) => println!(
+            "✓ enviado. id do relatório: {id}\n  (guardado em ~/.schematize/diagnostics-sent.log — \
+             cite esse id ao pedir análise)"
+        ),
+        None => println!(
+            "✓ enviado, mas o servidor não devolveu `id` no corpo: {}\n  \
+             Sem id não dá pra referenciar o relatório depois — reporte isto.",
+            corpo.trim()
+        ),
+    }
+    Ok(())
+}
+
+/// Extrai o `id` do recibo `202 {status, id}`.
+///
+/// O quê: lê o campo `id` do JSON de resposta. Onde: [`send`], logo após o 2xx.
+/// Por que existe: o id é a ÚNICA forma de referenciar um relatório depois (não há rota de
+/// leitura ainda; quando houver, é por ele que se busca). Imprimir e esquecer torna o envio
+/// irrastreável — o usuário sabe que mandou e não sabe o quê.
+/// **Entrada:** corpo da resposta. **Saída:** o id, ou `None` se ausente/ilegível (o envio
+/// já aconteceu; não é erro). **Efeitos:** nenhum.
+fn id_do_recibo(corpo: &str) -> Option<String> {
+    let v: serde_json::Value = serde_json::from_str(corpo).ok()?;
+    v.get("id")?.as_str().map(|s| s.to_string())
+}
+
+/// Anexa o envio a `~/.schematize/diagnostics-sent.log` (best-effort).
+///
+/// O quê: uma linha por envio — epoch, versão e id. Onde: [`send`].
+/// Por que: sem registro local, "eu já mandei isso?" não tem resposta, e o id do recibo se
+/// perde no scrollback do terminal. **Efeitos:** escreve no HOME; erro é ignorado de
+/// propósito — falhar o registro não pode invalidar um envio que já ocorreu.
+fn registrar_envio(id: &Option<String>, versao: &str) {
+    let path = home_dir().join("diagnostics-sent.log");
+    let _ = std::fs::create_dir_all(home_dir());
+    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&path) {
+        use std::io::Write;
+        let _ = writeln!(
+            f,
+            "{} v{versao} id={}",
+            util::now_unix(),
+            id.as_deref().unwrap_or("(sem id no recibo)")
+        );
     }
 }
 
@@ -209,6 +250,20 @@ mod tests {
     fn sessao_recusada_ensina_o_caminho() {
         let e = resposta_do_envio("\n401", "https://api.x/diagnostics").expect_err("401 é erro");
         assert!(e.contains("login"), "a mensagem tem que ser acionável: {e}");
+    }
+
+    /// O QUE: o id do recibo é extraído do 202 — é a única alça pra referenciar o
+    /// relatório depois (não existe rota de leitura ainda; quando existir, busca-se por ele).
+    #[test]
+    fn extrai_o_id_do_recibo() {
+        assert_eq!(
+            id_do_recibo(r#"{"status":"received","id":"01J8Z…"}"#).as_deref(),
+            Some("01J8Z…")
+        );
+        // Recibo sem id não é erro (o envio ocorreu) — mas tem que virar None, pra o
+        // comando avisar em vez de fingir que guardou algo.
+        assert_eq!(id_do_recibo(r#"{"status":"received"}"#), None);
+        assert_eq!(id_do_recibo("não json"), None);
     }
 
     /// O QUE: 500 também é falha (o relatório não foi guardado), com o corpo preservado
