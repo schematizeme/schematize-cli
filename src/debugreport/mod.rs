@@ -21,7 +21,6 @@ use crate::{account, config, debug, doctor, overdev, registry, skills, util};
 use std::collections::BTreeSet;
 use std::fmt::Write as _;
 use std::fs;
-use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 
 // Submódulos (piso da casa: <=750 linhas, uma unidade lógica por arquivo).
@@ -97,13 +96,13 @@ pub fn write_report(out: Option<&Path>, online: bool) -> Result<PathBuf, String>
         None => {
             let dir = util::home_app_dir();
             fs::create_dir_all(&dir).map_err(|e| format!("falha ao criar {}: {e}", dir.display()))?;
-            let _ = fs::set_permissions(&dir, fs::Permissions::from_mode(0o700));
+            crate::util::definir_modo(&dir, 0o700);
             dir.join(format!("debug-report-{}.txt", util::now_unix()))
         }
     };
     fs::write(&path, report.as_bytes())
         .map_err(|e| format!("falha ao gravar {}: {e}", path.display()))?;
-    let _ = fs::set_permissions(&path, fs::Permissions::from_mode(0o600));
+    crate::util::definir_modo(&path, 0o600);
     Ok(path)
 }
 

@@ -63,7 +63,7 @@ pub(crate) fn ssh_dir() -> PathBuf {
 pub(crate) fn ensure_ssh_dir() -> Result<PathBuf, String> {
     let dir = ssh_dir();
     fs::create_dir_all(&dir).map_err(|e| format!("não consegui criar ~/.ssh: {e}"))?;
-    let _ = fs::set_permissions(&dir, fs::Permissions::from_mode(0o700));
+    crate::util::definir_modo(&dir, 0o700);
     Ok(dir)
 }
 
@@ -198,8 +198,8 @@ pub fn generate(
     util::run("ssh-keygen", &arg_refs).map_err(|e| format!("ssh-keygen falhou: {e}"))?;
 
     // Reforça as permissões (o ssh-keygen já as aplica; garantimos o piso).
-    let _ = fs::set_permissions(&priv_p, fs::Permissions::from_mode(0o600));
-    let _ = fs::set_permissions(&pub_p, fs::Permissions::from_mode(0o644));
+    crate::util::definir_modo(&priv_p, 0o600);
+    crate::util::definir_modo(&pub_p, 0o644);
 
     read_info(name)
 }

@@ -6,6 +6,9 @@
 //! honesto (sucesso/erro), nunca engolido. Onde: chamado por agent (botão da
 //! notificação), gui (Atualizar) e `schematize upgrade`.
 
+// Só o caminho Unix consome estes itens; sem a guarda o build de Windows enche de
+// aviso de código morto (o job de release não usa -D warnings, mas ruído esconde sinal).
+#[cfg(unix)]
 use crate::skills::latest_release_tag;
 use crate::util;
 use std::fs;
@@ -16,9 +19,11 @@ const REPO: &str = "schematize-cli";
 
 /// install.sh do main — usado pelo fallback de recompilação do fonte (source-first) quando
 /// não há binário pré-compilado compatível pra plataforma (ex.: openSUSE, glibc diferente).
+#[cfg(unix)]
 const INSTALL_SH: &str = "https://raw.githubusercontent.com/schematizeme/schematize-cli/main/install.sh";
 
 /// Nomes dos assets por plataforma (batem com o que o CI publica).
+#[cfg(unix)]
 fn asset_names() -> (&'static str, &'static str) {
     #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
     { ("schematize-linux-x86_64", "schematize-gui-linux-x86_64") }
@@ -36,6 +41,7 @@ fn asset_names() -> (&'static str, &'static str) {
     { ("schematize-linux-x86_64", "schematize-gui-linux-x86_64") }
 }
 
+#[cfg(unix)]
 fn bin_filename(gui: bool) -> &'static str {
     #[cfg(target_os = "windows")]
     { if gui { "schematize-gui.exe" } else { "schematize.exe" } }
@@ -64,6 +70,7 @@ fn log(msg: &str) {
 }
 
 /// Diretório onde o executável atual vive (alvo padrão da troca).
+#[cfg(unix)]
 fn exe_dir() -> PathBuf {
     std::env::current_exe()
         .ok()
@@ -72,6 +79,7 @@ fn exe_dir() -> PathBuf {
 }
 
 /// Testa se dá pra escrever no diretório (sem depender de metadados de permissão).
+#[cfg(unix)]
 fn writable(dir: &Path) -> bool {
     let probe = dir.join(".schematize-write-probe");
     match fs::write(&probe, b"x") {

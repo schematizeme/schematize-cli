@@ -12,7 +12,6 @@
 
 use crate::util;
 use std::fs;
-use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 
 // Submódulos (piso da casa: <=750 linhas, uma unidade lógica por arquivo).

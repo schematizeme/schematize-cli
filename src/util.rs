@@ -169,6 +169,41 @@ pub fn semver_lt(a: &str, b: &str) -> bool {
     false
 }
 
+/// Define as permissões POSIX de um caminho. NO-OP em Windows.
+///
+/// O quê: aplica o modo POSIX quando a plataforma tem o conceito. Onde: todo lugar que
+/// grava segredo ou dado sensível no HOME — sessão (`account`), chave SSH (`sshkeys`),
+/// relatório de debug (`debugreport`).
+///
+/// Por que existe: os três chamadores importavam `std::os::unix::fs::PermissionsExt` no
+/// TOPO do arquivo, sem `#[cfg(unix)]`. Isso quebra a compilação em Windows — é a causa
+/// exata de `cannot find 'unix' in 'os'` + `no associated function 'from_mode'` que
+/// derrubou o job de release do Windows em TODAS as 12 tentativas, deixando o asset
+/// `schematize-windows-x86_64.zip` sem existir e o link do site em 404.
+///
+/// Concentrar aqui troca três `cfg` espalhados (que voltariam a ser esquecidos no próximo
+/// arquivo que grave segredo) por um ponto único que já nasce correto nas duas plataformas.
+///
+/// **Entrada:** o caminho e o modo POSIX (`0o600` arquivo secreto, `0o700` diretório,
+/// `0o644` arquivo público como uma chave `.pub`).
+/// **Saída:** nenhuma. **Efeitos:** muda permissão no disco em Unix; erro é ignorado de
+/// propósito (best-effort — falhar o chmod não pode abortar a gravação que já ocorreu).
+///
+/// **Limite honesto:** em Windows isto NÃO restringe nada. A ACL herdada do diretório do
+/// usuário é a proteção efetiva ali; um equivalente real exigiria mexer em ACL, que é outro
+/// trabalho e outra dependência.
+pub fn definir_modo(path: &std::path::Path, modo: u32) {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = std::fs::set_permissions(path, std::fs::Permissions::from_mode(modo));
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = (path, modo); // sem equivalente portátil; ver a nota no doc.
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::semver_lt;

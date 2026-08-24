@@ -104,11 +104,11 @@ pub fn export_bitwarden(name: &str, out: Option<&Path>) -> Result<String, String
     };
     if let Some(dir) = target.parent() {
         fs::create_dir_all(dir).map_err(|e| format!("falha ao criar {}: {e}", dir.display()))?;
-        let _ = fs::set_permissions(dir, fs::Permissions::from_mode(0o700));
+        crate::util::definir_modo(dir, 0o700);
     }
     let body = bw_import_json(name, &notes, &pubkey, &info.fingerprint, &privkey);
     fs::write(&target, body).map_err(|e| format!("falha ao gravar {}: {e}", target.display()))?;
-    let _ = fs::set_permissions(&target, fs::Permissions::from_mode(0o600));
+    crate::util::definir_modo(&target, 0o600);
     Ok(format!(
         "arquivo de import do Bitwarden gravado (mode 600) em {}\n\
          importe em: Bitwarden → Tools → Import data → formato 'Bitwarden (json)'.\n\

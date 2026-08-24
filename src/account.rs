@@ -12,7 +12,6 @@
 use crate::util;
 use serde::{Deserialize, Serialize};
 use std::fs;
-use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
 
 // ------------------------------------------------------------------------------------------------
@@ -120,11 +119,11 @@ fn auth_path() -> PathBuf {
 pub fn save_tokens(t: &Tokens) -> Result<(), String> {
     let dir = schematize_home();
     fs::create_dir_all(&dir).map_err(|e| format!("falha ao criar {}: {e}", dir.display()))?;
-    let _ = fs::set_permissions(&dir, fs::Permissions::from_mode(0o700));
+    crate::util::definir_modo(&dir, 0o700);
     let body = serde_json::to_string_pretty(t).map_err(|e| e.to_string())?;
     let p = auth_path();
     fs::write(&p, body).map_err(|e| format!("falha ao gravar {}: {e}", p.display()))?;
-    let _ = fs::set_permissions(&p, fs::Permissions::from_mode(0o600));
+    crate::util::definir_modo(&p, 0o600);
     Ok(())
 }
 
