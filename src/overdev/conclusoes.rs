@@ -58,6 +58,7 @@ pub(crate) fn read_completions_map(root: &Path) -> std::collections::BTreeMap<St
 /// - SEED: se o registro ainda não existe, popula os `- [x]` JÁ presentes com o
 ///   mtime do CHECKLIST.md (aproxima "feito antes do log começar" em vez de perder).
 /// - Salva o JSON e retorna TODAS as conclusões ordenadas por `ts` asc.
+///
 /// Best-effort: qualquer erro de IO é ignorado (nunca panica).
 pub fn record_completions(root: &Path) -> Vec<Completion> {
     let checklist_path = dir_at(root).join("CHECKLIST.md");
@@ -77,8 +78,8 @@ pub fn record_completions(root: &Path) -> Vec<Completion> {
 
     let mut changed = false;
     for txt in done_texts {
-        if !map.contains_key(&txt) {
-            map.insert(txt, if existed { now } else { seed_ts });
+        if let std::collections::btree_map::Entry::Vacant(e) = map.entry(txt) {
+            e.insert(if existed { now } else { seed_ts });
             changed = true;
         }
     }

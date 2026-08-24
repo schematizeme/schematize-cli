@@ -565,7 +565,7 @@ mod tests {
         let did = ensure_fork(&skills_root, &base_root, &mut st, "minha", false).unwrap();
         assert!(!did);
         assert!(!base_root.join("minha").exists());
-        assert!(st.skills.get("minha").map(|e| e.forked).unwrap_or(false) == false);
+        assert!(!st.skills.get("minha").map(|e| e.forked).unwrap_or(false));
 
         fs::remove_dir_all(&root).ok();
     }

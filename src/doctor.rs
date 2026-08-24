@@ -273,12 +273,9 @@ fn find_gui_bin() -> Option<std::path::PathBuf> {
             }
         }
     }
-    for c in [util::home().join(".cargo/bin/schematize-gui"), std::path::PathBuf::from("/usr/bin/schematize-gui")] {
-        if c.exists() {
-            return Some(c);
-        }
-    }
-    None
+    [util::home().join(".cargo/bin/schematize-gui"), std::path::PathBuf::from("/usr/bin/schematize-gui")]
+        .into_iter()
+        .find(|c| c.exists())
 }
 
 /// Checagens da GUI. Devolve quantos problemas (WARN/FAIL) contabilizou.

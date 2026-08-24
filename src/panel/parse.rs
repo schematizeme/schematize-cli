@@ -54,9 +54,7 @@ pub(crate) fn parse_edge(l: &str) -> Option<(String, String, Option<String>)> {
         .replace("-->", "->")
         .replace("-.->", "->")
         .replace("==>", "->")
-        .replace('→', "->")
-        .replace('⟶', "->")
-        .replace('⇒', "->");
+        .replace(['→', '⟶', '⇒'], "->");
     let idx = s.find("->")?;
     let left = s[..idx].trim();
     let mut right = s[idx + 2..].trim().to_string();

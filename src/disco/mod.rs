@@ -107,7 +107,7 @@ fn dias_desde_modificacao(p: &Path) -> u64 {
 pub fn inventario(dev_dirs: &[String], so_acima_de: u64) -> Vec<Achado> {
     let mut v = artefatos::varrer(dev_dirs, so_acima_de);
     v.extend(caches::varrer(so_acima_de));
-    v.sort_by(|a, b| b.bytes.cmp(&a.bytes));
+    v.sort_by_key(|x| std::cmp::Reverse(x.bytes));
     v
 }
 
@@ -118,7 +118,7 @@ pub fn por_montagem(achados: &[Achado]) -> Vec<(PathBuf, u64)> {
         *mapa.entry(a.montagem.clone()).or_default() += a.bytes;
     }
     let mut v: Vec<(PathBuf, u64)> = mapa.into_iter().collect();
-    v.sort_by(|a, b| b.1.cmp(&a.1));
+    v.sort_by_key(|x| std::cmp::Reverse(x.1));
     v
 }
 
@@ -130,7 +130,7 @@ pub fn por_tipo(achados: &[Achado]) -> Vec<(Tipo, u64)> {
         e.1 += a.bytes;
     }
     let mut v: Vec<(Tipo, u64)> = mapa.into_values().collect();
-    v.sort_by(|a, b| b.1.cmp(&a.1));
+    v.sort_by_key(|x| std::cmp::Reverse(x.1));
     v
 }
 

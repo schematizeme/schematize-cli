@@ -176,6 +176,71 @@ pub fn supervise(projeto: &Path, max: u32) -> u32 {
     }
 }
 
+/// Já existe um supervisor vigiando este projeto?
+///
+/// O quê: varre `/proc` atrás de um `schematize … overdev supervise` cujo cwd é o projeto.
+/// Onde: [`garantir_supervisor`], pra não subir dois. **Efeitos:** só leitura de `/proc`.
+pub fn supervisor_vivo_em(projeto: &Path) -> bool {
+    let Ok(entries) = std::fs::read_dir("/proc") else {
+        return false;
+    };
+    for e in entries.flatten() {
+        let Some(pid) = e.file_name().to_str().and_then(|s| s.parse::<u32>().ok()) else {
+            continue;
+        };
+        if pid == std::process::id() {
+            continue;
+        }
+        let Ok(raw) = std::fs::read(format!("/proc/{pid}/cmdline")) else {
+            continue;
+        };
+        let linha = String::from_utf8_lossy(&raw).replace('\0', " ");
+        if !(linha.contains("overdev") && linha.contains("supervise")) {
+            continue;
+        }
+        if let Ok(cwd) = std::fs::read_link(format!("/proc/{pid}/cwd")) {
+            if cwd == projeto {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+/// Sobe um supervisor DESTACADO pra este projeto, se ainda não houver um.
+///
+/// O quê: spawna `schematize overdev supervise` com o cwd no projeto, desacoplado do
+/// processo que chamou (sobrevive ao fechamento da GUI/terminal).
+/// Onde: [`crate::agentrun::launch_in_terminal`], logo após lançar o agente.
+///
+/// Por que automático: depender de o usuário lembrar de subir a rede de segurança é o
+/// mesmo que não ter rede. Idempotente — dois supervisores no mesmo projeto se
+/// atrapalhariam relançando em dobro.
+///
+/// **Entrada:** raiz do projeto. **Saída:** `true` se subiu agora; `false` se já havia um
+/// ou se não deu (best-effort — falhar aqui nunca pode impedir o run de começar).
+/// **Efeitos:** cria processo.
+pub fn garantir_supervisor(projeto: &Path) -> bool {
+    let projeto = projeto.canonicalize().unwrap_or_else(|_| projeto.to_path_buf());
+    if supervisor_vivo_em(&projeto) {
+        return false;
+    }
+    let exe = crate::util::self_exe();
+    let mut cmd = std::process::Command::new(exe);
+    cmd.arg("overdev")
+        .arg("supervise")
+        .current_dir(&projeto)
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null());
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+        cmd.process_group(0); // sobrevive ao fechamento de quem chamou
+    }
+    cmd.spawn().is_ok()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -251,69 +316,4 @@ mod tests {
 
         let _ = std::fs::remove_dir_all(&base);
     }
-}
-
-/// Já existe um supervisor vigiando este projeto?
-///
-/// O quê: varre `/proc` atrás de um `schematize … overdev supervise` cujo cwd é o projeto.
-/// Onde: [`garantir_supervisor`], pra não subir dois. **Efeitos:** só leitura de `/proc`.
-pub fn supervisor_vivo_em(projeto: &Path) -> bool {
-    let Ok(entries) = std::fs::read_dir("/proc") else {
-        return false;
-    };
-    for e in entries.flatten() {
-        let Some(pid) = e.file_name().to_str().and_then(|s| s.parse::<u32>().ok()) else {
-            continue;
-        };
-        if pid == std::process::id() {
-            continue;
-        }
-        let Ok(raw) = std::fs::read(format!("/proc/{pid}/cmdline")) else {
-            continue;
-        };
-        let linha = String::from_utf8_lossy(&raw).replace('\0', " ");
-        if !(linha.contains("overdev") && linha.contains("supervise")) {
-            continue;
-        }
-        if let Ok(cwd) = std::fs::read_link(format!("/proc/{pid}/cwd")) {
-            if cwd == projeto {
-                return true;
-            }
-        }
-    }
-    false
-}
-
-/// Sobe um supervisor DESTACADO pra este projeto, se ainda não houver um.
-///
-/// O quê: spawna `schematize overdev supervise` com o cwd no projeto, desacoplado do
-/// processo que chamou (sobrevive ao fechamento da GUI/terminal).
-/// Onde: [`crate::agentrun::launch_in_terminal`], logo após lançar o agente.
-///
-/// Por que automático: depender de o usuário lembrar de subir a rede de segurança é o
-/// mesmo que não ter rede. Idempotente — dois supervisores no mesmo projeto se
-/// atrapalhariam relançando em dobro.
-///
-/// **Entrada:** raiz do projeto. **Saída:** `true` se subiu agora; `false` se já havia um
-/// ou se não deu (best-effort — falhar aqui nunca pode impedir o run de começar).
-/// **Efeitos:** cria processo.
-pub fn garantir_supervisor(projeto: &Path) -> bool {
-    let projeto = projeto.canonicalize().unwrap_or_else(|_| projeto.to_path_buf());
-    if supervisor_vivo_em(&projeto) {
-        return false;
-    }
-    let exe = crate::util::self_exe();
-    let mut cmd = std::process::Command::new(exe);
-    cmd.arg("overdev")
-        .arg("supervise")
-        .current_dir(&projeto)
-        .stdin(std::process::Stdio::null())
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null());
-    #[cfg(unix)]
-    {
-        use std::os::unix::process::CommandExt;
-        cmd.process_group(0); // sobrevive ao fechamento de quem chamou
-    }
-    cmd.spawn().is_ok()
 }

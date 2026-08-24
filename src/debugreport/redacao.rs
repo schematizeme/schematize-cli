@@ -10,6 +10,7 @@ pub(crate) const RED: &str = "<REDIGIDO>";
 /// - `Bearer <token>` (o token vira `<REDIGIDO>`)
 /// - blocos `-----BEGIN … PRIVATE KEY-----` … `-----END …-----` (o bloco todo some)
 /// - `NOME=valor` quando NOME contém KEY/TOKEN/SECRET/PASS/CRED, OU o valor parece um token
+///
 /// Idempotente e best-effort — na dúvida, redige (segurança-primeiro).
 pub fn scrub(s: &str) -> String {
     // 1) Blocos de chave privada primeiro (são multi-linha).

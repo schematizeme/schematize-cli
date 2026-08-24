@@ -197,6 +197,7 @@ pub(crate) fn service_subgraph(nodes: &[Node], edges: &[Edge], servico: &str) ->
 /// 2) senão, índice flat; se ele passar de [`GLOBAL_NODE_CAP`] nós, AGREGA por microserviço
 ///    (1 nó por serviço) — o drill (`load_service_graph`) abre o detalhe;
 /// 3) senão, o flat mesmo (projeto pequeno cabe na tela).
+///
 /// Retorna `(nós, arestas, dir-do-index, agregado?)`.
 pub fn load_graph_global(root: &Path) -> (Vec<Node>, Vec<Edge>, Option<PathBuf>, bool) {
     let Some(dir) = find_index_dir(root) else {

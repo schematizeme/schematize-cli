@@ -40,7 +40,7 @@ pub fn varrer(dev_dirs: &[String], so_acima_de: u64) -> Vec<Achado> {
     for d in dev_dirs {
         desce(Path::new(d), 0, so_acima_de, &mut achados);
     }
-    achados.sort_by(|a, b| b.bytes.cmp(&a.bytes));
+    achados.sort_by_key(|x| std::cmp::Reverse(x.bytes));
     achados
 }
 

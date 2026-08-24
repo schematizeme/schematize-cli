@@ -339,8 +339,7 @@ fn parse_indexdef_columns(def: &str) -> Vec<String> {
     def[op + 1..cl]
         .split(',')
         .map(|c| {
-            c.trim()
-                .split_whitespace()
+            c.split_whitespace()
                 .next()
                 .unwrap_or("")
                 .trim_matches('"')

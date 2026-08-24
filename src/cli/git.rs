@@ -115,7 +115,7 @@ fn status() -> Result<(), String> {
         println!("nenhum projeto git nos diretórios de dev.");
         return Ok(());
     }
-    println!("{:<26} {:<12} {:>10}  {}", "PROJETO", "CONTA", "NÃO ENVIADOS", "ESTADO");
+    println!("{:<26} {:<12} {:>10}  ESTADO", "PROJETO", "CONTA", "NÃO ENVIADOS");
     let mut risco = 0usize;
     for e in &estados {
         let conta = e.conta.clone().unwrap_or_else(|| format!("? {}", e.email));

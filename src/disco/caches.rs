@@ -46,7 +46,7 @@ pub fn varrer(so_acima_de: u64) -> Vec<Achado> {
         .into_iter()
         .filter_map(|(p, t, refaz)| super::medir(&p, t, refaz, so_acima_de))
         .collect();
-    v.sort_by(|a, b| b.bytes.cmp(&a.bytes));
+    v.sort_by_key(|x| std::cmp::Reverse(x.bytes));
     v
 }
 

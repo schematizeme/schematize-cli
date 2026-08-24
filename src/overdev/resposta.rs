@@ -84,7 +84,7 @@ pub struct Resolucao {
 fn id_de(l: &str) -> Option<String> {
     let i = l.find(MARCA_Q)? + MARCA_Q.len();
     let resto = &l[i..];
-    let fim = resto.find(|c: char| c == ' ' || c == '-' || c == '>')?;
+    let fim = resto.find([' ', '-', '>'])?;
     let id = &resto[..fim];
     (!id.is_empty()).then(|| id.to_string())
 }
@@ -92,7 +92,7 @@ fn id_de(l: &str) -> Option<String> {
 /// O texto útil de uma linha de item: sem o marcador de estado e sem o comentário.
 fn texto_do_item(l: &str) -> String {
     let t = l.trim();
-    let sem_marca = t.splitn(2, ']').nth(1).unwrap_or(t);
+    let sem_marca = t.split_once(']').map(|x| x.1).unwrap_or(t);
     let sem_comentario = sem_marca.split("<!--").next().unwrap_or(sem_marca);
     sem_comentario.trim().to_string()
 }
@@ -218,7 +218,7 @@ mod tests {
     /// vira "feito" — porque ninguém fez nada, só decidiu.
     #[test]
     fn responder_libera_a_maquina_sem_mentir_que_foi_feito() {
-        let r = resolver_str(&FIX, &Alvo::Indice(1), Acao::Responder, "pode dar o deploy você mesmo").unwrap();
+        let r = resolver_str(FIX, &Alvo::Indice(1), Acao::Responder, "pode dar o deploy você mesmo").unwrap();
         assert!(r.texto.contains("- [H r] preciso que você faça o deploy"), "{}", r.texto);
         assert!(!r.texto.contains("- [H x]"), "responder não é fazer");
         assert!(
@@ -234,7 +234,7 @@ mod tests {
     /// exatamente a tarefa que a pessoa acabou de rejeitar.
     #[test]
     fn recusar_cancela_a_maquina_em_vez_de_liberar() {
-        let r = resolver_str(&FIX, &Alvo::Indice(1), Acao::Recusar, "não temos produção ainda").unwrap();
+        let r = resolver_str(FIX, &Alvo::Indice(1), Acao::Recusar, "não temos produção ainda").unwrap();
         assert!(r.texto.contains("- [H -] preciso que você faça o deploy"));
         assert!(r.texto.contains("- [-] implantar em produção"), "cancelado:\n{}", r.texto);
         assert!(!r.texto.contains("- [ ] implantar"), "não podia ter liberado");
@@ -244,7 +244,7 @@ mod tests {
     /// Item humano SEM vínculo se resolve sozinho, sem mexer em item de máquina nenhum.
     #[test]
     fn item_humano_solto_nao_afeta_maquina() {
-        let r = resolver_str(&FIX, &Alvo::Indice(2), Acao::Recusar, "a landing vai mudar de qualquer jeito").unwrap();
+        let r = resolver_str(FIX, &Alvo::Indice(2), Acao::Recusar, "a landing vai mudar de qualquer jeito").unwrap();
         assert!(r.texto.contains("- [H -] revisar o texto da landing"));
         assert_eq!(r.vinculado, None);
         assert!(r.texto.contains("- [~] implantar"), "o item travado ficou como estava");
@@ -254,17 +254,17 @@ mod tests {
     /// posição absoluta fecharia o item errado.
     #[test]
     fn indice_conta_so_os_humanos_abertos() {
-        let r1 = resolver_str(&FIX, &Alvo::Indice(1), Acao::Responder, "x").unwrap();
+        let r1 = resolver_str(FIX, &Alvo::Indice(1), Acao::Responder, "x").unwrap();
         assert!(r1.item.contains("deploy"));
-        let r2 = resolver_str(&FIX, &Alvo::Indice(2), Acao::Responder, "x").unwrap();
+        let r2 = resolver_str(FIX, &Alvo::Indice(2), Acao::Responder, "x").unwrap();
         assert!(r2.item.contains("landing"));
-        assert!(resolver_str(&FIX, &Alvo::Indice(3), Acao::Responder, "x").is_err(), "fora de faixa");
+        assert!(resolver_str(FIX, &Alvo::Indice(3), Acao::Responder, "x").is_err(), "fora de faixa");
     }
 
     /// Casar por texto também funciona, e só pega item ABERTO.
     #[test]
     fn casa_por_texto_e_ignora_ja_resolvidos() {
-        let r = resolver_str(&FIX, &Alvo::Texto("landing".into()), Acao::Responder, "ok").unwrap();
+        let r = resolver_str(FIX, &Alvo::Texto("landing".into()), Acao::Responder, "ok").unwrap();
         assert!(r.texto.contains("- [H r] revisar o texto da landing"));
         // Resolvido uma vez, não casa de novo.
         assert!(resolver_str(&r.texto, &Alvo::Texto("landing".into()), Acao::Responder, "ok").is_err());
@@ -274,8 +274,8 @@ mod tests {
     /// decisão registrada, e o item de máquina seria liberado sem nenhum critério.
     #[test]
     fn exige_texto_nos_dois_casos() {
-        assert!(resolver_str(&FIX, &Alvo::Indice(1), Acao::Responder, "  ").is_err());
-        assert!(resolver_str(&FIX, &Alvo::Indice(1), Acao::Recusar, "").is_err());
+        assert!(resolver_str(FIX, &Alvo::Indice(1), Acao::Responder, "  ").is_err());
+        assert!(resolver_str(FIX, &Alvo::Indice(1), Acao::Recusar, "").is_err());
     }
 
     /// O park monta o par: item vira on-hold, a pergunta entra INDENTADA logo abaixo,

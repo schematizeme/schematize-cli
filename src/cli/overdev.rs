@@ -105,7 +105,7 @@ pub(crate) fn overdev_history(limit: usize) -> Result<(), String> {
         println!("sem snapshots pra este projeto ainda (rode `schematize overdev snapshot`).");
         return Ok(());
     }
-    println!("{:>6}  {:<19}  {:>8}  {}", "id", "quando", "bytes", "arquivo");
+    println!("{:>6}  {:<19}  {:>8}  arquivo", "id", "quando", "bytes");
     for m in hist {
         println!("{:>6}  {:<19}  {:>8}  {}", m.id, fmt_ts(m.ts), m.size, m.file);
     }
