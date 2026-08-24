@@ -109,7 +109,10 @@ jobs:
           - runner: macos-14   # Apple Silicon
             arch: arm64
             target: aarch64-apple-darwin
-          - runner: macos-13   # Intel
+          # Intel: CROSS-COMPILADO no runner arm64. A imagem `macos-13` foi APOSENTADA pelo
+          # GitHub — um job que a pede fica "queued" pra sempre e segura o release inteiro
+          # (foi o que travou a v0.52.0 por horas com os outros três jobs já prontos).
+          - runner: macos-14
             arch: x86_64
             target: x86_64-apple-darwin
     runs-on: ${{ matrix.runner }}
