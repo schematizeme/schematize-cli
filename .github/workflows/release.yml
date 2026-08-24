@@ -1,6 +1,7 @@
 name: release
 
-# Compila schematize + schematize-gui (feature `gui`) para Linux, macOS e Windows.
+# Compila schematize (este repo) + schematize-gui (repo PRÓPRIO, clonado abaixo) para
+# Linux, macOS e Windows. A feature `gui` NÃO existe desde a v0.39.0 — a GUI é outro crate.
 # Linux: .deb/.rpm com a GUI já embutida + binários. macOS: binários arm64 e x86_64.
 # Windows: .exe do CLI e da GUI. Os NOMES dos assets batem com selfupdate.rs
 # (schematize-<os>-<arch>[.exe]) para o auto-update funcionar em cada plataforma.
