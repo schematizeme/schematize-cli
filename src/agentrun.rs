@@ -320,6 +320,104 @@ fn purga_lancamentos_velhos(od: &Path) {
     }
 }
 
+
+/// Terminais aceitos, em ordem de preferência. Um só lugar: a lista estava duplicada aqui e
+/// no `selfupdate`, e listas duplicadas divergem.
+const TERMINAIS: [&str; 7] = [
+    "konsole",
+    "gnome-terminal",
+    "xfce4-terminal",
+    "x-terminal-emulator",
+    "alacritty",
+    "kitty",
+    "xterm",
+];
+
+/// Abre `script` no primeiro terminal disponível, desacoplado deste processo.
+///
+/// O quê: acha o terminal, monta os args (o `--` de gnome/xfce vs o `-e` dos outros) e
+/// spawna em grupo de processos próprio. Onde: [`launch_prompt_in_terminal`] e
+/// [`abrir_terminal_no_projeto`].
+/// **Saída:** o nome do terminal usado, ou erro se não houver nenhum.
+/// **Efeitos:** cria processo.
+fn spawn_no_terminal(script: &Path) -> Result<String, String> {
+    let term = TERMINAIS
+        .iter()
+        .find(|t| binary_in_path(t))
+        .ok_or_else(|| "nenhum terminal encontrado (konsole/gnome-terminal/xterm/…).".to_string())?;
+    let mut cmd = std::process::Command::new(term);
+    match *term {
+        // esses usam `--` pra separar o comando a executar
+        "gnome-terminal" | "xfce4-terminal" => {
+            cmd.arg("--").arg("bash").arg(script);
+        }
+        _ => {
+            cmd.arg("-e").arg("bash").arg(script);
+        }
+    }
+    cmd.stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null());
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+        cmd.process_group(0); // desacopla do app: sobrevive se o app fechar
+    }
+    cmd.spawn().map_err(|e| format!("abrir terminal `{term}`: {e}"))?;
+    Ok((*term).to_string())
+}
+
+/// Abre um terminal INTERATIVO já dentro do projeto, com o `claude` pronto e o bypass de
+/// permissões ligado — o "vou trabalhar neste projeto agora".
+///
+/// O quê: grava um wrapper (nome único, ver [`arquivos_de_lancamento`]), pré-confia a pasta
+/// e abre o terminal. O wrapper corrige o PATH (terminal non-login não lê `~/.bashrc`),
+/// entra no projeto, roda o `claude --dangerously-skip-permissions` INTERATIVO (sem prompt
+/// pré-fabricado) e, quando ele sai, **cai num shell no mesmo diretório** em vez de fechar
+/// a janela.
+///
+/// Onde: botão "abrir no terminal" da GUI; `schematize overdev terminal`.
+///
+/// ## Diferença pro [`launch_prompt_in_terminal`]
+/// Aquele dispara UMA tarefa (o agente recebe um prompt e trabalha sozinho). Este entrega o
+/// terminal pro humano: sessão interativa, sem objetivo embutido, e o shell continua vivo
+/// depois. São intenções diferentes e por isso são funções diferentes — e este NÃO sobe
+/// supervisor, porque não há run de overdev pra vigiar.
+///
+/// ## Sem `claude` instalado
+/// Não é erro: abre o shell no projeto do mesmo jeito e avisa na tela como instalar. Quem
+/// clicou quer chegar na pasta certa; falhar por causa de uma dependência opcional seria
+/// culpar o usuário por algo que o software resolve (§48).
+///
+/// **Entrada:** raiz do projeto. **Saída:** nome do terminal usado.
+/// **Efeitos:** grava wrapper em `.schematize/overdev/`, cria processo.
+pub fn abrir_terminal_no_projeto(project: &Path) -> Result<String, String> {
+    pre_trust_project(project);
+    let od = crate::paths::overdev_dir_at(project);
+    std::fs::create_dir_all(&od).map_err(|e| format!("criar .schematize/overdev: {e}"))?;
+    purga_lancamentos_velhos(&od);
+    let (_prompt, script) = arquivos_de_lancamento(&od);
+
+    // Absoluto quando existe; senão o wrapper avisa em vez de quebrar.
+    let linha_claude = match resolve_bin("claude") {
+        Some(c) => format!("if [ -x {c:?} ]; then\n  {c:?} --dangerously-skip-permissions\nfi\n"),
+        None => "echo '[schematize] o CLI `claude` nao esta no PATH — instale em claude.ai/code.'\necho '[schematize] abrindo so o shell neste projeto.'\n".to_string(),
+    };
+    // String de UMA linha com `\n` explicito: a continuacao com `\` do Rust preserva a
+    // indentacao do fonte e vazava espaco pra dentro do script gerado.
+    let sh = format!(
+        "#!/usr/bin/env bash\nexport PATH=\"$HOME/.local/bin:$HOME/.cargo/bin:$HOME/.claude/local:$PATH\"\ncd {proj:?} || exit 1\n{linha_claude}echo\necho '[schematize] voce esta em {mostra} — o shell segue aberto.'\nexec \"${{SHELL:-/bin/bash}}\" -i\n",
+        proj = project,
+        mostra = project.display(),
+    );
+    std::fs::write(&script, &sh).map_err(|e| format!("gravar wrapper: {e}"))?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755));
+    }
+    spawn_no_terminal(&script)
+}
 /// Igual à [`launch_in_terminal`], mas dispara um PROMPT ARBITRÁRIO (linguagem natural) num
 /// terminal externo — reusada pelo (re)index ([`reindex_prompt`]) e por qualquer ação one-shot
 /// que a GUI/CLI queira delegar ao `claude` fora do processo do app. Escreve o prompt num arquivo
@@ -352,39 +450,7 @@ pub fn launch_prompt_in_terminal(project: &Path, prompt: &str) -> Result<String,
         use std::os::unix::fs::PermissionsExt;
         let _ = std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755));
     }
-    let terms = [
-        "konsole",
-        "gnome-terminal",
-        "xfce4-terminal",
-        "x-terminal-emulator",
-        "alacritty",
-        "kitty",
-        "xterm",
-    ];
-    let term = terms
-        .iter()
-        .find(|t| binary_in_path(t))
-        .ok_or_else(|| "nenhum terminal encontrado (konsole/gnome-terminal/xterm/…).".to_string())?;
-    let mut cmd = std::process::Command::new(term);
-    match *term {
-        // esses usam `--` pra separar o comando a executar
-        "gnome-terminal" | "xfce4-terminal" => {
-            cmd.arg("--").arg("bash").arg(&script);
-        }
-        _ => {
-            cmd.arg("-e").arg("bash").arg(&script);
-        }
-    }
-    cmd.stdin(std::process::Stdio::null())
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null());
-    #[cfg(unix)]
-    {
-        use std::os::unix::process::CommandExt;
-        cmd.process_group(0); // desacopla do app: o claude segue vivo se o app fechar
-    }
-    cmd.spawn().map_err(|e| format!("abrir terminal `{term}`: {e}"))?;
-    Ok((*term).to_string())
+    spawn_no_terminal(&script)
 }
 
 // ---------------------------------------------------------------------------

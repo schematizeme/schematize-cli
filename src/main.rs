@@ -146,6 +146,10 @@ fn main() {
             Over::Enable => overdev::enable(),
             Over::Disable => overdev::disable(),
             Over::Start { objetivo, max } => overdev::start(&objetivo.join(" "), max),
+            Over::Terminal => cli::overdev::cwd_project().and_then(|p| {
+                schematize::agentrun::abrir_terminal_no_projeto(&p)
+                    .map(|t| println!("terminal `{t}` aberto em {} — o claude sobe com o bypass ligado.", p.display()))
+            }),
             Over::Supervise { max } => cli::overdev::cwd_project().map(|projeto| {
                 let teto = max.unwrap_or(schematize::overdev::supervisor::MAX_RELANCAMENTOS);
                 println!(

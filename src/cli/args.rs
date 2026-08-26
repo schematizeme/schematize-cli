@@ -520,6 +520,9 @@ pub(crate) enum Over {
         #[arg(long)]
         max: Option<u64>,
     },
+    /// Abre um TERMINAL interativo já neste projeto, com o `claude` pronto e o bypass de
+    /// permissões ligado. Quando o claude sai, o shell continua aberto na pasta certa.
+    Terminal,
     /// SUPERVISIONA o run deste diretório: se o agente morrer (contexto/crash/janela fechada)
     /// com item de máquina aberto, RELANÇA. É a rede que o Stop hook não cobre — ele só age
     /// quando o agente TENTA encerrar o turno, não quando o processo simplesmente acaba.
