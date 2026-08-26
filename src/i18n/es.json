@@ -118,6 +118,7 @@
   "gui.project_hint": "pega la ruta de un proyecto",
   "gui.add": "añadir",
   "gui.open_browser": "abrir en el navegador",
+  "gui.od_open_terminal": "abrir en terminal",
   "gui.export_obsidian": "exportar Obsidian",
   "gui.open_editor": "abrir en el editor",
   "gui.no_loc": "sin archivo:línea en el índice",

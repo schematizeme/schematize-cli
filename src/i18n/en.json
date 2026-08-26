@@ -110,6 +110,7 @@
   "gui.project_hint": "paste a project path",
   "gui.add": "add",
   "gui.open_browser": "open in browser",
+  "gui.od_open_terminal": "open in terminal",
   "gui.export_obsidian": "export Obsidian",
   "gui.open_editor": "open in editor",
   "gui.no_loc": "no file:line in the index",
