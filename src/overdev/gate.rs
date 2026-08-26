@@ -10,7 +10,15 @@ pub(crate) fn gate_ok() -> bool {
     if !g.exists() {
         return true;
     }
-    util::run("bash", &[g.to_str().unwrap()]).is_ok()
+    // `to_str()` devolve None em caminho não-UTF-8. Com `unwrap()` isso derrubava o STOP
+    // HOOK — o processo que decide se o agente pode parar — em vez de decidir. Um projeto
+    // numa pasta com byte inválido travava o overdev com pânico, não com veredito.
+    // Sem gate legível, o veredito seguro é "não bloqueia": o gate é OPCIONAL, e um erro
+    // de leitura nosso não pode virar prisão pro usuário.
+    match g.to_str() {
+        Some(caminho) => util::run("bash", &[caminho]).is_ok(),
+        None => true,
+    }
 }
 
 pub(crate) fn drain_stdin() {

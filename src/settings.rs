@@ -36,9 +36,20 @@ fn save(v: &Value) -> Result<(), String> {
 
 /// Garante que `hooks[event]` (array) tenha o grupo `group` se ainda não houver `needle`.
 fn ensure_group(root: &mut Value, event: &str, needle: &str, group: Value) {
-    let hooks = root.as_object_mut().unwrap().entry("hooks").or_insert_with(|| json!({}));
-    let arr = hooks.as_object_mut().unwrap().entry(event).or_insert_with(|| json!([]));
-    let arr = arr.as_array_mut().unwrap();
+    // Nada aqui pode ser `unwrap`: o settings.json é de QUEM USA, e um `"hooks": "x"`
+    // (string onde esperamos objeto) fazia o CLI panicar em vez de tratar. Arquivo alheio
+    // malformado é entrada hostil como qualquer outra — corrigimos o nó e seguimos.
+    let Some(raiz) = root.as_object_mut() else { return };
+    let hooks = raiz.entry("hooks").or_insert_with(|| json!({}));
+    if !hooks.is_object() {
+        *hooks = json!({});
+    }
+    let Some(hooks) = hooks.as_object_mut() else { return };
+    let arr = hooks.entry(event).or_insert_with(|| json!([]));
+    if !arr.is_array() {
+        *arr = json!([]);
+    }
+    let Some(arr) = arr.as_array_mut() else { return };
     // REMOVE qualquer versão anterior do hook (mesmo needle) antes de adicionar — assim `enable`
     // ATUALIZA o comando em vez de só adicionar-se-ausente. Sem isto, um hook antigo com caminho
     // absoluto stale (ex.: `/usr/bin/schematize` de um pacote removido) nunca era trocado pelo
@@ -411,4 +422,38 @@ mod tests {
         assert_eq!(c, hook_cmd("/home/alguem/.cargo/bin/schematize", "overdev check"));
         assert_eq!(c, hook_cmd("/usr/bin/schematize", "overdev check"));
     }
+
+    /// O QUE: um `settings.json` malformado (tipo errado em `hooks`) NÃO derruba o CLI.
+    ///
+    /// POR QUE: o arquivo é de quem usa. `"hooks": "x"` fazia `as_object_mut()` devolver
+    /// None e o `unwrap()` panicava — o CLI inteiro morria por causa de um arquivo alheio
+    /// mal editado. Entrada hostil é entrada hostil, venha de rede ou de disco: o caminho
+    /// certo é corrigir o nó e seguir, nunca panicar.
+    #[test]
+    fn settings_malformado_nao_derruba() {
+        for bruto in [
+            r#"{"hooks": "isto deveria ser objeto"}"#,
+            r#"{"hooks": {"Stop": "isto deveria ser array"}}"#,
+            r#"{"hooks": {}}"#,
+            r#"{}"#,
+        ] {
+            let mut v: Value = serde_json::from_str(bruto).expect("fixture é json válido");
+            ensure_group(&mut v, "Stop", "overdev check", json!({"hooks": []}));
+            // O contrato é sobreviver e deixar a estrutura utilizável.
+            assert!(
+                v["hooks"]["Stop"].is_array(),
+                "depois do reparo, hooks.Stop tem que ser array — veio {}",
+                v["hooks"]["Stop"]
+            );
+        }
+    }
+
+    /// O QUE: uma raiz que nem objeto é (um array no lugar) também não derruba.
+    #[test]
+    fn raiz_que_nao_e_objeto_nao_derruba() {
+        let mut v: Value = serde_json::from_str("[]").unwrap();
+        ensure_group(&mut v, "Stop", "overdev check", json!({"hooks": []}));
+        assert!(v.is_array(), "sem objeto pra mexer, sai sem tocar em nada");
+    }
+
 }
