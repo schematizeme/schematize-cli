@@ -359,6 +359,13 @@ pub(crate) enum GitCmd {
         #[arg(long)]
         servico: Option<String>,
     },
+    /// DETECTA contas já presentes na máquina (`gh`, git config, ~/.ssh, e-mail dos repos)
+    /// e mostra o que daria pra cadastrar. Só sugere; `--add` é que grava.
+    Detect {
+        /// Cadastra as sugestões que ainda não existem.
+        #[arg(long)]
+        add: bool,
+    },
     /// Remove uma conta pelo rótulo.
     Remove { rotulo: String },
     /// Aplica uma conta ao repositório do diretório atual.
