@@ -347,5 +347,18 @@
   "gui.acc_start_error": "Impossibile avviare l'accesso:",
   "gui.acc_expired": "Il codice è scaduto. Riprova.",
   "gui.acc_denied": "Accesso negato. Riprova.",
-  "gui.acc_save_error": "Impossibile salvare la sessione:"
+  "gui.acc_save_error": "Impossibile salvare la sessione:",
+  "env.path_already": "~/.local/bin è già configurato nel tuo PATH — riapri il terminale OPPURE esegui: source ~/.bashrc",
+  "env.path_fix_failed": "non sono riuscito ad aggiornare un file rc della shell ({error}) — aggiungi questa riga manualmente: export PATH=\"$HOME/.local/bin:$PATH\"",
+  "env.path_fixed": "aggiunto ~/.local/bin al tuo PATH (~/.bashrc + ~/.profile) — riapri il terminale OPPURE esegui: source ~/.bashrc",
+  "env.ready_missing": "attenzione: {bin} non è comparso né nel PATH né in ~/.local/bin — l'installazione potrebbe essere fallita. rilancia con --dry-run per ispezionare i comandi, o controlla l'output qui sopra.",
+  "env.ready_ok": "pronto: {bin} è nel tuo PATH.",
+  "env.tool_already": "{tool} è già installato (trovato nel PATH) — niente da fare.",
+  "env.tool_done": "completato: {tool}.",
+  "env.tool_method_ignored": "{tool} è uno strumento di sviluppo: --method '{method}' viene ignorato (ha un unico percorso di installazione canonico).",
+  "env.tool_plan_title": "verrà eseguito per {tool}:",
+  "env.tool_removing": "rimozione di {tool}…",
+  "env.tool_todo": "TODO ({tool}): {note}",
+  "env.tools_header": "strumenti di sviluppo (percorso di installazione proprio — --method viene ignorato):",
+  "gui.od_open_terminal": "apri nel terminale"
 }

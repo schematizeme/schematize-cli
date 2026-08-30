@@ -347,5 +347,18 @@
   "gui.acc_start_error": "Giriş başlatılamadı:",
   "gui.acc_expired": "Kodun süresi doldu. Tekrar deneyin.",
   "gui.acc_denied": "Erişim reddedildi. Tekrar deneyin.",
-  "gui.acc_save_error": "Oturum kaydedilemedi:"
+  "gui.acc_save_error": "Oturum kaydedilemedi:",
+  "env.path_already": "~/.local/bin zaten PATH'inizde tanımlı — terminali yeniden açın VEYA şunu çalıştırın: source ~/.bashrc",
+  "env.path_fix_failed": "kabuğun rc dosyası güncellenemedi ({error}) — bu satırı elle ekleyin: export PATH=\"$HOME/.local/bin:$PATH\"",
+  "env.path_fixed": "~/.local/bin PATH'inize eklendi (~/.bashrc + ~/.profile) — terminali yeniden açın VEYA şunu çalıştırın: source ~/.bashrc",
+  "env.ready_missing": "dikkat: {bin} ne PATH'te ne de ~/.local/bin içinde göründü — kurulum başarısız olmuş olabilir. komutları incelemek için --dry-run ile yeniden çalıştırın veya yukarıdaki çıktıya bakın.",
+  "env.ready_ok": "hazır: {bin} PATH'inizde.",
+  "env.tool_already": "{tool} zaten kurulu (PATH'te bulundu) — yapılacak bir şey yok.",
+  "env.tool_done": "tamamlandı: {tool}.",
+  "env.tool_method_ignored": "{tool} bir geliştirici aracı: --method '{method}' yok sayılır (tek bir kanonik kurulum yolu var).",
+  "env.tool_plan_title": "{tool} için çalıştırılacak:",
+  "env.tool_removing": "{tool} kaldırılıyor…",
+  "env.tool_todo": "TODO ({tool}): {note}",
+  "env.tools_header": "geliştirici araçları (kendi kurulum yolu — --method yok sayılır):",
+  "gui.od_open_terminal": "terminalde aç"
 }

@@ -347,5 +347,18 @@
   "gui.acc_start_error": "เริ่มเข้าสู่ระบบไม่สำเร็จ:",
   "gui.acc_expired": "รหัสหมดอายุแล้ว โปรดลองอีกครั้ง",
   "gui.acc_denied": "การเข้าถึงถูกปฏิเสธ โปรดลองอีกครั้ง",
-  "gui.acc_save_error": "บันทึกเซสชันไม่สำเร็จ:"
+  "gui.acc_save_error": "บันทึกเซสชันไม่สำเร็จ:",
+  "env.path_already": "~/.local/bin ถูกตั้งค่าใน PATH ของคุณแล้ว — เปิดเทอร์มินัลใหม่ หรือรัน: source ~/.bashrc",
+  "env.path_fix_failed": "อัปเดตไฟล์ rc ของเชลล์ไม่สำเร็จ ({error}) — เพิ่มบรรทัดนี้ด้วยตนเอง: export PATH=\"$HOME/.local/bin:$PATH\"",
+  "env.path_fixed": "เพิ่ม ~/.local/bin เข้าไปใน PATH ของคุณแล้ว (~/.bashrc + ~/.profile) — เปิดเทอร์มินัลใหม่ หรือรัน: source ~/.bashrc",
+  "env.ready_missing": "คำเตือน: ไม่พบ {bin} ทั้งใน PATH และใน ~/.local/bin — การติดตั้งอาจล้มเหลว ลองรันใหม่ด้วย --dry-run เพื่อตรวจสอบคำสั่ง หรือดูผลลัพธ์ด้านบน",
+  "env.ready_ok": "พร้อมแล้ว: {bin} อยู่ใน PATH ของคุณ",
+  "env.tool_already": "{tool} ติดตั้งไว้แล้ว (พบใน PATH) — ไม่ต้องทำอะไร",
+  "env.tool_done": "เสร็จสิ้น: {tool}",
+  "env.tool_method_ignored": "{tool} เป็นเครื่องมือสำหรับนักพัฒนา: --method '{method}' จะถูกละเว้น (มีเส้นทางติดตั้งมาตรฐานเพียงทางเดียว)",
+  "env.tool_plan_title": "จะรันสำหรับ {tool}:",
+  "env.tool_removing": "กำลังลบ {tool}…",
+  "env.tool_todo": "TODO ({tool}): {note}",
+  "env.tools_header": "เครื่องมือนักพัฒนา (เส้นทางติดตั้งของตัวเอง — --method จะถูกละเว้น):",
+  "gui.od_open_terminal": "เปิดในเทอร์มินัล"
 }

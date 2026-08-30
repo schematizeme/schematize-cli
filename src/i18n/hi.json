@@ -347,5 +347,18 @@
   "gui.acc_start_error": "साइन इन शुरू करने में विफल:",
   "gui.acc_expired": "कोड की समय-सीमा समाप्त। पुनः प्रयास करें।",
   "gui.acc_denied": "पहुँच अस्वीकृत। पुनः प्रयास करें।",
-  "gui.acc_save_error": "सत्र सहेजने में विफल:"
+  "gui.acc_save_error": "सत्र सहेजने में विफल:",
+  "env.path_already": "~/.local/bin आपके PATH में पहले से कॉन्फ़िगर है — टर्मिनल फिर से खोलें या चलाएँ: source ~/.bashrc",
+  "env.path_fix_failed": "शेल की rc फ़ाइल अपडेट नहीं कर सका ({error}) — यह पंक्ति स्वयं जोड़ें: export PATH=\"$HOME/.local/bin:$PATH\"",
+  "env.path_fixed": "~/.local/bin को आपके PATH में जोड़ दिया (~/.bashrc + ~/.profile) — टर्मिनल फिर से खोलें या चलाएँ: source ~/.bashrc",
+  "env.ready_missing": "चेतावनी: {bin} न PATH में मिला और न ~/.local/bin में — इंस्टॉल विफल हो सकता है। कमांड देखने के लिए --dry-run के साथ दोबारा चलाएँ, या ऊपर का आउटपुट देखें।",
+  "env.ready_ok": "तैयार: {bin} आपके PATH में है।",
+  "env.tool_already": "{tool} पहले से इंस्टॉल है (PATH में मिला) — कुछ करने की ज़रूरत नहीं।",
+  "env.tool_done": "पूर्ण: {tool}।",
+  "env.tool_method_ignored": "{tool} एक डेव टूल है: --method '{method}' अनदेखा किया जाता है (इसका एक ही मानक इंस्टॉल पथ है)।",
+  "env.tool_plan_title": "{tool} के लिए चलेगा:",
+  "env.tool_removing": "{tool} हटाया जा रहा है…",
+  "env.tool_todo": "TODO ({tool}): {note}",
+  "env.tools_header": "डेव टूल्स (अपना इंस्टॉल पथ — --method अनदेखा किया जाता है):",
+  "gui.od_open_terminal": "टर्मिनल में खोलें"
 }

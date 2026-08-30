@@ -347,5 +347,18 @@
   "gui.acc_start_error": "启动登录失败：",
   "gui.acc_expired": "验证码已过期。请重试。",
   "gui.acc_denied": "访问被拒绝。请重试。",
-  "gui.acc_save_error": "保存会话失败："
+  "gui.acc_save_error": "保存会话失败：",
+  "env.path_already": "~/.local/bin 已配置在你的 PATH 中 — 请重新打开终端，或运行: source ~/.bashrc",
+  "env.path_fix_failed": "无法更新 shell 的 rc 文件 ({error}) — 请手动添加这一行: export PATH=\"$HOME/.local/bin:$PATH\"",
+  "env.path_fixed": "已把 ~/.local/bin 加入你的 PATH (~/.bashrc + ~/.profile) — 请重新打开终端，或运行: source ~/.bashrc",
+  "env.ready_missing": "注意: {bin} 既没出现在 PATH 中，也不在 ~/.local/bin — 安装可能失败了。请用 --dry-run 重新运行以检查命令，或查看上面的输出。",
+  "env.ready_ok": "就绪: {bin} 已在你的 PATH 中。",
+  "env.tool_already": "{tool} 已安装 (在 PATH 中找到) — 无需操作。",
+  "env.tool_done": "完成: {tool}。",
+  "env.tool_method_ignored": "{tool} 是开发工具: --method '{method}' 被忽略 (它只有一条规范的安装路径)。",
+  "env.tool_plan_title": "将为 {tool} 执行:",
+  "env.tool_removing": "正在移除 {tool}…",
+  "env.tool_todo": "TODO ({tool}): {note}",
+  "env.tools_header": "开发工具 (自带安装路径 — --method 被忽略):",
+  "gui.od_open_terminal": "在终端中打开"
 }

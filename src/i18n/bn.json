@@ -347,5 +347,18 @@
   "gui.acc_start_error": "লগইন শুরু করা ব্যর্থ:",
   "gui.acc_expired": "কোডের মেয়াদ শেষ হয়েছে। আবার চেষ্টা করুন।",
   "gui.acc_denied": "অ্যাক্সেস অস্বীকৃত। আবার চেষ্টা করুন।",
-  "gui.acc_save_error": "সেশন সংরক্ষণ ব্যর্থ:"
+  "gui.acc_save_error": "সেশন সংরক্ষণ ব্যর্থ:",
+  "env.path_already": "~/.local/bin ইতিমধ্যেই আপনার PATH-এ কনফিগার করা আছে — টার্মিনাল আবার খুলুন অথবা চালান: source ~/.bashrc",
+  "env.path_fix_failed": "শেলের rc ফাইল হালনাগাদ করা গেল না ({error}) — এই লাইনটি নিজে যোগ করুন: export PATH=\"$HOME/.local/bin:$PATH\"",
+  "env.path_fixed": "~/.local/bin আপনার PATH-এ যোগ করা হয়েছে (~/.bashrc + ~/.profile) — টার্মিনাল আবার খুলুন অথবা চালান: source ~/.bashrc",
+  "env.ready_missing": "সতর্কতা: {bin} PATH-এও পাওয়া যায়নি, ~/.local/bin-এও নয় — ইনস্টল ব্যর্থ হয়ে থাকতে পারে। কমান্ডগুলো দেখতে --dry-run দিয়ে আবার চালান, অথবা উপরের আউটপুট দেখুন।",
+  "env.ready_ok": "প্রস্তুত: {bin} আপনার PATH-এ আছে।",
+  "env.tool_already": "{tool} ইতিমধ্যেই ইনস্টল করা (PATH-এ পাওয়া গেছে) — কিছু করার নেই।",
+  "env.tool_done": "সম্পন্ন: {tool}।",
+  "env.tool_method_ignored": "{tool} একটি ডেভ টুল: --method '{method}' উপেক্ষা করা হয় (এর একটিই প্রামাণিক ইনস্টল পথ আছে)।",
+  "env.tool_plan_title": "{tool}-এর জন্য চালানো হবে:",
+  "env.tool_removing": "{tool} সরানো হচ্ছে…",
+  "env.tool_todo": "TODO ({tool}): {note}",
+  "env.tools_header": "ডেভ টুল (নিজস্ব ইনস্টল পথ — --method উপেক্ষা করা হয়):",
+  "gui.od_open_terminal": "টার্মিনালে খুলুন"
 }

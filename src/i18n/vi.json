@@ -347,5 +347,18 @@
   "gui.acc_start_error": "Không thể bắt đầu đăng nhập:",
   "gui.acc_expired": "Mã đã hết hạn. Vui lòng thử lại.",
   "gui.acc_denied": "Truy cập bị từ chối. Vui lòng thử lại.",
-  "gui.acc_save_error": "Không thể lưu phiên:"
+  "gui.acc_save_error": "Không thể lưu phiên:",
+  "env.path_already": "~/.local/bin đã được cấu hình trong PATH của bạn — hãy mở lại terminal HOẶC chạy: source ~/.bashrc",
+  "env.path_fix_failed": "không cập nhật được tệp rc của shell ({error}) — hãy thêm dòng này thủ công: export PATH=\"$HOME/.local/bin:$PATH\"",
+  "env.path_fixed": "đã thêm ~/.local/bin vào PATH của bạn (~/.bashrc + ~/.profile) — hãy mở lại terminal HOẶC chạy: source ~/.bashrc",
+  "env.ready_missing": "cảnh báo: {bin} không xuất hiện trong PATH lẫn ~/.local/bin — có thể việc cài đặt đã thất bại. hãy chạy lại với --dry-run để xem các lệnh, hoặc kiểm tra kết quả ở trên.",
+  "env.ready_ok": "sẵn sàng: {bin} đã có trong PATH của bạn.",
+  "env.tool_already": "{tool} đã được cài (tìm thấy trong PATH) — không cần làm gì.",
+  "env.tool_done": "hoàn tất: {tool}.",
+  "env.tool_method_ignored": "{tool} là công cụ dev: --method '{method}' bị bỏ qua (nó chỉ có một đường cài đặt chuẩn).",
+  "env.tool_plan_title": "sẽ chạy cho {tool}:",
+  "env.tool_removing": "đang gỡ {tool}…",
+  "env.tool_todo": "TODO ({tool}): {note}",
+  "env.tools_header": "công cụ dev (đường cài đặt riêng — --method bị bỏ qua):",
+  "gui.od_open_terminal": "mở trong terminal"
 }

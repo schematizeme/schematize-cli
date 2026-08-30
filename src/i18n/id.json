@@ -347,5 +347,18 @@
   "gui.acc_start_error": "Gagal memulai proses masuk:",
   "gui.acc_expired": "Kode telah kedaluwarsa. Coba lagi.",
   "gui.acc_denied": "Akses ditolak. Coba lagi.",
-  "gui.acc_save_error": "Gagal menyimpan sesi:"
+  "gui.acc_save_error": "Gagal menyimpan sesi:",
+  "env.path_already": "~/.local/bin sudah dikonfigurasi di PATH Anda — buka ulang terminal ATAU jalankan: source ~/.bashrc",
+  "env.path_fix_failed": "tidak bisa memperbarui berkas rc shell ({error}) — tambahkan baris ini secara manual: export PATH=\"$HOME/.local/bin:$PATH\"",
+  "env.path_fixed": "menambahkan ~/.local/bin ke PATH Anda (~/.bashrc + ~/.profile) — buka ulang terminal ATAU jalankan: source ~/.bashrc",
+  "env.ready_missing": "perhatian: {bin} tidak muncul di PATH maupun di ~/.local/bin — pemasangan mungkin gagal. jalankan ulang dengan --dry-run untuk memeriksa perintahnya, atau lihat keluaran di atas.",
+  "env.ready_ok": "siap: {bin} ada di PATH Anda.",
+  "env.tool_already": "{tool} sudah terpasang (ditemukan di PATH) — tidak ada yang perlu dilakukan.",
+  "env.tool_done": "selesai: {tool}.",
+  "env.tool_method_ignored": "{tool} adalah alat dev: --method '{method}' diabaikan (hanya ada satu jalur pemasangan kanonik).",
+  "env.tool_plan_title": "akan dijalankan untuk {tool}:",
+  "env.tool_removing": "menghapus {tool}…",
+  "env.tool_todo": "TODO ({tool}): {note}",
+  "env.tools_header": "alat dev (jalur pemasangan sendiri — --method diabaikan):",
+  "gui.od_open_terminal": "buka di terminal"
 }

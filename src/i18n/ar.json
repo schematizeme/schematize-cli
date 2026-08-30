@@ -347,5 +347,18 @@
   "gui.acc_start_error": "فشل بدء تسجيل الدخول:",
   "gui.acc_expired": "انتهت صلاحية الرمز. حاول مرة أخرى.",
   "gui.acc_denied": "تم رفض الوصول. حاول مرة أخرى.",
-  "gui.acc_save_error": "فشل حفظ الجلسة:"
+  "gui.acc_save_error": "فشل حفظ الجلسة:",
+  "env.path_already": "‏~/.local/bin مُهيَّأ بالفعل في مسار PATH لديك — أعد فتح الطرفية أو نفِّذ: source ~/.bashrc",
+  "env.path_fix_failed": "تعذّر تحديث ملف rc الخاص بالصدفة ({error}) — أضف هذا السطر يدويًا: export PATH=\"$HOME/.local/bin:$PATH\"",
+  "env.path_fixed": "تمت إضافة ~/.local/bin إلى مسار PATH لديك (~/.bashrc + ~/.profile) — أعد فتح الطرفية أو نفِّذ: source ~/.bashrc",
+  "env.ready_missing": "تنبيه: لم يظهر {bin} في PATH ولا في ~/.local/bin — قد يكون التثبيت قد فشل. أعد التنفيذ مع ‎--dry-run لفحص الأوامر، أو راجع المخرجات أعلاه.",
+  "env.ready_ok": "جاهز: {bin} موجود في مسار PATH لديك.",
+  "env.tool_already": "{tool} مثبَّت بالفعل (وُجد في PATH) — لا شيء لفعله.",
+  "env.tool_done": "اكتمل: {tool}.",
+  "env.tool_method_ignored": "‏{tool} أداة تطوير: يتم تجاهل ‎--method '{method}' (لها مسار تثبيت قياسي واحد).",
+  "env.tool_plan_title": "سيتم التنفيذ من أجل {tool}:",
+  "env.tool_removing": "جارٍ إزالة {tool}…",
+  "env.tool_todo": "TODO ({tool}): {note}",
+  "env.tools_header": "أدوات التطوير (مسار تثبيت خاص — يتم تجاهل ‎--method):",
+  "gui.od_open_terminal": "افتح في الطرفية"
 }

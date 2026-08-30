@@ -347,5 +347,18 @@
   "gui.acc_start_error": "شروع ورود ناموفق بود:",
   "gui.acc_expired": "کد منقضی شد. دوباره تلاش کنید.",
   "gui.acc_denied": "دسترسی رد شد. دوباره تلاش کنید.",
-  "gui.acc_save_error": "ذخیرهٔ نشست ناموفق بود:"
+  "gui.acc_save_error": "ذخیرهٔ نشست ناموفق بود:",
+  "env.path_already": "‏~/.local/bin از قبل در PATH شما تنظیم شده است — ترمینال را دوباره باز کنید یا اجرا کنید: source ~/.bashrc",
+  "env.path_fix_failed": "نتوانستم فایل rc پوسته را به‌روزرسانی کنم ({error}) — این خط را دستی اضافه کنید: export PATH=\"$HOME/.local/bin:$PATH\"",
+  "env.path_fixed": "‏~/.local/bin به PATH شما اضافه شد (~/.bashrc + ~/.profile) — ترمینال را دوباره باز کنید یا اجرا کنید: source ~/.bashrc",
+  "env.ready_missing": "هشدار: {bin} نه در PATH و نه در ~/.local/bin پیدا نشد — ممکن است نصب ناموفق بوده باشد. برای بررسی دستورها با ‎--dry-run دوباره اجرا کنید، یا خروجی بالا را ببینید.",
+  "env.ready_ok": "آماده: {bin} در PATH شما هست.",
+  "env.tool_already": "‏{tool} از قبل نصب شده است (در PATH پیدا شد) — کاری لازم نیست.",
+  "env.tool_done": "انجام شد: {tool}.",
+  "env.tool_method_ignored": "‏{tool} یک ابزار توسعه است: ‎--method '{method}' نادیده گرفته می‌شود (تنها یک مسیر نصب استاندارد دارد).",
+  "env.tool_plan_title": "برای {tool} اجرا خواهد شد:",
+  "env.tool_removing": "در حال حذف {tool}…",
+  "env.tool_todo": "TODO ({tool}): {note}",
+  "env.tools_header": "ابزارهای توسعه (مسیر نصب مخصوص خود — ‎--method نادیده گرفته می‌شود):",
+  "gui.od_open_terminal": "باز کردن در ترمینال"
 }

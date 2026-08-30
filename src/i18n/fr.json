@@ -347,5 +347,18 @@
   "gui.acc_start_error": "Échec du démarrage de la connexion :",
   "gui.acc_expired": "Le code a expiré. Réessayez.",
   "gui.acc_denied": "Accès refusé. Réessayez.",
-  "gui.acc_save_error": "Échec de l'enregistrement de la session :"
+  "gui.acc_save_error": "Échec de l'enregistrement de la session :",
+  "env.path_already": "~/.local/bin est déjà configuré dans votre PATH — rouvrez le terminal OU lancez : source ~/.bashrc",
+  "env.path_fix_failed": "impossible de mettre à jour un fichier rc du shell ({error}) — ajoutez cette ligne manuellement : export PATH=\"$HOME/.local/bin:$PATH\"",
+  "env.path_fixed": "~/.local/bin ajouté à votre PATH (~/.bashrc + ~/.profile) — rouvrez le terminal OU lancez : source ~/.bashrc",
+  "env.ready_missing": "attention : {bin} n'est apparu ni dans le PATH ni dans ~/.local/bin — l'installation a peut-être échoué. relancez avec --dry-run pour inspecter les commandes, ou vérifiez la sortie ci-dessus.",
+  "env.ready_ok": "prêt : {bin} est dans votre PATH.",
+  "env.tool_already": "{tool} est déjà installé (trouvé dans le PATH) — rien à faire.",
+  "env.tool_done": "terminé : {tool}.",
+  "env.tool_method_ignored": "{tool} est un outil de dev : --method '{method}' est ignoré (il a un seul chemin d'installation canonique).",
+  "env.tool_plan_title": "va s'exécuter pour {tool} :",
+  "env.tool_removing": "suppression de {tool}…",
+  "env.tool_todo": "TODO ({tool}) : {note}",
+  "env.tools_header": "outils de dev (chemin d'installation propre — --method est ignoré) :",
+  "gui.od_open_terminal": "ouvrir dans le terminal"
 }

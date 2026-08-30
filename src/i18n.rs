@@ -141,3 +141,95 @@ pub fn tf(key: &str, args: &[(&str, &str)]) -> String {
     }
     s
 }
+
+#[cfg(test)]
+mod tests_paridade {
+    use std::collections::BTreeSet;
+
+    /// Lê os pares `"chave": "valor"` de um JSON de locale sem depender de crate externa
+    /// no teste — basta o suficiente pra conferir chaves e placeholders.
+    fn pares(bruto: &str) -> Vec<(String, String)> {
+        serde_json::from_str::<std::collections::BTreeMap<String, String>>(bruto)
+            .expect("locale tem que ser JSON válido")
+            .into_iter()
+            .collect()
+    }
+
+    fn locales() -> Vec<(String, String)> {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/i18n");
+        let mut v: Vec<(String, String)> = std::fs::read_dir(dir)
+            .expect("src/i18n existe")
+            .flatten()
+            .filter(|e| e.path().extension().is_some_and(|x| x == "json"))
+            .map(|e| {
+                let nome = e.path().file_stem().unwrap().to_string_lossy().to_string();
+                (nome, std::fs::read_to_string(e.path()).expect("locale legível"))
+            })
+            .collect();
+        v.sort();
+        v
+    }
+
+    /// Os placeholders `{assim}` de uma string, ordenados.
+    fn placeholders(s: &str) -> BTreeSet<String> {
+        let mut out = BTreeSet::new();
+        let b = s.as_bytes();
+        let mut i = 0;
+        while let Some(ini) = b[i..].iter().position(|c| *c == b'{').map(|p| p + i) {
+            match b[ini..].iter().position(|c| *c == b'}').map(|p| p + ini) {
+                Some(fim) => {
+                    out.insert(s[ini..=fim].to_string());
+                    i = fim + 1;
+                }
+                None => break,
+            }
+        }
+        out
+    }
+
+    /// O QUE: todo locale tem EXATAMENTE as chaves do `pt.json`.
+    ///
+    /// POR QUE é teste e não script: a paridade só era conferida por um `gate.sh` que
+    /// apontava pra um workspace morto — na prática, ninguém checava. 18 dos 20 locales
+    /// ficaram sem 12 chaves `env.*` e o buraco só apareceu por acaso. Gate que não roda
+    /// não é gate.
+    #[test]
+    fn todos_os_locales_tem_as_mesmas_chaves() {
+        let todos = locales();
+        let pt = todos.iter().find(|(n, _)| n == "pt").expect("pt.json existe");
+        let base: BTreeSet<String> = pares(&pt.1).into_iter().map(|(k, _)| k).collect();
+
+        for (nome, bruto) in &todos {
+            let k: BTreeSet<String> = pares(bruto).into_iter().map(|(k, _)| k).collect();
+            let faltam: Vec<_> = base.difference(&k).collect();
+            let sobram: Vec<_> = k.difference(&base).collect();
+            assert!(
+                faltam.is_empty() && sobram.is_empty(),
+                "{nome}.json fora de paridade — faltam {faltam:?}, sobram {sobram:?}"
+            );
+        }
+    }
+
+    /// O QUE: cada tradução carrega os MESMOS placeholders do original.
+    ///
+    /// POR QUE: `{tool}` traduzido ou perdido não quebra a compilação — quebra em runtime,
+    /// na cara do usuário, mostrando `{tool}` cru ou uma frase sem o dado. É o erro mais
+    /// fácil de cometer traduzindo e o mais difícil de ver revisando.
+    #[test]
+    fn traducoes_preservam_os_placeholders() {
+        let todos = locales();
+        let pt: std::collections::BTreeMap<String, String> =
+            pares(&todos.iter().find(|(n, _)| n == "pt").unwrap().1).into_iter().collect();
+
+        for (nome, bruto) in &todos {
+            for (k, v) in pares(bruto) {
+                let Some(orig) = pt.get(&k) else { continue };
+                assert_eq!(
+                    placeholders(orig),
+                    placeholders(&v),
+                    "{nome}.json / {k}: placeholders divergem do pt"
+                );
+            }
+        }
+    }
+}

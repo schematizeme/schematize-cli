@@ -348,5 +348,17 @@
   "gui.acc_start_error": "Error al iniciar el inicio de sesión:",
   "gui.acc_expired": "El código ha caducado. Inténtalo de nuevo.",
   "gui.acc_denied": "Acceso denegado. Inténtalo de nuevo.",
-  "gui.acc_save_error": "Error al guardar la sesión:"
+  "gui.acc_save_error": "Error al guardar la sesión:",
+  "env.path_already": "~/.local/bin ya está configurado en tu PATH — reabre la terminal O ejecuta: source ~/.bashrc",
+  "env.path_fix_failed": "no pude actualizar un archivo rc del shell ({error}) — añade esta línea manualmente: export PATH=\"$HOME/.local/bin:$PATH\"",
+  "env.path_fixed": "añadí ~/.local/bin a tu PATH (~/.bashrc + ~/.profile) — reabre la terminal O ejecuta: source ~/.bashrc",
+  "env.ready_missing": "atención: {bin} no apareció ni en el PATH ni en ~/.local/bin — la instalación puede haber fallado. vuelve a ejecutar con --dry-run para inspeccionar los comandos, o revisa la salida de arriba.",
+  "env.ready_ok": "listo: {bin} está en tu PATH.",
+  "env.tool_already": "{tool} ya está instalado (encontrado en el PATH) — nada que hacer.",
+  "env.tool_done": "completado: {tool}.",
+  "env.tool_method_ignored": "{tool} es una herramienta de desarrollo: --method '{method}' se ignora (tiene una única ruta de instalación canónica).",
+  "env.tool_plan_title": "se ejecutará para {tool}:",
+  "env.tool_removing": "eliminando {tool}…",
+  "env.tool_todo": "TODO ({tool}): {note}",
+  "env.tools_header": "herramientas de desarrollo (ruta de instalación propia — --method se ignora):"
 }

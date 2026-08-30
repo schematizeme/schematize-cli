@@ -347,5 +347,18 @@
   "gui.acc_start_error": "ログインの開始に失敗しました：",
   "gui.acc_expired": "コードの有効期限が切れました。もう一度お試しください。",
   "gui.acc_denied": "アクセスが拒否されました。もう一度お試しください。",
-  "gui.acc_save_error": "セッションの保存に失敗しました："
+  "gui.acc_save_error": "セッションの保存に失敗しました：",
+  "env.path_already": "~/.local/bin は既に PATH に設定されています — ターミナルを開き直すか、次を実行してください: source ~/.bashrc",
+  "env.path_fix_failed": "シェルの rc ファイルを更新できませんでした ({error}) — 次の行を手動で追加してください: export PATH=\"$HOME/.local/bin:$PATH\"",
+  "env.path_fixed": "~/.local/bin を PATH に追加しました (~/.bashrc + ~/.profile) — ターミナルを開き直すか、次を実行してください: source ~/.bashrc",
+  "env.ready_missing": "警告: {bin} が PATH にも ~/.local/bin にも見つかりませんでした — インストールが失敗した可能性があります。--dry-run で再実行してコマンドを確認するか、上の出力を確認してください。",
+  "env.ready_ok": "準備完了: {bin} は PATH にあります。",
+  "env.tool_already": "{tool} は既にインストール済みです (PATH で検出) — 何もすることはありません。",
+  "env.tool_done": "完了: {tool}。",
+  "env.tool_method_ignored": "{tool} は開発ツールです: --method '{method}' は無視されます (正規のインストール経路が1つだけのため)。",
+  "env.tool_plan_title": "{tool} に対して実行します:",
+  "env.tool_removing": "{tool} を削除しています…",
+  "env.tool_todo": "TODO ({tool}): {note}",
+  "env.tools_header": "開発ツール (独自のインストール経路 — --method は無視されます):",
+  "gui.od_open_terminal": "ターミナルで開く"
 }

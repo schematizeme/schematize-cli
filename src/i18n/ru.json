@@ -347,5 +347,18 @@
   "gui.acc_start_error": "Не удалось начать вход:",
   "gui.acc_expired": "Срок действия кода истёк. Попробуйте снова.",
   "gui.acc_denied": "Доступ запрещён. Попробуйте снова.",
-  "gui.acc_save_error": "Не удалось сохранить сессию:"
+  "gui.acc_save_error": "Не удалось сохранить сессию:",
+  "env.path_already": "~/.local/bin уже настроен в вашем PATH — откройте терминал заново ИЛИ выполните: source ~/.bashrc",
+  "env.path_fix_failed": "не удалось обновить rc-файл оболочки ({error}) — добавьте эту строку вручную: export PATH=\"$HOME/.local/bin:$PATH\"",
+  "env.path_fixed": "~/.local/bin добавлен в ваш PATH (~/.bashrc + ~/.profile) — откройте терминал заново ИЛИ выполните: source ~/.bashrc",
+  "env.ready_missing": "внимание: {bin} не появился ни в PATH, ни в ~/.local/bin — установка могла завершиться неудачно. запустите снова с --dry-run, чтобы посмотреть команды, или проверьте вывод выше.",
+  "env.ready_ok": "готово: {bin} есть в вашем PATH.",
+  "env.tool_already": "{tool} уже установлен (найден в PATH) — делать нечего.",
+  "env.tool_done": "завершено: {tool}.",
+  "env.tool_method_ignored": "{tool} — инструмент разработчика: --method '{method}' игнорируется (у него единственный канонический путь установки).",
+  "env.tool_plan_title": "будет выполнено для {tool}:",
+  "env.tool_removing": "удаление {tool}…",
+  "env.tool_todo": "TODO ({tool}): {note}",
+  "env.tools_header": "инструменты разработчика (собственный путь установки — --method игнорируется):",
+  "gui.od_open_terminal": "открыть в терминале"
 }

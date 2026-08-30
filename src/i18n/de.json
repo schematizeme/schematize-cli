@@ -347,5 +347,18 @@
   "gui.acc_start_error": "Anmeldung konnte nicht gestartet werden:",
   "gui.acc_expired": "Der Code ist abgelaufen. Versuche es erneut.",
   "gui.acc_denied": "Zugriff verweigert. Versuche es erneut.",
-  "gui.acc_save_error": "Sitzung konnte nicht gespeichert werden:"
+  "gui.acc_save_error": "Sitzung konnte nicht gespeichert werden:",
+  "env.path_already": "~/.local/bin ist bereits in deinem PATH — öffne das Terminal neu ODER führe aus: source ~/.bashrc",
+  "env.path_fix_failed": "konnte keine Shell-rc-Datei aktualisieren ({error}) — füge diese Zeile manuell hinzu: export PATH=\"$HOME/.local/bin:$PATH\"",
+  "env.path_fixed": "~/.local/bin zum PATH hinzugefügt (~/.bashrc + ~/.profile) — öffne das Terminal neu ODER führe aus: source ~/.bashrc",
+  "env.ready_missing": "Achtung: {bin} ist weder im PATH noch in ~/.local/bin aufgetaucht — die Installation ist möglicherweise fehlgeschlagen. Führe es erneut mit --dry-run aus, um die Befehle zu prüfen, oder sieh dir die Ausgabe oben an.",
+  "env.ready_ok": "bereit: {bin} ist in deinem PATH.",
+  "env.tool_already": "{tool} ist bereits installiert (im PATH gefunden) — nichts zu tun.",
+  "env.tool_done": "fertig: {tool}.",
+  "env.tool_method_ignored": "{tool} ist ein Dev-Tool: --method '{method}' wird ignoriert (es hat einen einzigen kanonischen Installationsweg).",
+  "env.tool_plan_title": "wird für {tool} ausgeführt:",
+  "env.tool_removing": "{tool} wird entfernt…",
+  "env.tool_todo": "TODO ({tool}): {note}",
+  "env.tools_header": "Dev-Tools (eigener Installationsweg — --method wird ignoriert):",
+  "gui.od_open_terminal": "im Terminal öffnen"
 }

@@ -347,5 +347,18 @@
   "gui.acc_start_error": "Nie udało się rozpocząć logowania:",
   "gui.acc_expired": "Kod wygasł. Spróbuj ponownie.",
   "gui.acc_denied": "Odmowa dostępu. Spróbuj ponownie.",
-  "gui.acc_save_error": "Nie udało się zapisać sesji:"
+  "gui.acc_save_error": "Nie udało się zapisać sesji:",
+  "env.path_already": "~/.local/bin jest już skonfigurowany w twoim PATH — otwórz terminal ponownie ALBO uruchom: source ~/.bashrc",
+  "env.path_fix_failed": "nie udało się zaktualizować pliku rc powłoki ({error}) — dodaj tę linię ręcznie: export PATH=\"$HOME/.local/bin:$PATH\"",
+  "env.path_fixed": "dodano ~/.local/bin do twojego PATH (~/.bashrc + ~/.profile) — otwórz terminal ponownie ALBO uruchom: source ~/.bashrc",
+  "env.ready_missing": "uwaga: {bin} nie pojawił się ani w PATH, ani w ~/.local/bin — instalacja mogła się nie powieść. uruchom ponownie z --dry-run, aby sprawdzić polecenia, albo przejrzyj powyższy wynik.",
+  "env.ready_ok": "gotowe: {bin} jest w twoim PATH.",
+  "env.tool_already": "{tool} jest już zainstalowany (znaleziony w PATH) — nie ma nic do zrobienia.",
+  "env.tool_done": "ukończono: {tool}.",
+  "env.tool_method_ignored": "{tool} to narzędzie deweloperskie: --method '{method}' jest ignorowany (ma jedną kanoniczną ścieżkę instalacji).",
+  "env.tool_plan_title": "zostanie uruchomione dla {tool}:",
+  "env.tool_removing": "usuwanie {tool}…",
+  "env.tool_todo": "TODO ({tool}): {note}",
+  "env.tools_header": "narzędzia deweloperskie (własna ścieżka instalacji — --method jest ignorowany):",
+  "gui.od_open_terminal": "otwórz w terminalu"
 }

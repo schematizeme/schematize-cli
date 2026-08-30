@@ -347,5 +347,18 @@
   "gui.acc_start_error": "Inloggen starten mislukt:",
   "gui.acc_expired": "De code is verlopen. Probeer het opnieuw.",
   "gui.acc_denied": "Toegang geweigerd. Probeer het opnieuw.",
-  "gui.acc_save_error": "Sessie opslaan mislukt:"
+  "gui.acc_save_error": "Sessie opslaan mislukt:",
+  "env.path_already": "~/.local/bin staat al in je PATH — open de terminal opnieuw OF voer uit: source ~/.bashrc",
+  "env.path_fix_failed": "kon geen shell-rc-bestand bijwerken ({error}) — voeg deze regel handmatig toe: export PATH=\"$HOME/.local/bin:$PATH\"",
+  "env.path_fixed": "~/.local/bin toegevoegd aan je PATH (~/.bashrc + ~/.profile) — open de terminal opnieuw OF voer uit: source ~/.bashrc",
+  "env.ready_missing": "let op: {bin} verscheen niet in je PATH en ook niet in ~/.local/bin — de installatie kan mislukt zijn. voer opnieuw uit met --dry-run om de commando's te bekijken, of controleer de uitvoer hierboven.",
+  "env.ready_ok": "klaar: {bin} staat in je PATH.",
+  "env.tool_already": "{tool} is al geïnstalleerd (gevonden in PATH) — niets te doen.",
+  "env.tool_done": "klaar: {tool}.",
+  "env.tool_method_ignored": "{tool} is een dev-tool: --method '{method}' wordt genegeerd (het heeft één canoniek installatiepad).",
+  "env.tool_plan_title": "wordt uitgevoerd voor {tool}:",
+  "env.tool_removing": "{tool} wordt verwijderd…",
+  "env.tool_todo": "TODO ({tool}): {note}",
+  "env.tools_header": "dev-tools (eigen installatiepad — --method wordt genegeerd):",
+  "gui.od_open_terminal": "openen in terminal"
 }
