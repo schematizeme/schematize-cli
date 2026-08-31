@@ -184,11 +184,10 @@ pub fn interpretar_sondagem(saida: &str) -> Sondagem {
     // qualquer comando que investigasse isso, que é o trabalho dele. O que se sabe com certeza
     // é o nível que JÁ está instalado; assumir mais seria inventar.
     if via_shim {
-        let mut notas = Vec::new();
-        notas.push(
+        let notas = vec![
             "sondado ATRAVÉS do shim: a fronteira está ativa e recusou o script de sondagem, como deve. Daqui não dá pra ver se o host ganhou sudo desde a instalação — pra reavaliar, use a chave humana de break-glass."
                 .to_string(),
-        );
+        ];
         return Sondagem {
             possivel: instalada,
             instalada,

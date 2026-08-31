@@ -74,9 +74,11 @@ fn d1b_denylist_nao_bloqueia_deploy_legitimo() {
 /// **D2** — 300 MB de entrada viravam 1,7 GB de RSS, e a mensagem de erro ecoava tudo.
 #[test]
 fn d2_entrada_gigante_nao_derruba_nem_amplifica() {
-    // O teto existe e é sóbrio.
-    assert!(schematize::mcp::MAX_LINHA <= 4 * 1024 * 1024, "teto grande demais");
-    assert!(schematize::mcp::MAX_LINHA >= 64 * 1024, "teto pequeno demais pra uso legítimo");
+    // O teto existe e é sóbrio. (Lido pra variável: `assert!` sobre `const` o clippy dobra
+    // em tempo de compilação e acusa asserção constante.)
+    let teto = schematize::mcp::MAX_LINHA;
+    assert!(teto <= 4 * 1024 * 1024, "teto grande demais: {teto}");
+    assert!(teto >= 64 * 1024, "teto pequeno demais pra uso legítimo: {teto}");
 
     // A mensagem de erro NUNCA cresce com a entrada — era amplificação de DoS.
     let enorme = "a".repeat(5 * 1024 * 1024);
@@ -212,9 +214,10 @@ fn d7_arquivos_nascem_restritos() {
 /// num journal grande derruba a máquina do usuário por acidente.
 #[test]
 fn d12_saida_do_host_tem_teto_de_memoria() {
-    // O teto existe, é sóbrio, e há prazo máximo.
-    assert!(vps::exec::MAX_SAIDA <= 32 * 1024 * 1024, "teto de saída grande demais");
-    assert!(vps::exec::MAX_SAIDA >= 1024 * 1024, "teto pequeno demais pra log de deploy");
+    // O teto existe, é sóbrio, e há prazo máximo. (Ver a nota do `teto` em `d2_…`.)
+    let teto = vps::exec::MAX_SAIDA;
+    assert!(teto <= 32 * 1024 * 1024, "teto de saída grande demais: {teto}");
+    assert!(teto >= 1024 * 1024, "teto pequeno demais pra log de deploy: {teto}");
     assert!(vps::exec::TIMEOUT.as_secs() >= 60, "prazo curto demais pra um deploy real");
     assert!(vps::exec::TIMEOUT.as_secs() <= 3600, "sem prazo, um jorro infinito trava pra sempre");
 

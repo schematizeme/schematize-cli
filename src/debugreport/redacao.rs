@@ -36,10 +36,9 @@ pub(crate) fn linhas_com_terminador(s: &str) -> Vec<(&str, &str)> {
     let mut resto = s;
     while let Some(i) = resto.find('\n') {
         let (linha, depois) = resto.split_at(i);
-        let (linha, fim) = if linha.ends_with('\r') {
-            (&linha[..linha.len() - 1], "\r\n")
-        } else {
-            (linha, "\n")
+        let (linha, fim) = match linha.strip_suffix('\r') {
+            Some(sem_cr) => (sem_cr, "\r\n"),
+            None => (linha, "\n"),
         };
         out.push((linha, fim));
         resto = &depois[1..];
@@ -244,6 +243,28 @@ pub(crate) fn looks_like_secret_token(w: &str) -> bool {
     false
 }
 
+// NOTA DE POSIÇÃO: esta função ficava DEPOIS do `mod tests_lacunas`, e isso não era
+// cosmético. Nove testes de conformidade/pentest definem "código de produção" como
+// `fonte.split("#[cfg(test)]").next()` — tudo que fica abaixo do primeiro módulo de teste
+// some das varreduras. Uma primitiva de REDAÇÃO invisível pro scanner de segurança é
+// exatamente o que essas varreduras existem pra impedir. Item de produção vem antes.
+/// A fatia começa com um JWT `eyJ…`.`…`.`…` (3 partes base64url não-vazias)?
+pub(crate) fn is_jwt(s: &str) -> bool {
+    let run: String = s
+        .chars()
+        .take_while(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '-' | '.'))
+        .collect();
+    let parts: Vec<&str> = run.split('.').collect();
+    if parts.len() < 3 || !parts[0].starts_with("eyJ") {
+        return false;
+    }
+    parts
+        .iter()
+        .take(3)
+        .all(|p| !p.is_empty() && p.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-'))
+}
+
+
 #[cfg(test)]
 mod tests_lacunas {
     use super::*;
@@ -351,20 +372,4 @@ mod tests_lacunas {
             assert_eq!(scrub(&uma), uma, "não é idempotente: {e}");
         }
     }
-}
-
-/// A fatia começa com um JWT `eyJ…`.`…`.`…` (3 partes base64url não-vazias)?
-pub(crate) fn is_jwt(s: &str) -> bool {
-    let run: String = s
-        .chars()
-        .take_while(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '-' | '.'))
-        .collect();
-    let parts: Vec<&str> = run.split('.').collect();
-    if parts.len() < 3 || !parts[0].starts_with("eyJ") {
-        return false;
-    }
-    parts
-        .iter()
-        .take(3)
-        .all(|p| !p.is_empty() && p.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-'))
 }

@@ -1,0 +1,62 @@
+name: ci
+
+# POR QUE ISTO EXISTE
+#
+# O repo tinha 431 testes e NENHUM workflow que os rodasse. O `release` só compila; o
+# `version-guard` só confere o bump. Quer dizer: dava pra fundir código com a suíte
+# vermelha e cortar um release em cima dela — ninguém saberia até o usuário saber.
+#
+# A Definition of Done da casa exige "CI verde". Sem este arquivo não existia CI que
+# pudesse estar verde: a frase era verdadeira por vacuidade, que é a pior maneira de uma
+# regra ser cumprida.
+#
+# `fmt` fica de fora de propósito: o crate carrega ~1000 divergências de rustfmt
+# anteriores a qualquer disciplina de formatação aqui, e um gate que reprova todo mundo
+# desde o primeiro dia é um gate que alguém desliga na primeira semana. Quando o débito
+# for pago numa passada só, ele entra.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  verificar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # `rusqlite` liga no sqlite do SISTEMA por padrão (o `bundled` é feature opcional).
+      - name: deps de sistema
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y pkg-config libsqlite3-dev
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - name: cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-ci-${{ hashFiles('Cargo.lock', 'Cargo.toml') }}
+
+      # Warning vira erro: `unwrap()` pra calar o compilador e erro engolido são pisos
+      # da casa, e o clippy pega uma boa parte deles antes de virar review humano.
+      - name: clippy
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: testes
+        run: cargo test --all-targets
+
+      # A suíte tem testes que leem o próprio fonte (conformidade código-vs-ADR, SQL
+      # concatenado, doc-comment obrigatório). Rodar duas vezes não os torna mais fortes,
+      # mas o `nextest`-menos-paralelo já expôs flake real aqui (a caixa do overdev
+      # perdia pedido). Segunda passada barata contra regressão intermitente.
+      - name: testes (segunda passada, caça a flaky)
+        run: cargo test --all-targets --quiet

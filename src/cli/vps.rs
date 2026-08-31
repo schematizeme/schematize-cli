@@ -74,7 +74,7 @@ fn listar() -> Result<(), String> {
         println!("nenhum host registrado. Use `schematize vps add <alias> --host <ip> --user <user> --key <chave>`");
         return Ok(());
     }
-    println!("{:<18} {:<24} {:<5} {:<9} {:<8} {}", "ALIAS", "DESTINO", "ENV", "MODO", "HOSTKEY", "FRONTEIRA");
+    println!("{:<18} {:<24} {:<5} {:<9} {:<8} FRONTEIRA", "ALIAS", "DESTINO", "ENV", "MODO", "HOSTKEY");
     for h in &hosts {
         let destino = format!("{}@{}:{}", h.usuario, h.host, h.port);
         let hostkey = if vps::esta_confiado(h) { "pinada" } else { "NÃO" };

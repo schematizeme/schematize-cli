@@ -218,3 +218,76 @@ fn piso10_a_gui_nao_bloqueia_na_rede() {
         }
     }
 }
+
+/// A convenção "produção = tudo antes do primeiro `#[cfg(test)]`" tem que ser VERDADE.
+///
+/// **O quê:** varre todo `src/**/*.rs` e reprova qualquer item de nível superior que apareça
+/// DEPOIS do primeiro `#[cfg(test)]` sem estar ele mesmo marcado como teste.
+///
+/// **Onde / por quê:** nove testes deste repo — conformidade, pentest e destrutivo — recortam
+/// o "código de produção" com `fonte.split("#[cfg(test)]").next()`. É um recorte por convenção,
+/// não por parser: qualquer função escrita abaixo do módulo de teste fica INVISÍVEL pras
+/// varreduras de SQL concatenado, de doc-comment obrigatório e de alcance do MCP — e some
+/// calada, sem erro nenhum. Já aconteceu duas vezes: `is_jwt` (primitiva de redação) em
+/// `debugreport/redacao.rs` e o trio `ambiente`/`versao_de`/`parece_versao` no
+/// `debugreport/mod.rs`, que monta o relatório mandado pro suporte. Este teste é o que
+/// transforma a convenção em invariante checada.
+#[test]
+fn teste_no_fim_do_arquivo() {
+    /// Todo `.rs` sob `raiz`, recursivo.
+    fn fontes(raiz: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
+        for e in std::fs::read_dir(raiz).unwrap() {
+            let p = e.unwrap().path();
+            if p.is_dir() {
+                fontes(&p, out);
+            } else if p.extension().and_then(|x| x.to_str()) == Some("rs") {
+                out.push(p);
+            }
+        }
+    }
+    let mut arquivos = Vec::new();
+    fontes(std::path::Path::new("src"), &mut arquivos);
+    arquivos.sort();
+    assert!(arquivos.len() > 20, "a varredura não achou os fontes: {}", arquivos.len());
+
+    let inicios = ["pub ", "fn ", "const ", "static ", "struct ", "enum ", "impl ", "type ", "trait "];
+    let mut violacoes = Vec::new();
+    for arq in &arquivos {
+        let src = std::fs::read_to_string(arq).unwrap();
+        let mut passou_teste = false;
+        let mut gatilho_de_teste = false; // o item logo abaixo tem `#[cfg(test)]` próprio?
+        for (n, linha) in src.lines().enumerate() {
+            let t = linha.trim_start();
+            // Só nível superior: item indentado está DENTRO de outro bloco (inclusive do
+            // próprio `mod tests`), e o recorte por split já o descarta junto com o pai.
+            let topo = linha.len() == t.len();
+            if t.starts_with("#[cfg(test)]") {
+                if topo {
+                    passou_teste = true;
+                    gatilho_de_teste = true;
+                }
+                continue;
+            }
+            if !topo || t.is_empty() || t.starts_with("//") {
+                continue;
+            }
+            let item = inicios.iter().any(|i| t.starts_with(i)) || t.starts_with("mod ");
+            if item && passou_teste && !gatilho_de_teste {
+                violacoes.push(format!("{}:{}: {}", arq.display(), n + 1, t));
+            }
+            if item || t.starts_with('#') {
+                // Atributo (`#[derive]`, `#[allow]`) não consome o gatilho; item consome.
+                if item {
+                    gatilho_de_teste = false;
+                }
+            }
+        }
+    }
+    assert!(
+        violacoes.is_empty(),
+        "item de PRODUÇÃO depois do módulo de teste — invisível pras varreduras que recortam \
+         o fonte em `split(\"#[cfg(test)]\")`. Mova o item para cima do primeiro `#[cfg(test)]` \
+         (ou o módulo de teste para o fim do arquivo):\n  {}",
+        violacoes.join("\n  ")
+    );
+}

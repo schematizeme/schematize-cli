@@ -156,6 +156,100 @@ pub fn short_summary() -> String {
 // TESTES — foco na scrub (o piso de segurança). Não tocam em rede/HOME.
 // ================================================================================================
 
+
+/// Resumo ESTRUTURADO do ambiente, pro corpo do `POST /diagnostics`.
+///
+/// O quê: os mesmos dados de SO/hardware da seção 1/1b, na forma ANINHADA do contrato do
+/// servidor (`DiagnosticInput.env` do OpenAPI): `os{}`, `hardware{}`, `display{}`. O schema
+/// aceita campos livres, mas quem CONSULTA usa os caminhos do exemplo publicado — mandar
+/// plano passaria na validação e sumiria de toda query de triagem.
+/// Onde: `diagnostics::send`, ao montar o corpo.
+///
+/// Por que existe: o `report` é um blob de texto de centenas de KB. Dá pra LER um relatório
+/// nele, mas não dá pra PERGUNTAR "quantos relatos vieram de Wayland com GPU AMD na 0.50?"
+/// sem reparsear tudo. Triagem sem campo filtrável vira retrabalho — que é justamente o que
+/// coletar hardware deveria evitar. O blob continua indo junto, como fonte da verdade.
+///
+/// **Entrada:** nenhuma. **Saída:** objeto JSON com os campos acima (todos string, exceto
+/// `cores`), sempre presentes — valor `"(indisponível)"` quando a sonda não conseguiu.
+/// **Efeitos:** lê /proc e executa `uname`/`nproc`/`lspci` (best-effort, com timeout).
+pub fn ambiente() -> serde_json::Value {
+    let (os_nome, os_ver) = os_release();
+    serde_json::json!({
+        "os": {
+            "name": os_nome,
+            "version": os_ver,
+            "kernel": cmd_out("uname", &["-r"]),
+            "arch": std::env::consts::ARCH,
+        },
+        "hardware": {
+            "cpu": cpu_modelo(),
+            "cores": cmd_out("nproc", &[]).parse::<u32>().unwrap_or(0),
+            "ram_mb": ram_total_mb_num(),
+            "gpu": gpu_modelo(),
+        },
+        // Versões dos OUTROS binários da mesma máquina. Quase todo bug nosso é de
+        // DESCASAMENTO — CLI novo com GUI velha (o `Cargo.lock` da GUI pina o crate por
+        // commit), updater defasado — e sem isto a triagem gasta uma ida-e-volta só pra
+        // descobrir isso. O `version` do topo do corpo é só de quem enviou.
+        "app": {
+            "cli": env!("CARGO_PKG_VERSION"),
+            "gui": versao_de("schematize-gui"),
+            "updater": versao_de("schematize-updater"),
+        },
+        "display": {
+            "SLINT_BACKEND": getenv("SLINT_BACKEND"),
+            "WAYLAND_DISPLAY": getenv("WAYLAND_DISPLAY"),
+            "DISPLAY": getenv("DISPLAY"),
+            "XDG_CURRENT_DESKTOP": getenv("XDG_CURRENT_DESKTOP"),
+            "XDG_SESSION_TYPE": getenv("XDG_SESSION_TYPE"),
+        },
+    })
+}
+
+
+/// Versão de um binário irmão (`schematize-gui`, `schematize-updater`), ou por que não deu.
+///
+/// O quê: roda `<bin> --version` e devolve só o número. Onde: o bloco `app` do [`ambiente`].
+/// Por que: descasamento entre os binários é a causa nº 1 de "atualizei mas abre a versão
+/// velha"; saber as três versões de uma vez mata a pergunta antes dela ser feita.
+/// **Saída:** o número, `"(não instalado)"` ou `"(indisponível: …)"`. **Efeitos:** executa
+/// processo externo com timeout; nunca panica.
+fn versao_de(bin: &str) -> String {
+    if which_all(bin).is_empty() {
+        return "(não instalado)".into();
+    }
+    let bruto = cmd_out(bin, &["--version"]);
+    // Só aceita o que PARECE versão. `schematize-gui` de versões antigas ignora
+    // `--version` e ABRE A JANELA; o `cmd_out` corta no timeout e devolve a 1ª linha do log
+    // de ambiente, que virava "versão" no relatório. Confiar na boa vontade do outro
+    // binário é o mesmo bug de sempre: aceitar saída sem conferir o formato.
+    let candidato = bruto.split_whitespace().last().unwrap_or("").trim();
+    if parece_versao(candidato) {
+        candidato.to_string()
+    } else {
+        format!("(não reportou versão: {})", bruto.chars().take(40).collect::<String>())
+    }
+}
+
+/// A string parece um número de versão (`0.7.5`, `1.2.3-rc1`)?
+///
+/// O quê: exige começar com dígito e conter só dígito/ponto/hífen/alfanumérico. Onde:
+/// [`versao_de`]. **Efeitos:** nenhum.
+fn parece_versao(s: &str) -> bool {
+    !s.is_empty()
+        && s.starts_with(|c: char| c.is_ascii_digit())
+        && s.chars().all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '-' || c == '+')
+}
+
+// Os módulos de teste ficam NO FIM do arquivo, sempre.
+//
+// Nove testes de conformidade/pentest definem "código de produção" como
+// `fonte.split("#[cfg(test)]").next()`. Código abaixo do primeiro `#[cfg(test)]` some
+// dessas varreduras — e aqui embaixo moravam `ambiente`, `versao_de` e `parece_versao`,
+// que montam o relatório enviado ao suporte. Invisível pro scanner é onde um vazamento
+// passaria despercebido. `teste_no_fim_do_arquivo` (tests/vps_conformidade.rs) trava isso.
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -245,56 +339,6 @@ mod tests {
     }
 }
 
-/// Resumo ESTRUTURADO do ambiente, pro corpo do `POST /diagnostics`.
-///
-/// O quê: os mesmos dados de SO/hardware da seção 1/1b, na forma ANINHADA do contrato do
-/// servidor (`DiagnosticInput.env` do OpenAPI): `os{}`, `hardware{}`, `display{}`. O schema
-/// aceita campos livres, mas quem CONSULTA usa os caminhos do exemplo publicado — mandar
-/// plano passaria na validação e sumiria de toda query de triagem.
-/// Onde: `diagnostics::send`, ao montar o corpo.
-///
-/// Por que existe: o `report` é um blob de texto de centenas de KB. Dá pra LER um relatório
-/// nele, mas não dá pra PERGUNTAR "quantos relatos vieram de Wayland com GPU AMD na 0.50?"
-/// sem reparsear tudo. Triagem sem campo filtrável vira retrabalho — que é justamente o que
-/// coletar hardware deveria evitar. O blob continua indo junto, como fonte da verdade.
-///
-/// **Entrada:** nenhuma. **Saída:** objeto JSON com os campos acima (todos string, exceto
-/// `cores`), sempre presentes — valor `"(indisponível)"` quando a sonda não conseguiu.
-/// **Efeitos:** lê /proc e executa `uname`/`nproc`/`lspci` (best-effort, com timeout).
-pub fn ambiente() -> serde_json::Value {
-    let (os_nome, os_ver) = os_release();
-    serde_json::json!({
-        "os": {
-            "name": os_nome,
-            "version": os_ver,
-            "kernel": cmd_out("uname", &["-r"]),
-            "arch": std::env::consts::ARCH,
-        },
-        "hardware": {
-            "cpu": cpu_modelo(),
-            "cores": cmd_out("nproc", &[]).parse::<u32>().unwrap_or(0),
-            "ram_mb": ram_total_mb_num(),
-            "gpu": gpu_modelo(),
-        },
-        // Versões dos OUTROS binários da mesma máquina. Quase todo bug nosso é de
-        // DESCASAMENTO — CLI novo com GUI velha (o `Cargo.lock` da GUI pina o crate por
-        // commit), updater defasado — e sem isto a triagem gasta uma ida-e-volta só pra
-        // descobrir isso. O `version` do topo do corpo é só de quem enviou.
-        "app": {
-            "cli": env!("CARGO_PKG_VERSION"),
-            "gui": versao_de("schematize-gui"),
-            "updater": versao_de("schematize-updater"),
-        },
-        "display": {
-            "SLINT_BACKEND": getenv("SLINT_BACKEND"),
-            "WAYLAND_DISPLAY": getenv("WAYLAND_DISPLAY"),
-            "DISPLAY": getenv("DISPLAY"),
-            "XDG_CURRENT_DESKTOP": getenv("XDG_CURRENT_DESKTOP"),
-            "XDG_SESSION_TYPE": getenv("XDG_SESSION_TYPE"),
-        },
-    })
-}
-
 #[cfg(test)]
 mod tests_ambiente {
     /// O QUE: o `env` sai na forma ANINHADA que o servidor documenta, com `ram_mb` NUMÉRICO.
@@ -348,38 +392,4 @@ mod tests_ambiente {
         let n = serde_json::to_vec(&e).unwrap().len();
         assert!(n <= 16 * 1024, "env com {n} bytes passa do teto de 16 KB do servidor");
     }
-}
-
-/// Versão de um binário irmão (`schematize-gui`, `schematize-updater`), ou por que não deu.
-///
-/// O quê: roda `<bin> --version` e devolve só o número. Onde: o bloco `app` do [`ambiente`].
-/// Por que: descasamento entre os binários é a causa nº 1 de "atualizei mas abre a versão
-/// velha"; saber as três versões de uma vez mata a pergunta antes dela ser feita.
-/// **Saída:** o número, `"(não instalado)"` ou `"(indisponível: …)"`. **Efeitos:** executa
-/// processo externo com timeout; nunca panica.
-fn versao_de(bin: &str) -> String {
-    if which_all(bin).is_empty() {
-        return "(não instalado)".into();
-    }
-    let bruto = cmd_out(bin, &["--version"]);
-    // Só aceita o que PARECE versão. `schematize-gui` de versões antigas ignora
-    // `--version` e ABRE A JANELA; o `cmd_out` corta no timeout e devolve a 1ª linha do log
-    // de ambiente, que virava "versão" no relatório. Confiar na boa vontade do outro
-    // binário é o mesmo bug de sempre: aceitar saída sem conferir o formato.
-    let candidato = bruto.split_whitespace().last().unwrap_or("").trim();
-    if parece_versao(candidato) {
-        candidato.to_string()
-    } else {
-        format!("(não reportou versão: {})", bruto.chars().take(40).collect::<String>())
-    }
-}
-
-/// A string parece um número de versão (`0.7.5`, `1.2.3-rc1`)?
-///
-/// O quê: exige começar com dígito e conter só dígito/ponto/hífen/alfanumérico. Onde:
-/// [`versao_de`]. **Efeitos:** nenhum.
-fn parece_versao(s: &str) -> bool {
-    !s.is_empty()
-        && s.starts_with(|c: char| c.is_ascii_digit())
-        && s.chars().all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '-' || c == '+')
 }

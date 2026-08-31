@@ -75,9 +75,11 @@ pub fn binarios_invocados(cmd: &str) -> Vec<String> {
         // Pula atribuições de env (`FOO=bar cmd`) e prefixos comuns.
         while let Some(t) = toks.peek() {
             let t = *t;
-            if t.contains('=') && !t.starts_with('-') {
-                toks.next();
-            } else if matches!(t, "env" | "sudo" | "nohup" | "time" | "exec" | "command" | "nice") {
+            // Atribuição de env (`FOO=bar cmd`) OU prefixo que só embrulha o binário real:
+            // nos dois casos o token é descartado e o binário está mais adiante.
+            let atribuicao = t.contains('=') && !t.starts_with('-');
+            let prefixo = matches!(t, "env" | "sudo" | "nohup" | "time" | "exec" | "command" | "nice");
+            if atribuicao || prefixo {
                 toks.next();
             } else {
                 break;

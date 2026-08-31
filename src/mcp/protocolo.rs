@@ -64,9 +64,7 @@ where
     let metodo = msg.get("method").and_then(Value::as_str).unwrap_or("");
     // Notificação = mensagem sem `id`. Nunca se responde — responder a uma notificação é erro
     // de protocolo e alguns clientes fecham a conexão.
-    let Some(id) = msg.get("id").cloned() else {
-        return None;
-    };
+    let id = msg.get("id").cloned()?;
     if msg.get("jsonrpc").and_then(Value::as_str) != Some("2.0") {
         return Some(erro_de(id, erro::REQUISICAO_INVALIDA, "esperava jsonrpc: \"2.0\""));
     }
