@@ -102,7 +102,10 @@ pub fn escreve_alias(c: &Conta) -> Result<bool, String> {
     let dir = util::home().join(".ssh");
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     let p = dir.join("config");
-    let atual = std::fs::read_to_string(&p).unwrap_or_default();
+    // `~/.ssh/config` e arquivo de configuracao de ANOS de uso. Com `unwrap_or_default`,
+    // qualquer falha de leitura (byte nao-UTF-8, permissao) o reescreveria contendo SO o
+    // bloco novo — todos os Hosts do usuario apagados. Nao le, nao escreve.
+    let atual = util::ler_para_modificar(&p)?;
     let novo = if atual.is_empty() { bloco } else { format!("{}\n{}", atual.trim_end(), bloco) };
     std::fs::write(&p, novo).map_err(|e| e.to_string())?;
     Ok(true)

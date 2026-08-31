@@ -22,12 +22,14 @@ pub fn park(item_substr: &str, pergunta: &str) -> Result<(), String> {
 
     // O txt na base do projeto continua sendo escrito: é onde o agente foi instruído a
     // olhar e onde a pessoa costuma procurar. Agora com o id, pra casar com o checklist.
-    let mut q = fs::read_to_string(QUESTIONS_FILE).unwrap_or_default();
+    // Ler-modificar-escrever: se a leitura falhar, NAO escreve. `unwrap_or_default` aqui
+    // reescreveria o arquivo de perguntas a partir do vazio, apagando as anteriores.
+    let mut q = util::ler_para_modificar(std::path::Path::new(QUESTIONS_FILE))?;
     q.push_str(&format!(
         "[{}] ({id}) item: {item_substr}\n  pergunta: {pergunta}\n\n",
         util::now_unix()
     ));
-    let _ = fs::write(QUESTIONS_FILE, q);
+    fs::write(QUESTIONS_FILE, q).map_err(|e| format!("{QUESTIONS_FILE}: {e}"))?;
 
     println!("pergunta parkeada como subtask do item ({id}); o item ficou on-hold.");
     println!("responder libera a máquina:  schematize overdev answer 1 \"...\"");
@@ -53,9 +55,11 @@ pub fn resolver(alvo: super::resposta::Alvo, acao: super::resposta::Acao, texto:
     let rotulo = if acao == super::resposta::Acao::Responder { "RESPOSTA" } else { "RECUSA" };
     let bloco = format!("\n## {rotulo}: {}\n\n{texto}\n", r.item);
     let dec = dir().join("DECISOES.md");
-    let mut atual = fs::read_to_string(&dec).unwrap_or_default();
+    // Idem: o DECISOES.md e a memoria de POR QUE se decidiu — reescreve-lo a partir de um
+    // conteudo vazio apagaria o historico inteiro do projeto.
+    let mut atual = util::ler_para_modificar(&dec)?;
     atual.push_str(&bloco);
-    let _ = super::trava::escreve_atomico(&dec, &atual);
+    super::trava::escreve_atomico(&dec, &atual)?;
 
     match (&r.vinculado, acao) {
         (Some(m), super::resposta::Acao::Responder) => {

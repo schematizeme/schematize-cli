@@ -201,7 +201,10 @@ pub fn mesclar(root: &Path) -> Result<usize, String> {
     }
     let alvo = crate::paths::overdev_dir_at(root).join("CHECKLIST.md");
     let entrou = com_trava(&alvo, || {
-        let atual = std::fs::read_to_string(&alvo).unwrap_or_default();
+        // Duas coisas dependem desta leitura: o conteudo que sera reescrito e a checagem
+        // de idempotencia logo abaixo. Com `unwrap_or_default`, uma falha de leitura
+        // truncava o CHECKLIST.md do projeto E ainda reintroduzia itens ja fundidos.
+        let atual = crate::util::ler_para_modificar(&alvo)?;
         let mut saida = atual.clone();
         let mut n = 0usize;
         for e in &prontas {

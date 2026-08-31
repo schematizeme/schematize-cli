@@ -153,9 +153,16 @@ pub fn start(objetivo: &str, max_iters: Option<u64>) -> Result<(), String> {
     // um REPOSITÓRIO git próprio (privado, obrigatório), irmão dos microserviços, que documenta a
     // evolução do projeto (o `git init` do archive é feito por `ensure_archive_mirror`).
     let gi = Path::new(".gitignore");
-    let cur = fs::read_to_string(gi).unwrap_or_default();
-    if !cur.contains(".schematize") {
-        let _ = fs::write(gi, format!("{cur}\n.schematize/\n"));
+    // Nao le, nao escreve: reescrever o `.gitignore` a partir de vazio apagaria as regras
+    // do usuario. Falha de leitura vira aviso, nunca truncamento silencioso.
+    match crate::util::ler_para_modificar(gi) {
+        Ok(cur) if !cur.contains(".schematize") => {
+            if let Err(e) = fs::write(gi, format!("{cur}\n.schematize/\n")) {
+                eprintln!("aviso: nao consegui acrescentar `.schematize/` ao .gitignore: {e}");
+            }
+        }
+        Ok(_) => {}
+        Err(e) => eprintln!("aviso: .gitignore intacto, nao mexido — {e}"),
     }
     // Archive OBRIGATÓRIO (criticidade 0 — observabilidade da evolução do sistema): materializa
     // `<projeto>_archive/overdev/` e espelha os artefatos. NUNCA é opcional.

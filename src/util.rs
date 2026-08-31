@@ -251,6 +251,42 @@ pub fn definir_modo(path: &std::path::Path, modo: u32) {
     }
 }
 
+/// Lê um arquivo que será REESCRITO em seguida, distinguindo "não existe" de "não deu pra ler".
+///
+/// **O quê:** devolve o conteúdo; `""` quando o arquivo não existe (é legítimo criar); e `Err`
+/// para qualquer OUTRA falha de leitura.
+///
+/// **Onde:** todo ponto de ler-modificar-escrever sobre arquivo do USUÁRIO — os `rc` de shell
+/// (`environments/path.rs`), o `.gitignore` do projeto (`overdev`), o `CHECKLIST.md` da caixa,
+/// os arquivos de decisão do overdev, a config de conta git.
+///
+/// **Por que existe:** o idioma que estava espalhado pelo código era
+/// `read_to_string(p).unwrap_or_default()` seguido de `fs::write(p, novo)`. Isso mapeia TODA
+/// falha de leitura para "arquivo vazio" — e então reescreve o arquivo inteiro a partir do
+/// vazio. Quer dizer: **um erro de leitura APAGA o arquivo do usuário**.
+///
+/// E não é hipótese remota. `read_to_string` falha com `InvalidData` em qualquer arquivo que
+/// não seja UTF-8 válido, e `.bashrc` com um comentário acentuado em Latin-1 é situação
+/// corriqueira — em máquina brasileira, mais ainda. Bastava isso pro app truncar o `.bashrc`
+/// da pessoa até sobrar só a linha que ele mesmo acabara de acrescentar. Some `EACCES` (rc
+/// que virou de root depois de um install com `sudo`) e o caminho ser um diretório.
+///
+/// A regra: só escreve por cima do que conseguiu ler por inteiro. Não leu, não escreve —
+/// e diz por quê (piso 4: erro nunca engolido).
+pub fn ler_para_modificar(p: &std::path::Path) -> Result<String, String> {
+    match std::fs::read_to_string(p) {
+        Ok(s) => Ok(s),
+        // Não existir é estado NORMAL aqui: quem escreve rc/gitignore/checklist cria o arquivo.
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(String::new()),
+        Err(e) => Err(format!(
+            "{}: não deu pra ler ({e}). Não vou reescrever este arquivo às cegas — \
+             reescrever a partir de um conteúdo vazio apagaria o que está lá.",
+            p.display()
+        )),
+    }
+}
+
+
 #[cfg(test)]
 mod tests {
     use super::semver_lt;

@@ -291,3 +291,68 @@ fn teste_no_fim_do_arquivo() {
         violacoes.join("\n  ")
     );
 }
+
+/// Ler-modificar-escrever nunca pode partir de `unwrap_or_default()`.
+///
+/// **O quê:** varre `src/**/*.rs` e reprova toda linha que faça
+/// `read_to_string(…).unwrap_or_default()` tendo uma escrita no mesmo arquivo logo abaixo.
+///
+/// **Onde / por quê:** esse idioma mapeia TODA falha de leitura para "arquivo vazio", e a
+/// escrita seguinte reescreve o arquivo inteiro a partir do vazio — ou seja, **um erro de
+/// leitura apaga o arquivo do usuário**. Estava em sete pontos dos três crates, sempre sobre
+/// arquivo que a pessoa se importa: `.bashrc`, `~/.ssh/config`, `.gitignore`, `CHECKLIST.md`,
+/// `DECISOES.md`. O gatilho é banal: `read_to_string` devolve `InvalidData` para qualquer
+/// arquivo que não seja UTF-8 válido, e um comentário acentuado em Latin-1 num `.bashrc` é
+/// situação corriqueira. O caminho certo é `util::ler_para_modificar`, que separa "não existe"
+/// (vazio, legítimo) de "não deu pra ler" (erro, não escreve).
+#[test]
+fn ler_modificar_escrever_nunca_parte_de_vazio() {
+    // Exceção documentada, não varrida pra baixo do tapete: `marker_path()` é um arquivo
+    // do PRÓPRIO app cujo conteúdo é um link único, substituído por inteiro a cada
+    // escrita — não há conteúdo do usuário pra perder. O pior caso de uma leitura falha é
+    // reanunciar um post, não destruir dado.
+    let permitidos = ["src/news.rs:116"];
+
+    /// Todo `.rs` sob `raiz`, recursivo.
+    fn fontes(raiz: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
+        for e in std::fs::read_dir(raiz).unwrap() {
+            let p = e.unwrap().path();
+            if p.is_dir() {
+                fontes(&p, out);
+            } else if p.extension().and_then(|x| x.to_str()) == Some("rs") {
+                out.push(p);
+            }
+        }
+    }
+    let mut arquivos = Vec::new();
+    fontes(std::path::Path::new("src"), &mut arquivos);
+    arquivos.sort();
+
+    let mut violacoes = Vec::new();
+    for arq in &arquivos {
+        let src = std::fs::read_to_string(arq).unwrap();
+        let prod: Vec<&str> = src.split("#[cfg(test)]").next().unwrap_or("").lines().collect();
+        for (i, l) in prod.iter().enumerate() {
+            if !(l.contains("read_to_string(") && l.contains("unwrap_or_default()")) {
+                continue;
+            }
+            let fim = (i + 31).min(prod.len());
+            let janela = prod[i + 1..fim].join("\n");
+            if !(janela.contains("fs::write(") || janela.contains("escreve_atomico(")) {
+                continue; // leitura pura: `unwrap_or_default` aqui é legítimo.
+            }
+            let local = format!("{}:{}", arq.display(), i + 1);
+            if permitidos.contains(&local.as_str()) {
+                continue;
+            }
+            violacoes.push(format!("{local}: {}", l.trim()));
+        }
+    }
+    assert!(
+        violacoes.is_empty(),
+        "ler-modificar-escrever partindo de `unwrap_or_default()`: uma falha de leitura vira \
+         arquivo vazio e a escrita seguinte APAGA o conteúdo do usuário. Use \
+         `util::ler_para_modificar`, que devolve vazio só quando o arquivo não existe:\n  {}",
+        violacoes.join("\n  ")
+    );
+}
