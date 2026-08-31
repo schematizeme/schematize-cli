@@ -17,8 +17,24 @@ use super::conexao::{self, ErroSsh};
 use super::politica::{avaliar_com_catalogo, Veredito};
 use super::registro::VpsProfile;
 use rusqlite::Connection;
-use std::process::{Command, Stdio};
-use std::time::Instant;
+use std::io::Read;
+use std::process::{Child, Command, Stdio};
+use std::time::{Duration, Instant};
+
+/// Quanto de saída do host é GUARDADO, por canal.
+///
+/// O host controla quanto ele imprime, e `Command::output()` bufferiza sem teto: no teste
+/// destrutivo, um host que respondia `cat /dev/zero` levou o cliente a **7 GB de RSS em 25
+/// segundos**. E não precisa de host malicioso — um verbo `logs` num journal grande faz igual,
+/// por acidente.
+///
+/// 8 MB é muito acima de qualquer saída de deploy legítima, e o que passa disso é DESCARTADO
+/// (não interrompido): o comando remoto termina normalmente e o exit code continua confiável.
+pub const MAX_SAIDA: usize = 8 * 1024 * 1024;
+
+/// Teto de tempo de UMA execução. Sem ele, um host que jorra para sempre nunca devolve o
+/// controle — a memória fica limitada, mas o processo trava para sempre.
+pub const TIMEOUT: Duration = Duration::from_secs(30 * 60);
 
 /// A resposta humana a um veredito `Confirm`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -162,19 +178,23 @@ fn rodar(
     })?;
 
     let inicio = Instant::now();
-    let saida = Command::new(&ssh)
+    let filho = Command::new(&ssh)
         .args(&args)
         .stdin(Stdio::null()) // nada de herdar stdin: o agente não pode ser perguntado nada
-        .output()
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
         .map_err(|e| falhou(format!("falha ao executar o ssh: {e}")))?;
+    let capt = capturar_limitado(filho).map_err(falhou)?;
     let duracao_ms = inicio.elapsed().as_millis() as i64;
 
-    let stdout = String::from_utf8_lossy(&saida.stdout).into_owned();
-    let stderr = String::from_utf8_lossy(&saida.stderr).into_owned();
-    let exit_code = saida.status.code();
+    let stdout = capt.stdout;
+    let stderr = capt.stderr;
+    let exit_code = capt.exit_code;
 
     // Classifica só quando o ssh falhou; um comando remoto que sai != 0 é resultado dele.
-    let erro = if !saida.status.success() && !stderr.trim().is_empty() {
+    let sucesso_do_ssh = exit_code == Some(0);
+    let erro = if !sucesso_do_ssh && !stderr.trim().is_empty() {
         match conexao::classificar_erro(&stderr) {
             ErroSsh::Outro(_) => None, // erro do comando remoto, não da conexão
             e => Some(e),
@@ -183,12 +203,101 @@ fn rodar(
         None
     };
 
-    let transcript = montar_transcript(&stdout, &stderr);
+    let mut transcript = montar_transcript(&stdout, &stderr);
+    if capt.truncado {
+        transcript.push_str(&format!(
+            "\n--- AVISO ---\nA saída passou de {} MB e foi cortada; o comando remoto seguiu até o fim e o exit code é o dele.\n",
+            MAX_SAIDA / (1024 * 1024)
+        ));
+    }
+    if capt.tempo_esgotado {
+        transcript.push_str("\n--- AVISO ---\nO tempo limite estourou e o ssh foi encerrado. O comando pode ainda estar rodando NO HOST.\n");
+    }
     let auditoria_id = auditoria::registrar_comando(
         conn, sessao, comando, veredito, exit_code, duracao_ms, &transcript,
     )?;
 
     Ok(ExecOut { exit_code, stdout, stderr, duracao_ms, auditoria_id, erro })
+}
+
+/// O resultado de uma captura limitada.
+struct Capturado {
+    stdout: String,
+    stderr: String,
+    exit_code: Option<i32>,
+    /// A saída passou de [`MAX_SAIDA`] e o excedente foi descartado.
+    truncado: bool,
+    /// O [`TIMEOUT`] estourou e o `ssh` foi encerrado.
+    tempo_esgotado: bool,
+}
+
+/// Lê stdout e stderr do filho com TETO DE MEMÓRIA, e mata se o tempo estourar.
+///
+/// Duas decisões que valem explicar:
+///
+/// **Descarta, não interrompe.** Ao bater o teto, os bytes seguintes são lidos e jogados fora
+/// em vez de a leitura parar. Se parasse, o pipe encheria e o comando remoto ficaria travado
+/// escrevendo — abortando um deploy no meio por ele ter logado demais. Assim o comando termina
+/// e o exit code continua valendo.
+///
+/// **Um canal por thread.** Ler stdout até o fim e só então stderr trava quando o filho enche
+/// o pipe de stderr — é o deadlock clássico de `spawn` com dois pipes.
+///
+/// **Onde:** [`rodar`].
+fn capturar_limitado(mut filho: Child) -> Result<Capturado, String> {
+    let ler = |canal: Option<Box<dyn Read + Send>>| {
+        canal.map(|mut c| {
+            std::thread::spawn(move || {
+                let mut guardado: Vec<u8> = Vec::new();
+                let mut lixo = [0u8; 64 * 1024];
+                let mut estourou = false;
+                loop {
+                    match c.read(&mut lixo) {
+                        Ok(0) | Err(_) => break,
+                        Ok(n) => {
+                            let cabe = MAX_SAIDA.saturating_sub(guardado.len());
+                            if cabe > 0 {
+                                guardado.extend_from_slice(&lixo[..n.min(cabe)]);
+                            }
+                            if n > cabe {
+                                estourou = true;
+                            }
+                        }
+                    }
+                }
+                (String::from_utf8_lossy(&guardado).into_owned(), estourou)
+            })
+        })
+    };
+    let h_out = ler(filho.stdout.take().map(|c| Box::new(c) as Box<dyn Read + Send>));
+    let h_err = ler(filho.stderr.take().map(|c| Box::new(c) as Box<dyn Read + Send>));
+
+    // Espera com teto de tempo. `try_wait` em laço em vez de `wait`: precisa poder desistir.
+    let inicio = Instant::now();
+    let mut tempo_esgotado = false;
+    let status = loop {
+        match filho.try_wait() {
+            Ok(Some(st)) => break Some(st),
+            Ok(None) => {
+                if inicio.elapsed() > TIMEOUT {
+                    let _ = filho.kill();
+                    tempo_esgotado = true;
+                    break filho.wait().ok();
+                }
+                std::thread::sleep(Duration::from_millis(20));
+            }
+            Err(e) => return Err(format!("o ssh não finalizou: {e}")),
+        }
+    };
+    let (stdout, t1) = h_out.and_then(|h| h.join().ok()).unwrap_or_default();
+    let (stderr, t2) = h_err.and_then(|h| h.join().ok()).unwrap_or_default();
+    Ok(Capturado {
+        stdout,
+        stderr,
+        exit_code: status.and_then(|s| s.code()),
+        truncado: t1 || t2,
+        tempo_esgotado,
+    })
 }
 
 /// Junta stdout e stderr num transcript legível, marcando de onde veio cada parte.

@@ -83,7 +83,15 @@ fn novo_id() -> String {
     // por texto, que é o que faz a caixa processar na ordem em que foi escrita.
     // Compacto importa porque o id vira um comentário em TODA linha injetada no
     // CHECKLIST.md — e esse arquivo é lido cru o tempo inteiro.
-    format!("{}-{:x}", base36(nanos, 13), std::process::id())
+    //
+    // O CONTADOR não é enfeite: `nanos + pid` só distingue PROCESSOS. Duas threads do mesmo
+    // processo podem ler o mesmo `nanos` (a resolução do relógio não é infinita), gerar o
+    // mesmo id, e uma sobrescrever a demanda da outra — **pedido do usuário perdido em
+    // silêncio**. Era o que o teste `captura_concorrente_nao_perde_demanda` pegava em ~15%
+    // das rodadas.
+    static SEQ: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let n = SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    format!("{}-{:x}-{:x}", base36(nanos, 13), std::process::id(), n)
 }
 
 /// `n` em base36, alinhado à direita com zeros até `largura`. PURO.
@@ -320,20 +328,31 @@ mod tests {
         let _ = std::fs::remove_dir_all(&p);
     }
 
-    /// Captura concorrente: N processos jogando demanda ao mesmo tempo, nenhuma perdida.
+    /// Captura concorrente: N threads jogando demanda ao mesmo tempo, nenhuma perdida.
     /// É a garantia principal — a captura não pode falhar por concorrência.
+    ///
+    /// Este teste falhava em ~15% das rodadas, e a causa não era o teste: `novo_id` usava
+    /// `nanos + pid`, que não distingue THREADS, e o `escreve_atomico` usava um temporário
+    /// com nome fixo por pid. Duas threads colidiam no id, gravavam o mesmo temporário, e uma
+    /// demanda sumia. 200 threads (em vez de 20) para o teste ter chance real de pegar a volta.
     #[test]
     fn captura_concorrente_nao_perde_demanda() {
         let p = projeto("concorrente");
         std::thread::scope(|s| {
-            for i in 0..20 {
+            for i in 0..200 {
                 let p = p.clone();
                 s.spawn(move || {
                     adicionar(&p, &format!("demanda {i}")).unwrap();
                 });
             }
         });
-        assert_eq!(pendentes(&p).len(), 20, "toda demanda capturada sobreviveu");
+        let capturadas = pendentes(&p);
+        assert_eq!(capturadas.len(), 200, "demanda capturada foi PERDIDA por concorrência");
+        // E cada uma é distinta — id colidido apareceria como texto repetido.
+        let mut ids: Vec<&str> = capturadas.iter().map(|e| e.id.as_str()).collect();
+        ids.sort_unstable();
+        ids.dedup();
+        assert_eq!(ids.len(), 200, "ids colidiram entre threads");
         let _ = std::fs::remove_dir_all(&p);
     }
 

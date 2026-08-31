@@ -20,22 +20,38 @@ use std::process::Command;
 ///
 /// **Onde:** todo caminho de dados do app (`dados_dir`, `home_app_dir`, `claude_dir`, …).
 pub fn home() -> PathBuf {
-    if let Some(h) = std::env::var_os("HOME").filter(|v| !v.is_empty()) {
+    let ler = |k: &str| std::env::var_os(k).filter(|v| !v.is_empty()).map(|v| v.to_string_lossy().into_owned());
+    resolver_home(ler("HOME"), ler("USERPROFILE"), ler("HOMEDRIVE"), ler("HOMEPATH"))
+}
+
+/// A CADEIA de resolução de [`home`], sobre valores em vez de variáveis de ambiente.
+///
+/// Separada por dois motivos. Primeiro, testar a versão que lê o ambiente exigiria mexer em
+/// `HOME` do processo — estado global que os testes de Rust, rodando em paralelo, roubariam uns
+/// dos outros. Segundo, e mais importante: o mutation testing mostrou que desligar o ramo do
+/// `USERPROFILE` **não quebrava teste nenhum**, porque em Linux o primeiro ramo sempre vence.
+/// Com os valores como argumento, a cadeia inteira é verificável em qualquer máquina.
+///
+/// **Onde:** [`home`] em produção, e os testes com cada combinação.
+pub fn resolver_home(
+    home: Option<String>,
+    userprofile: Option<String>,
+    homedrive: Option<String>,
+    homepath: Option<String>,
+) -> PathBuf {
+    if let Some(h) = home {
         return PathBuf::from(h);
     }
     // Windows: `USERPROFILE` é o equivalente direto.
-    if let Some(h) = std::env::var_os("USERPROFILE").filter(|v| !v.is_empty()) {
+    if let Some(h) = userprofile {
         return PathBuf::from(h);
     }
     // Windows antigo / perfis de domínio: o par HOMEDRIVE + HOMEPATH.
-    if let (Some(d), Some(p)) = (std::env::var_os("HOMEDRIVE"), std::env::var_os("HOMEPATH")) {
-        if !d.is_empty() && !p.is_empty() {
-            let parte = PathBuf::from(p);
-            // `HOMEPATH` costuma vir com a barra inicial (`\Users\tom`); `join` com caminho
-            // "absoluto" descartaria o `HOMEDRIVE`.
-            let relativa = parte.strip_prefix("\\").unwrap_or(&parte).to_path_buf();
-            return PathBuf::from(d).join(relativa);
-        }
+    if let (Some(d), Some(p)) = (homedrive, homepath) {
+        // `HOMEPATH` costuma vir com a barra inicial (`\Users\tom`); `join` com caminho
+        // "absoluto" descartaria o `HOMEDRIVE`.
+        let relativa = p.trim_start_matches(['\\', '/']).to_string();
+        return PathBuf::from(d).join(relativa);
     }
     // Sem nada declarado: o temporário do sistema. O app segue utilizável e a mensagem de
     // qualquer erro mostra o caminho, em vez de o processo simplesmente morrer.

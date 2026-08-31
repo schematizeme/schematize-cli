@@ -56,6 +56,12 @@ MUTANTES = [
  ("src/vps/registro.rs", 'if p.port == 0 {', 'if false {', "recusa de porta 0 (D6)"),
  ("src/vps/registro.rs", 'const MAX: usize = 253;', 'const MAX: usize = usize::MAX;',
   "teto de tamanho do host (D9)"),
+ ("src/vps/exec.rs", 'pub const MAX_SAIDA: usize = 8 * 1024 * 1024;',
+  'pub const MAX_SAIDA: usize = usize::MAX;', "teto de memoria da saida do host (D12)"),
+ ("src/agentrun/lancador.rs", 'for ext in [".exe", ".cmd", ".bat", ".com"] {',
+  'for ext in [] as [&str; 0] {', "resolucao de ssh.exe no Windows (D10)"),
+ ("src/util.rs", '    if let Some(h) = userprofile {', '    if let Some(h) = None::<String> {',
+  "fallback de HOME no Windows (D11)"),
  ("packaging/ops-shell/schematize-ops-shell",
   """    *' '*|*';'*|*'&'*|*'|'*|*'`'*|*'$'*|*'>'*|*'<'*|*'('*|*')'*|*'""",
   """    *'\\x00NUNCA'*|*';;;;'*|*'&&&&'*|*'||||'*|*'````'*|*'$$$$'*|*'>>>>'*|*'<<<<'*|*'(((('*|*'""",
@@ -86,6 +92,17 @@ def _restaurar_tudo(*_):
 atexit.register(_restaurar_tudo)
 for _s in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
     signal.signal(_s, lambda *_: (_restaurar_tudo(), sys.exit(130)))
+
+# GUARDA DE RAIZ.
+#
+# `R` e derivado de `__file__`, entao uma COPIA do script fora de `scripts/` aponta pro
+# diretorio errado — e o sintoma era "baseline VERMELHO", que manda investigar a suite quando
+# o problema e o caminho. Erro claro em vez de diagnostico enganoso.
+if not os.path.isfile(os.path.join(R, "Cargo.toml")):
+    print(f"ERRO: nao achei Cargo.toml em {R}.")
+    print("Este script precisa rodar de dentro de `scripts/` do crate — uma copia solta")
+    print("(ex.: em /tmp) resolve a raiz errada e o baseline falha por motivo enganoso.")
+    sys.exit(2)
 
 print("=== baseline: a suite tem que estar VERDE antes de mutar ===")
 if not rodar_suite():

@@ -83,21 +83,30 @@ pub(crate) fn resolve_bin(bin: &str) -> Option<std::path::PathBuf> {
 ///
 /// A lista segue o `PATHEXT` padrão, na ordem em que o próprio Windows resolve.
 fn nomes_de_executavel(bin: &str) -> Vec<String> {
-    #[cfg(windows)]
-    {
-        if bin.contains('.') {
-            return vec![bin.to_string()];
-        }
-        let mut v = vec![bin.to_string()];
-        for ext in [".exe", ".cmd", ".bat", ".com"] {
-            v.push(format!("{bin}{ext}"));
-        }
-        v
+    nomes_de_executavel_em(bin, cfg!(windows))
+}
+
+/// A REGRA de [`nomes_de_executavel`], com a plataforma como PARÂMETRO.
+///
+/// Existe separada porque a versão anterior era `#[cfg(windows)]`: no Linux o corpo nem
+/// compilava, então **nenhum teste podia exercitá-lo** — o mutation testing flagrou que
+/// desligar a correção do Windows não quebrava teste nenhum. Com a plataforma como argumento,
+/// a regra é verificável em qualquer máquina, e o `cfg!` só escolhe o argumento.
+///
+/// **Onde:** [`nomes_de_executavel`] em produção, e os testes com os dois valores.
+pub fn nomes_de_executavel_em(bin: &str, windows: bool) -> Vec<String> {
+    if !windows {
+        return vec![bin.to_string()];
     }
-    #[cfg(not(windows))]
-    {
-        vec![bin.to_string()]
+    // Já veio com extensão: respeita o que o chamador pediu.
+    if bin.contains('.') {
+        return vec![bin.to_string()];
     }
+    let mut v = vec![bin.to_string()];
+    for ext in [".exe", ".cmd", ".bat", ".com"] {
+        v.push(format!("{bin}{ext}"));
+    }
+    v
 }
 
 /// `true` se `bin` existe no `$PATH` OU nos diretórios de fallback — checagem

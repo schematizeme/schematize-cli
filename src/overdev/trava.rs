@@ -149,8 +149,19 @@ fn com_trava_cfg<T>(
 pub fn escreve_atomico(alvo: &Path, conteudo: &str) -> Result<(), String> {
     let dir = alvo.parent().unwrap_or(Path::new("."));
     std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+    // Temporário ÚNICO POR CHAMADA — pid mais um contador do processo.
+    //
+    // Antes o nome era só `.{alvo}.tmp-{pid}`: duas THREADS gravando o mesmo alvo usavam o
+    // MESMO temporário. A segunda truncava o arquivo da primeira, a primeira renomeava, e a
+    // segunda falhava com "No such file or directory" — que era exatamente o sintoma do teste
+    // `captura_concorrente_nao_perde_demanda`, falhando ~15% das rodadas.
+    //
+    // "Atômico" no nome desta função valia entre PROCESSOS; entre threads, não. Agora vale
+    // nos dois.
+    static SEQ: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let n = SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     let tmp = dir.join(format!(
-        ".{}.tmp-{}",
+        ".{}.tmp-{}-{n}",
         alvo.file_name().and_then(|s| s.to_str()).unwrap_or("alvo"),
         std::process::id()
     ));

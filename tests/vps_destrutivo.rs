@@ -205,3 +205,77 @@ fn d7_arquivos_nascem_restritos() {
         let _ = std::fs::remove_dir_all(&dir);
     }
 }
+
+/// **D12** — a saída do host era bufferizada sem teto: 7 GB de RSS em 25 segundos.
+///
+/// O host controla quanto imprime, e isto **não precisa de host malicioso**: um verbo `logs`
+/// num journal grande derruba a máquina do usuário por acidente.
+#[test]
+fn d12_saida_do_host_tem_teto_de_memoria() {
+    // O teto existe, é sóbrio, e há prazo máximo.
+    assert!(vps::exec::MAX_SAIDA <= 32 * 1024 * 1024, "teto de saída grande demais");
+    assert!(vps::exec::MAX_SAIDA >= 1024 * 1024, "teto pequeno demais pra log de deploy");
+    assert!(vps::exec::TIMEOUT.as_secs() >= 60, "prazo curto demais pra um deploy real");
+    assert!(vps::exec::TIMEOUT.as_secs() <= 3600, "sem prazo, um jorro infinito trava pra sempre");
+
+    // E o caminho de captura NÃO usa `.output()`, que é o que bufferizava sem limite.
+    let fonte = std::fs::read_to_string("src/vps/exec.rs").unwrap();
+    let producao = fonte.split("#[cfg(test)]").next().unwrap_or("");
+    assert!(!producao.contains(".output()"), "voltou a usar `.output()`, que não tem teto");
+    assert!(producao.contains("capturar_limitado"), "a captura limitada sumiu");
+    // Descartar, não interromper: parar de ler encheria o pipe e travaria o comando remoto
+    // no meio de um deploy.
+    assert!(
+        producao.contains("Descarta, não interrompe"),
+        "a decisão de DRENAR em vez de parar precisa continuar documentada onde é tomada"
+    );
+}
+
+/// **D10** — `resolve_bin` procurava `ssh`; no Windows o arquivo é `ssh.exe`.
+///
+/// A regra foi extraída para uma função com a plataforma como PARÂMETRO justamente porque o
+/// mutation testing mostrou que, sendo `#[cfg(windows)]`, ela não podia ser testada em Linux —
+/// desligar a correção não quebrava teste nenhum.
+#[test]
+fn d10_resolucao_de_executavel_conhece_o_windows() {
+    use schematize::agentrun::nomes_de_executavel_em;
+
+    // Unix: o nome é o nome.
+    assert_eq!(nomes_de_executavel_em("ssh", false), vec!["ssh"]);
+    assert_eq!(nomes_de_executavel_em("claude", false), vec!["claude"]);
+
+    // Windows: tenta o nome cru e as extensões executáveis, nessa ordem.
+    let w = nomes_de_executavel_em("ssh", true);
+    assert!(w.contains(&"ssh.exe".to_string()), "sem `.exe` o vps exec não acha nada: {w:?}");
+    assert_eq!(w[0], "ssh", "o nome cru vem primeiro");
+    for ext in [".exe", ".cmd", ".bat", ".com"] {
+        assert!(w.contains(&format!("ssh{ext}")), "faltou {ext}: {w:?}");
+    }
+    // Já com extensão: respeita o que foi pedido, sem inventar `ssh.exe.exe`.
+    assert_eq!(nomes_de_executavel_em("ssh.exe", true), vec!["ssh.exe"]);
+}
+
+/// **D11** — `home()` fazia `expect` numa variável que o Windows não define.
+#[test]
+fn d11_home_resolve_em_qualquer_plataforma() {
+    use schematize::util::resolver_home;
+    use std::path::PathBuf;
+
+    let s = |x: &str| Some(x.to_string());
+
+    // Unix: `HOME` vence.
+    assert_eq!(resolver_home(s("/home/tom"), s("/C/Users/tom"), None, None), PathBuf::from("/home/tom"));
+    // Windows moderno: sem `HOME`, cai no `USERPROFILE`.
+    assert_eq!(resolver_home(None, s(r"C:\Users\tom"), None, None), PathBuf::from(r"C:\Users\tom"));
+    // Windows antigo / domínio: o par HOMEDRIVE + HOMEPATH, com a barra inicial descartada
+    // (senão o `join` trataria como absoluto e comeria o drive).
+    assert_eq!(
+        resolver_home(None, None, s("C:"), s(r"\Users\tom")),
+        PathBuf::from("C:").join(r"Users\tom")
+    );
+    // Nada declarado: degrada pro temporário em vez de PANICAR (era um `expect`, piso 4).
+    let fallback = resolver_home(None, None, None, None);
+    assert!(fallback.starts_with(std::env::temp_dir()), "{fallback:?}");
+    // Valor vazio não conta como definido (o `home()` filtra antes de chamar).
+    assert_eq!(resolver_home(None, s("/perfil"), None, None), PathBuf::from("/perfil"));
+}
