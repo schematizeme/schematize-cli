@@ -4,11 +4,42 @@
 use std::path::PathBuf;
 use std::process::Command;
 
-/// HOME do usuário (Linux). Falha explícita se não definido.
+/// Diretório do usuário, em qualquer plataforma que o app publica.
+///
+/// A versão anterior fazia `expect("HOME não definido")`. Duas coisas erradas com isso:
+///
+/// 1. **O app publica binário para Windows** (`selfupdate.rs` distribui
+///    `schematize-windows-x86_64.exe`), e o Windows não define `HOME` — define `USERPROFILE`,
+///    ou o par `HOMEDRIVE`+`HOMEPATH`. Todo caminho de dados do app passa por aqui, então o
+///    binário de Windows entrava em pânico no primeiro uso.
+/// 2. Um `expect` para calar a ausência de configuração é exatamente o que o piso 4 da casa
+///    veta.
+///
+/// A ordem de resolução é a convenção de cada sistema, e o último recurso é o diretório
+/// temporário — degradar é melhor que abortar (piso 10), e o caminho aparece nas mensagens.
+///
+/// **Onde:** todo caminho de dados do app (`dados_dir`, `home_app_dir`, `claude_dir`, …).
 pub fn home() -> PathBuf {
-    std::env::var_os("HOME")
-        .map(PathBuf::from)
-        .expect("HOME não definido — schematize é Linux-first e precisa de $HOME")
+    if let Some(h) = std::env::var_os("HOME").filter(|v| !v.is_empty()) {
+        return PathBuf::from(h);
+    }
+    // Windows: `USERPROFILE` é o equivalente direto.
+    if let Some(h) = std::env::var_os("USERPROFILE").filter(|v| !v.is_empty()) {
+        return PathBuf::from(h);
+    }
+    // Windows antigo / perfis de domínio: o par HOMEDRIVE + HOMEPATH.
+    if let (Some(d), Some(p)) = (std::env::var_os("HOMEDRIVE"), std::env::var_os("HOMEPATH")) {
+        if !d.is_empty() && !p.is_empty() {
+            let parte = PathBuf::from(p);
+            // `HOMEPATH` costuma vir com a barra inicial (`\Users\tom`); `join` com caminho
+            // "absoluto" descartaria o `HOMEDRIVE`.
+            let relativa = parte.strip_prefix("\\").unwrap_or(&parte).to_path_buf();
+            return PathBuf::from(d).join(relativa);
+        }
+    }
+    // Sem nada declarado: o temporário do sistema. O app segue utilizável e a mensagem de
+    // qualquer erro mostra o caminho, em vez de o processo simplesmente morrer.
+    std::env::temp_dir().join("schematize-sem-home")
 }
 
 /// Diretório base do Claude Code (`~/.claude`).

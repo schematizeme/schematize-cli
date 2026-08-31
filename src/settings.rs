@@ -121,6 +121,107 @@ pub fn enable(exe: &str) -> Result<(), String> {
     save(&root)
 }
 
+/// Liga o hook do gestor de VPS: `PreToolUse` em TODAS as tools, barrando SSH cru e leitura
+/// de chave privada (ver `vps::hook`).
+///
+/// **Onde:** `schematize vps hooks --on`. Separado do [`enable`] do overdev de propósito —
+/// são disciplinas independentes: quem não usa overdev pode querer só a barreira de SSH, e
+/// desligar uma não pode desligar a outra.
+///
+/// O matcher é `"*"` porque a checagem de chave privada precisa ver o input de qualquer tool
+/// (um `Write` com a chave no conteúdo vaza igual a um `Bash`).
+pub fn enable_vps(exe: &str) -> Result<(), String> {
+    let mut root = load();
+    if !root.is_object() {
+        root = json!({});
+    }
+    let cmd = hook_cmd(exe, "vps guard");
+    ensure_group(&mut root, "PreToolUse", "vps guard",
+        json!({ "matcher": "*", "hooks": [ { "type": "command", "command": cmd } ] }));
+    save(&root)
+}
+
+/// Remove o hook do gestor de VPS, sem tocar nos do overdev nem em hook alheio.
+///
+/// **Onde:** `schematize vps hooks --off`.
+pub fn disable_vps() -> Result<(), String> {
+    let mut root = load();
+    if let Some(arr) = root.get_mut("hooks").and_then(|h| h.get_mut("PreToolUse")).and_then(|a| a.as_array_mut()) {
+        arr.retain(|g| !group_has(g, "vps guard"));
+    }
+    save(&root)
+}
+
+/// Acrescenta nomes de tool ao `permissions.allow`, sem duplicar e sem remover nada.
+/// Devolve quantos foram acrescentados.
+///
+/// **Onde:** `schematize mcp install`. Preserva o `allow` do usuário — a lista dele costuma
+/// ter dezenas de entradas construídas ao longo de meses, e perder isso seria imperdoável.
+pub fn permitir_tools(nomes: &[String]) -> Result<usize, String> {
+    let mut root = load();
+    if !root.is_object() {
+        root = json!({});
+    }
+    let Some(raiz) = root.as_object_mut() else { return Ok(0) };
+    let perms = raiz.entry("permissions").or_insert_with(|| json!({}));
+    if !perms.is_object() {
+        *perms = json!({});
+    }
+    let Some(perms) = perms.as_object_mut() else { return Ok(0) };
+    let allow = perms.entry("allow").or_insert_with(|| json!([]));
+    if !allow.is_array() {
+        *allow = json!([]);
+    }
+    let Some(arr) = allow.as_array_mut() else { return Ok(0) };
+    let mut n = 0;
+    for nome in nomes {
+        if !arr.iter().any(|v| v.as_str() == Some(nome.as_str())) {
+            arr.push(json!(nome));
+            n += 1;
+        }
+    }
+    save(&root)?;
+    Ok(n)
+}
+
+/// Remove nomes de tool do `permissions.allow`. Devolve quantos saíram.
+pub fn remover_tools(nomes: &[String]) -> Result<usize, String> {
+    let mut root = load();
+    let Some(arr) = root
+        .get_mut("permissions")
+        .and_then(|p| p.get_mut("allow"))
+        .and_then(|a| a.as_array_mut())
+    else {
+        return Ok(0);
+    };
+    let antes = arr.len();
+    arr.retain(|v| !v.as_str().is_some_and(|s| nomes.iter().any(|n| n == s)));
+    let n = antes - arr.len();
+    save(&root)?;
+    Ok(n)
+}
+
+/// Quantos dos `nomes` já estão em `permissions.allow`.
+pub fn tools_permitidas(nomes: &[String]) -> usize {
+    let root = load();
+    let Some(arr) = root.get("permissions").and_then(|p| p.get("allow")).and_then(|a| a.as_array())
+    else {
+        return 0;
+    };
+    nomes.iter().filter(|n| arr.iter().any(|v| v.as_str() == Some(n.as_str()))).count()
+}
+
+/// O hook do gestor de VPS está registrado?
+///
+/// **Onde:** `schematize vps hooks` (sem flag, mostra o estado) e o `doctor`.
+pub fn vps_hook_enabled() -> bool {
+    load()
+        .get("hooks")
+        .and_then(|h| h.get("PreToolUse"))
+        .and_then(|a| a.as_array())
+        .is_some_and(|arr| arr.iter().any(|g| group_has(g, "vps guard")))
+}
+
 /// Os hooks registrados batem com o comando que ESTA versão gravaria?
 ///
 /// `false` quando o `settings.json` guarda um comando de uma versão anterior — o caso

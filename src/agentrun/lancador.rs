@@ -28,16 +28,29 @@ pub fn claude_path() -> Option<std::path::PathBuf> {
 /// `~/.profile`/`~/.bashrc`. Checar aqui (além do `$PATH`) é o que faz o app
 /// achar o `claude` mesmo quando foi aberto pelo menu de apps e não pelo terminal.
 pub(crate) fn fallback_bin_dirs() -> Vec<std::path::PathBuf> {
-    let home = std::env::var_os("HOME").map(std::path::PathBuf::from);
-    let mut dirs = Vec::new();
-    if let Some(h) = home {
-        dirs.push(h.join(".local/bin"));
-        dirs.push(h.join(".claude/local"));
-        dirs.push(h.join(".cargo/bin"));
+    // `util::home()` e não `env HOME`: no Windows a variável é outra, e a resolução certa
+    // mora num lugar só (ver o doc de `util::home`).
+    let h = crate::util::home();
+    let mut dirs = vec![h.join(".local/bin"), h.join(".claude/local"), h.join(".cargo/bin")];
+    #[cfg(windows)]
+    {
+        // O OpenSSH do Windows vem aqui desde o Windows 10 1803, e NÃO está no PATH de todo
+        // perfil — sem este fallback, o `vps exec` falha em máquina recém-instalada.
+        if let Some(sysroot) = std::env::var_os("SystemRoot") {
+            let sr = std::path::PathBuf::from(sysroot);
+            dirs.push(sr.join("System32").join("OpenSSH"));
+            dirs.push(sr.join("SysNative").join("OpenSSH"));
+        }
+        for pf in ["ProgramFiles", "ProgramFiles(x86)", "LOCALAPPDATA"] {
+            if let Some(d) = std::env::var_os(pf) {
+                dirs.push(std::path::PathBuf::from(d).join("OpenSSH"));
+            }
+        }
     }
     dirs.push(std::path::PathBuf::from("/usr/local/bin"));
     dirs.push(std::path::PathBuf::from("/usr/bin"));
     dirs.push(std::path::PathBuf::from("/opt/homebrew/bin"));
+    dirs.push(std::path::PathBuf::from("/usr/local/opt/openssh/bin"));
     dirs
 }
 
@@ -45,18 +58,46 @@ pub(crate) fn fallback_bin_dirs() -> Vec<std::path::PathBuf> {
 /// processo, depois nos de fallback ([`fallback_bin_dirs`]). `None` se não achar
 /// em lugar nenhum. É o que permite achar/rodar o `claude` com o PATH mínimo da GUI.
 pub(crate) fn resolve_bin(bin: &str) -> Option<std::path::PathBuf> {
-    if let Some(paths) = std::env::var_os("PATH") {
-        for dir in std::env::split_paths(&paths) {
-            let p = dir.join(bin);
+    for dir in std::env::var_os("PATH")
+        .map(|p| std::env::split_paths(&p).collect::<Vec<_>>())
+        .unwrap_or_default()
+        .into_iter()
+        .chain(fallback_bin_dirs())
+    {
+        for nome in nomes_de_executavel(bin) {
+            let p = dir.join(&nome);
             if p.is_file() {
                 return Some(p);
             }
         }
     }
-    fallback_bin_dirs()
-        .into_iter()
-        .map(|dir| dir.join(bin))
-        .find(|p| p.is_file())
+    None
+}
+
+/// Nomes de arquivo que um executável `bin` pode ter neste sistema.
+///
+/// No Unix é só o nome. **No Windows o arquivo é `ssh.exe`**, e a versão anterior procurava
+/// `ssh` — nunca achava. Como todo `vps exec` passa por `resolve_bin("ssh")`, o gestor de VPS
+/// simplesmente não funcionava no Windows, que é uma das plataformas que o app publica
+/// (`selfupdate.rs` distribui `schematize-windows-x86_64.exe`).
+///
+/// A lista segue o `PATHEXT` padrão, na ordem em que o próprio Windows resolve.
+fn nomes_de_executavel(bin: &str) -> Vec<String> {
+    #[cfg(windows)]
+    {
+        if bin.contains('.') {
+            return vec![bin.to_string()];
+        }
+        let mut v = vec![bin.to_string()];
+        for ext in [".exe", ".cmd", ".bat", ".com"] {
+            v.push(format!("{bin}{ext}"));
+        }
+        v
+    }
+    #[cfg(not(windows))]
+    {
+        vec![bin.to_string()]
+    }
 }
 
 /// `true` se `bin` existe no `$PATH` OU nos diretórios de fallback — checagem
@@ -206,6 +247,28 @@ const TERMINAIS: [&str; 7] = [
 /// [`abrir_terminal_no_projeto`].
 /// **Saída:** o nome do terminal usado, ou erro se não houver nenhum.
 /// **Efeitos:** cria processo.
+/// Abre um COMANDO arbitrário num terminal do sistema, desacoplado deste processo.
+///
+/// **Onde:** `vps::conexao::abrir_no_terminal` (o botão "Abrir no terminal" da GUI). Envolve
+/// o comando num script temporário porque é isso que [`spawn_no_terminal`] sabe lançar em
+/// todos os emuladores suportados — cada um tem sua própria forma de receber um comando, e o
+/// script normaliza a diferença.
+pub fn abrir_comando_no_terminal(comando: &str) -> Result<String, String> {
+    let dir = crate::util::home_app_dir().join("run");
+    std::fs::create_dir_all(&dir).map_err(|e| format!("não consegui criar {}: {e}", dir.display()))?;
+    let script = dir.join(format!("term-{}.sh", std::process::id()));
+    // `exec` no fim: o shell do wrapper some e o terminal fica com o processo de verdade,
+    // então fechar a janela encerra a sessão em vez de deixar um ssh órfão.
+    std::fs::write(&script, format!("#!/bin/sh\nexec {comando}\n"))
+        .map_err(|e| format!("não consegui gravar {}: {e}", script.display()))?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o700));
+    }
+    spawn_no_terminal(&script)
+}
+
 pub(crate) fn spawn_no_terminal(script: &Path) -> Result<String, String> {
     let term = TERMINAIS
         .iter()

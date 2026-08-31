@@ -10,6 +10,8 @@ pub(crate) mod skills;
 pub(crate) mod skillsproj;
 pub(crate) mod overdev;
 pub(crate) mod ssh;
+pub(crate) mod vps;
+pub(crate) mod mcp;
 pub(crate) mod conta;
 pub(crate) mod caixa;
 pub(crate) mod db;

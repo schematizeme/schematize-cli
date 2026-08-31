@@ -23,6 +23,7 @@ pub mod guiactions;
 pub mod i18n;
 pub mod links;
 pub mod market;
+pub mod mcp;
 pub mod news;
 pub mod notificacoes;
 pub mod notifications;
@@ -43,4 +44,5 @@ pub mod updaterboot;
 pub mod upgrade;
 pub mod usage;
 pub mod util;
+pub mod vps;
 

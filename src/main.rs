@@ -271,6 +271,8 @@ fn main() {
             schematize::archive::sync(&cwd).map(|msg| println!("{msg}"))
         }
         Cmd::Ssh { sub } => ssh_cmd(sub),
+        Cmd::Vps { sub } => crate::cli::vps::vps_cmd(sub),
+        Cmd::Mcp { sub } => crate::cli::mcp::mcp_cmd(sub),
         Cmd::Projects { sub } => projects_cmd(sub),
         Cmd::Login => login_cmd(),
         Cmd::Logout => {
