@@ -22,9 +22,49 @@ fn binario() -> PathBuf {
 }
 
 /// Variantes declaradas de um `enum` do `clap`, lidas do fonte.
-fn variantes(arquivo: &str, nome_do_enum: &str) -> Vec<String> {
-    let src = std::fs::read_to_string(arquivo).expect("fonte");
-    let ini = src.find(&format!("pub(crate) enum {nome_do_enum} {{")).expect("enum declarado");
+///
+/// **Onde:** os dois testes de rota abaixo.
+///
+/// **Por que PROCURA o enum em vez de receber o arquivo:** a versão anterior recebia
+/// `"src/cli/args.rs"` fixo, e quebrou no dia em que aquele arquivo virou o diretório
+/// `src/cli/args/` (780 linhas, acima do teto da casa). O teste falhou por saber DEMAIS
+/// sobre a arrumação do código — não sobre o comportamento dele. Procurando pela
+/// declaração, o próximo corte não o derruba, e o erro que sobra é o erro de verdade:
+/// "este enum não existe em lugar nenhum".
+fn variantes(nome_do_enum: &str) -> Vec<String> {
+    /// Todo `.rs` sob `raiz`, recursivo.
+    fn fontes(raiz: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
+        let Ok(dir) = std::fs::read_dir(raiz) else { return };
+        for e in dir.flatten() {
+            let p = e.path();
+            if p.is_dir() {
+                fontes(&p, out);
+            } else if p.extension().and_then(|x| x.to_str()) == Some("rs") {
+                out.push(p);
+            }
+        }
+    }
+    let mut arquivos = Vec::new();
+    fontes(std::path::Path::new("src"), &mut arquivos);
+    arquivos.sort();
+
+    let agulha = format!("pub(crate) enum {nome_do_enum} {{");
+    let achados: Vec<(std::path::PathBuf, String)> = arquivos
+        .iter()
+        .filter_map(|p| {
+            let src = std::fs::read_to_string(p).ok()?;
+            src.contains(&agulha).then(|| (p.clone(), src))
+        })
+        .collect();
+    assert_eq!(
+        achados.len(),
+        1,
+        "`{nome_do_enum}` tinha que estar declarado em UM arquivo, e está em {}: {:?}",
+        achados.len(),
+        achados.iter().map(|(p, _)| p.display().to_string()).collect::<Vec<_>>()
+    );
+    let src = &achados[0].1;
+    let ini = src.find(&agulha).expect("enum declarado");
     let corpo = &src[ini..];
     let fim = corpo.find("\n}").expect("fim do enum");
     corpo[..fim]
@@ -45,11 +85,8 @@ fn variantes(arquivo: &str, nome_do_enum: &str) -> Vec<String> {
 /// Toda variante declarada tem braço no `match` — nenhuma rota fantasma.
 #[test]
 fn toda_rota_declarada_e_despachada() {
-    for (arq_enum, nome, arq_dispatch) in [
-        ("src/cli/args.rs", "VpsCmd", "src/cli/vps.rs"),
-        ("src/cli/args.rs", "McpCmd", "src/cli/mcp.rs"),
-    ] {
-        let vs = variantes(arq_enum, nome);
+    for (nome, arq_dispatch) in [("VpsCmd", "src/cli/vps.rs"), ("McpCmd", "src/cli/mcp.rs")] {
+        let vs = variantes(nome);
         assert!(
             vs.len() >= 4,
             "{nome}: só {} variantes lidas — o parser do teste quebrou",
@@ -73,7 +110,7 @@ fn toda_rota_declarada_e_despachada() {
 /// Toda rota do CLI responde de verdade — `--help` do subcomando sai 0 e descreve algo.
 #[test]
 fn toda_rota_do_cli_e_alcancavel() {
-    let vs = variantes("src/cli/args.rs", "VpsCmd");
+    let vs = variantes("VpsCmd");
     let db = std::env::temp_dir().join(format!("schematize-rotas-{}.db", std::process::id()));
     let _ = std::fs::remove_file(&db);
     let mut mortas = Vec::new();

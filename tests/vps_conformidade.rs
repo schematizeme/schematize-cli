@@ -187,23 +187,74 @@ fn piso_nenhum_unwrap_em_producao() {
     assert!(culpados.is_empty(), "unwrap/expect em produção: {culpados:?}");
 }
 
-/// Piso da casa — arquivo <= 750 linhas, e sinaliza acima de 300 linhas ÚTEIS.
+/// Piso da casa (§6) — arquivo ≤ 750 linhas, e SINALIZA acima de 300 linhas úteis.
+///
+/// **O quê:** varre `src/**/*.rs` recursivamente. Acima de 750 linhas totais **reprova**;
+/// acima de 300 linhas úteis (sem comentário, sem linha em branco) **imprime**, sem barrar.
+///
+/// **Onde / por quê:** este teste varria só `src/vps` e `src/mcp` — os diretórios da
+/// entrega em que ele nasceu. `src/cli/args.rs` cresceu com os subcomandos de VPS, chegou a
+/// 780 linhas e **passou batido**, porque estava fora do recorte. Um piso que só olha onde
+/// a última entrega mexeu não é piso, é lembrete.
+///
+/// A linha útil é o critério da casa por um motivo: o teto de 750 pressupõe ~250 linhas
+/// reservadas a comentário. Um arquivo bem documentado chega perto do teto sem estar
+/// inchado; um arquivo de 700 linhas úteis e zero comentário é outro problema. Por isso o
+/// bloqueio é no total e o **aviso** é no útil — e observabilidade tem folga natural.
 #[test]
 fn piso_tamanho_de_arquivo() {
-    let mut grandes = Vec::new();
-    for entrada in
-        std::fs::read_dir("src/vps").unwrap().chain(std::fs::read_dir("src/mcp").unwrap())
-    {
-        let p = entrada.unwrap().path();
-        if p.extension().and_then(|e| e.to_str()) != Some("rs") {
-            continue;
+    /// Todo `.rs` sob `raiz`, recursivo.
+    fn fontes(raiz: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
+        let Ok(dir) = std::fs::read_dir(raiz) else { return };
+        for e in dir.flatten() {
+            let p = e.path();
+            if p.is_dir() {
+                fontes(&p, out);
+            } else if p.extension().and_then(|x| x.to_str()) == Some("rs") {
+                out.push(p);
+            }
         }
-        let total = std::fs::read_to_string(&p).unwrap().lines().count();
+    }
+    let mut arquivos = Vec::new();
+    fontes(std::path::Path::new("src"), &mut arquivos);
+    arquivos.sort();
+    assert!(arquivos.len() > 50, "a varredura não achou o crate: {} arquivos", arquivos.len());
+
+    let mut grandes = Vec::new();
+    let mut densos = Vec::new();
+    for p in &arquivos {
+        let src = std::fs::read_to_string(p).unwrap();
+        let total = src.lines().count();
         if total > 750 {
             grandes.push(format!("{}: {total}", p.display()));
         }
+        let uteis = src
+            .lines()
+            .filter(|l| {
+                let t = l.trim();
+                !t.is_empty() && !t.starts_with("//")
+            })
+            .count();
+        if uteis > 300 {
+            densos.push(format!("{}: {uteis} úteis", p.display()));
+        }
     }
-    assert!(grandes.is_empty(), "acima do teto de 750 linhas: {grandes:?}");
+
+    // FLAG, não bloqueio: registra a dívida sem travar a entrega (§6).
+    if !densos.is_empty() {
+        println!(
+            "FLAG §6 — acima de 300 linhas úteis ({}), dívida a revisitar:\n  {}",
+            densos.len(),
+            densos.join("\n  ")
+        );
+    }
+    assert!(
+        grandes.is_empty(),
+        "acima do teto de 750 linhas (§6): quebre em módulos por coesão, não por corte \
+         arbitrário — e se for definição de superfície pública (CLI, API, schema), congele \
+         a superfície num snapshot ANTES de cortar:\n  {}",
+        grandes.join("\n  ")
+    );
 }
 
 /// Piso da casa — TODA função pública comentada (é o que alimenta o índice §39).

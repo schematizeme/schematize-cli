@@ -1,0 +1,285 @@
+CMD schematize
+CMD schematize agent
+CMD schematize agents
+  ARG json                 --json
+  ARG split                --split
+CMD schematize archive
+CMD schematize autostart
+CMD schematize autostart disable
+CMD schematize autostart enable
+CMD schematize blog
+CMD schematize check
+  ARG notify               --notify
+CMD schematize db
+CMD schematize db graph
+  ARG from                 --from
+  ARG postgres             --postgres
+  ARG sqlite               --sqlite
+CMD schematize db introspect
+  ARG json                 --json
+  ARG postgres             --postgres
+  ARG sqlite               --sqlite
+CMD schematize db sql
+  ARG from                 --from
+  ARG migration            --migration
+  ARG postgres             --postgres
+  ARG sqlite               --sqlite
+CMD schematize debug
+  ARG collect              --collect
+  ARG online               --online
+  ARG out                  --out
+  ARG stdout               --stdout
+CMD schematize diagnostics
+  ARG yes                  --yes
+CMD schematize disco
+CMD schematize disco clean
+  ARG min_dias             --min-dias
+  ARG montagem             --montagem
+  ARG tipo                 --tipo
+  ARG yes                  --yes -y
+CMD schematize disco docker
+  ARG podar                --podar
+  ARG yes                  --yes -y
+CMD schematize disco list
+  ARG min_dias             --min-dias
+CMD schematize doctor
+  ARG fix                  --fix
+CMD schematize env
+CMD schematize env install
+  ARG dry_run              --dry-run
+  ARG lang                  OBRIGATORIO
+  ARG method               --method
+  ARG yes                  --yes
+CMD schematize env list
+CMD schematize env remove
+  ARG dry_run              --dry-run
+  ARG lang                  OBRIGATORIO
+  ARG method               --method
+CMD schematize git
+CMD schematize git accounts
+CMD schematize git add
+  ARG chave                --chave
+  ARG email                --email OBRIGATORIO
+  ARG rotulo                OBRIGATORIO
+  ARG servico              --servico
+  ARG usuario              --usuario OBRIGATORIO
+CMD schematize git detect
+  ARG add                  --add
+CMD schematize git log
+  ARG limite               --limite
+CMD schematize git remove
+  ARG rotulo                OBRIGATORIO
+CMD schematize git repos
+  ARG limite               --limite
+  ARG rotulo               
+CMD schematize git ssh-config
+  ARG rotulo                OBRIGATORIO
+CMD schematize git status
+CMD schematize git use
+  ARG remoto               --remoto
+  ARG rotulo                OBRIGATORIO
+CMD schematize git-log
+  ARG limit                --limit
+CMD schematize graph
+CMD schematize graph obsidian
+  ARG out                  --out
+CMD schematize gui
+CMD schematize icon (oculto)
+  ARG emit                 --emit
+  ARG hicolor              --hicolor
+  ARG size                 --size
+CMD schematize install (oculto)
+  ARG all                  --all
+  ARG names                 <valor>
+  ARG with_recommended     --with-recommended
+CMD schematize lang
+  ARG code                 
+  ARG list                 --list
+CMD schematize list (oculto)
+CMD schematize login
+CMD schematize logout
+CMD schematize mcp
+CMD schematize mcp install
+  ARG dry_run              --dry-run
+CMD schematize mcp serve
+CMD schematize mcp status
+CMD schematize mcp uninstall
+CMD schematize news
+CMD schematize notifications
+  ARG concluir             --concluir
+  ARG historico            --historico
+  ARG lidas                --lidas
+  ARG sync                 --sync
+CMD schematize open
+  ARG target                OBRIGATORIO
+CMD schematize overdev
+CMD schematize overdev add
+  ARG texto                 <valor>
+CMD schematize overdev answer
+  ARG alvo                  OBRIGATORIO
+  ARG texto                 <valor>
+CMD schematize overdev caixa
+CMD schematize overdev caixa agente
+CMD schematize overdev caixa list
+CMD schematize overdev caixa merge
+CMD schematize overdev caixa organizar
+  ARG id                    OBRIGATORIO
+  ARG itens                --item OBRIGATORIO
+CMD schematize overdev check
+CMD schematize overdev disable
+CMD schematize overdev enable
+CMD schematize overdev guard
+CMD schematize overdev history
+  ARG limit                --limit
+CMD schematize overdev hold
+  ARG texto                 <valor>
+CMD schematize overdev human
+  ARG done                 --done
+  ARG texto                 <valor>
+CMD schematize overdev index
+CMD schematize overdev load
+CMD schematize overdev log
+CMD schematize overdev note
+  ARG kind                 --kind
+  ARG texto                 <valor>
+CMD schematize overdev park
+  ARG item                  OBRIGATORIO
+  ARG pergunta              <valor>
+CMD schematize overdev refuse
+  ARG alvo                  OBRIGATORIO
+  ARG texto                 <valor>
+CMD schematize overdev restore
+  ARG id                    OBRIGATORIO
+CMD schematize overdev run
+  ARG max                  --max
+  ARG yes                  --yes
+CMD schematize overdev snapshot
+CMD schematize overdev split
+  ARG dispatch             --dispatch
+  ARG force                --force
+  ARG k                     OBRIGATORIO
+CMD schematize overdev start
+  ARG max                  --max
+  ARG objetivo              <valor>
+CMD schematize overdev status
+CMD schematize overdev stop
+CMD schematize overdev supervise
+  ARG max                  --max
+CMD schematize overdev terminal
+CMD schematize panel
+CMD schematize projects
+CMD schematize projects add
+  ARG path                  OBRIGATORIO
+CMD schematize projects list
+CMD schematize projects mark
+  ARG path                 
+CMD schematize projects remove
+  ARG path                  OBRIGATORIO
+CMD schematize projects unmark
+  ARG path                 
+CMD schematize remove (oculto)
+  ARG name                  OBRIGATORIO
+CMD schematize skills
+CMD schematize skills applied
+  ARG mark                 --mark
+CMD schematize skills compare
+  ARG slug                  OBRIGATORIO
+CMD schematize skills edit
+  ARG file                 --file
+  ARG list                 --list
+  ARG set_from             --set-from
+  ARG slug                  OBRIGATORIO
+CMD schematize skills fork
+  ARG slug                  OBRIGATORIO
+CMD schematize skills install
+  ARG all                  --all
+  ARG names                 <valor>
+  ARG with_recommended     --with-recommended
+CMD schematize skills list
+CMD schematize skills new
+  ARG desc                 --desc
+  ARG force                --force
+  ARG name                 --name
+  ARG slug                  OBRIGATORIO
+CMD schematize skills remove
+  ARG name                  OBRIGATORIO
+CMD schematize skills rerun
+  ARG slug                 
+CMD schematize skills update
+  ARG all                  --all
+  ARG names                 <valor>
+CMD schematize ssh
+CMD schematize ssh authorize
+  ARG name                  OBRIGATORIO
+  ARG target                OBRIGATORIO
+CMD schematize ssh export
+  ARG bitwarden            --bitwarden
+  ARG copy                 --copy
+  ARG name                  OBRIGATORIO
+  ARG out                  --out
+CMD schematize ssh gen
+  ARG agent                --agent
+  ARG comment              --comment
+  ARG force                --force
+  ARG github               --github
+  ARG name                  OBRIGATORIO
+  ARG rsa                  --rsa
+CMD schematize ssh github
+  ARG name                  OBRIGATORIO
+CMD schematize ssh list
+CMD schematize ssh rm
+  ARG name                  OBRIGATORIO
+CMD schematize ssh run
+  ARG command               <valor>
+  ARG name                  OBRIGATORIO
+  ARG target                OBRIGATORIO
+CMD schematize status
+CMD schematize update (oculto)
+  ARG all                  --all
+  ARG names                 <valor>
+CMD schematize upgrade
+  ARG force                --force
+CMD schematize vps
+CMD schematize vps add
+  ARG alias                 OBRIGATORIO
+  ARG env                  --env
+  ARG host                 --host OBRIGATORIO
+  ARG jump                 --jump
+  ARG key                  --key OBRIGATORIO
+  ARG port                 --port
+  ARG user                 --user OBRIGATORIO
+CMD schematize vps authorize
+  ARG alias                 OBRIGATORIO
+CMD schematize vps bootstrap
+  ARG alias                 OBRIGATORIO
+CMD schematize vps exec
+  ARG alias                 OBRIGATORIO
+  ARG comando               <valor>
+  ARG confirmar            --confirmar
+CMD schematize vps guard (oculto)
+CMD schematize vps hooks
+  ARG off                  --off
+  ARG on                   --on
+CMD schematize vps list
+CMD schematize vps logs
+  ARG alias                
+  ARG n                    --n
+  ARG transcript           --transcript
+CMD schematize vps policy
+  ARG alias                 OBRIGATORIO
+  ARG env                  --env
+  ARG modo                 --modo
+CMD schematize vps probe
+  ARG alias                 OBRIGATORIO
+CMD schematize vps rm
+  ARG alias                 OBRIGATORIO
+CMD schematize vps trust
+  ARG alias                 OBRIGATORIO
+  ARG sim                  --sim
+CMD schematize vps verbs
+  ARG add                  --add
+  ARG alias                 OBRIGATORIO
+  ARG cmd                  --cmd
+  ARG rm                   --rm
+  ARG seed                 --seed
+CMD schematize whoami
