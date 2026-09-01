@@ -70,12 +70,39 @@ jobs:
         # instalavam a janela ANTIGA enquanto o install.sh do fonte instalava a nova.
         # Compilamos a Slint e a colocamos em target/release/, que é de onde o
         # cargo-deb / cargo-generate-rpm leem (Cargo.toml não muda).
+        #
+        # AS DUAS METADES DO RELEASE SÃO PINADAS, e cada uma por um motivo diferente:
+        #
+        # 1. QUAL GUI — `packaging/gui-pin.txt`, versionado NESTE repo. Antes era
+        #    `git clone --depth 1` sem `--branch`, que traz o HEAD do main da GUI: o
+        #    release publicava o que estivesse lá naquele instante, e recompilar a mesma
+        #    tag dava outro binário.
+        #
+        # 2. CONTRA QUAL CLI — `--precise ${{ github.sha }}`, o commit DESTA tag. Antes era
+        #    `cargo update -p schematize` cru, que descarta o Cargo.lock commitado da GUI e
+        #    re-resolve pro HEAD do main deste repo.
+        #
+        # Não dá pra trocar o item 2 por `--locked`: o Cargo.lock da GUI pina um commit
+        # ANTERIOR do CLI, então o release sairia com o CLI da tag ao lado de uma GUI ligada
+        # a um CLI mais velho — duas metades diferentes no mesmo release.
+        #
+        # Detalhe e histórico em `src/guipin.rs`.
         run: |
           set -euo pipefail
-          git clone --depth 1 https://github.com/schematizeme/schematize_gui_slint.git /tmp/gui
+          PIN=$(cat packaging/gui-pin.txt)
+          if [ -z "$PIN" ]; then
+            echo "::error::packaging/gui-pin.txt vazio — sem ele o release não é reproduzível"
+            exit 1
+          fi
+          git init /tmp/gui
           cd /tmp/gui
-          # usa o CÓDIGO desta tag, não o HEAD do main (o git-dep aponta pra branch).
-          cargo update -p schematize
+          git remote add origin https://github.com/schematizeme/schematize_gui_slint.git
+          if ! git fetch --depth 1 origin "$PIN"; then
+            echo "::error::o commit $PIN não existe em schematize_gui_slint (pin desatualizado?)"
+            exit 1
+          fi
+          git checkout --detach FETCH_HEAD
+          cargo update -p schematize --precise "$GITHUB_SHA"
           cargo build --release
           cp target/release/schematize-gui "$GITHUB_WORKSPACE/target/release/schematize-gui"
       - name: empacota .deb / .rpm
@@ -137,9 +164,19 @@ jobs:
       - name: GUI Slint (repo próprio) — a ÚNICA GUI
         run: |
           set -euo pipefail
-          git clone --depth 1 https://github.com/schematizeme/schematize_gui_slint.git /tmp/gui
+          # Mesmo pin do job `linux` — ver o comentário longo lá e `src/guipin.rs`.
+          # Os tres jobs clonavam o HEAD do main da GUI em PARALELO: um push nela durante o
+          # release fazia os binarios linux/macos/windows do MESMO release virem de commits
+          # diferentes. O pin elimina isso por construcao.
+          PIN=$(cat packaging/gui-pin.txt)
+          [ -n "$PIN" ] || { echo "::error::packaging/gui-pin.txt vazio"; exit 1; }
+          git init /tmp/gui
           cd /tmp/gui
-          cargo update -p schematize
+          git remote add origin https://github.com/schematizeme/schematize_gui_slint.git
+          git fetch --depth 1 origin "$PIN" || {
+            echo "::error::commit $PIN nao existe em schematize_gui_slint"; exit 1; }
+          git checkout --detach FETCH_HEAD
+          cargo update -p schematize --precise "$GITHUB_SHA"
           cargo build --release --target ${{ matrix.target }}
           cp "target/${{ matrix.target }}/release/schematize-gui" \
              "$GITHUB_WORKSPACE/target/${{ matrix.target }}/release/schematize-gui"
@@ -211,9 +248,19 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          git clone --depth 1 https://github.com/schematizeme/schematize_gui_slint.git /tmp/gui
+          # Mesmo pin do job `linux` — ver o comentário longo lá e `src/guipin.rs`.
+          # Os tres jobs clonavam o HEAD do main da GUI em PARALELO: um push nela durante o
+          # release fazia os binarios linux/macos/windows do MESMO release virem de commits
+          # diferentes. O pin elimina isso por construcao.
+          PIN=$(cat packaging/gui-pin.txt)
+          [ -n "$PIN" ] || { echo "::error::packaging/gui-pin.txt vazio"; exit 1; }
+          git init /tmp/gui
           cd /tmp/gui
-          cargo update -p schematize
+          git remote add origin https://github.com/schematizeme/schematize_gui_slint.git
+          git fetch --depth 1 origin "$PIN" || {
+            echo "::error::commit $PIN nao existe em schematize_gui_slint"; exit 1; }
+          git checkout --detach FETCH_HEAD
+          cargo update -p schematize --precise "$GITHUB_SHA"
           cargo build --release
           cp target/release/schematize-gui.exe "$GITHUB_WORKSPACE/target/release/schematize-gui.exe"
       - name: empacota

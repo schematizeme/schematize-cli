@@ -567,3 +567,55 @@ fn nenhum_teste_le_fora_do_repo() {
         violacoes.join("\n  ")
     );
 }
+
+/// O `release.yml` publica uma GUI DETERMINÍSTICA a partir da tag.
+///
+/// **O quê:** lê o workflow de release e reprova as duas formas que tornavam o binário
+/// irreproduzível — `git clone` da GUI sem referência fixa, e `cargo update -p schematize`
+/// sem `--precise`.
+///
+/// **Onde / por quê:** o job `linux` do release compila o `schematize-gui` clonando o repo
+/// da GUI. Fazia `clone --depth 1` (HEAD do main dela) seguido de `cargo update -p
+/// schematize` cru (que descarta o `Cargo.lock` commitado e re-resolve pro HEAD do main
+/// deste repo). O binário de um release `vX` era feito do que estivesse nos dois `main`
+/// naquele instante — recompilar a mesma tag dava outro binário.
+///
+/// O detalhe que fez isso durar: **o comentário do workflow afirmava o contrário**
+/// ("usa o CÓDIGO desta tag, não o HEAD do main"). Comentário que mente é pior que
+/// comentário ausente — quem lê acredita que está resolvido e não olha de novo. Por isso a
+/// garantia virou teste: texto não vota.
+#[test]
+fn release_publica_gui_deterministica() {
+    let w = std::fs::read_to_string(".github/workflows/release.yml").expect("o release.yml");
+    // Só a metade executável: os comentários deste próprio workflow citam as formas antigas.
+    let exec: String =
+        w.lines().filter(|l| !l.trim_start().starts_with('#')).collect::<Vec<_>>().join("\n");
+
+    for (forma, porque) in [
+        (
+            "cargo update -p schematize\n",
+            "sem `--precise`, a GUI é compilada contra o HEAD do main deste repo em vez do \
+             commit da tag — as duas metades do release ficam de versões diferentes",
+        ),
+        (
+            "git clone --depth 1 https://github.com/schematizeme/schematize_gui_slint",
+            "clone sem referência fixa traz o HEAD do main da GUI; use o SHA de \
+             `packaging/gui-pin.txt`",
+        ),
+    ] {
+        assert!(
+            !exec.contains(forma),
+            "release.yml voltou a uma forma irreproduzível ({forma:?}): {porque}"
+        );
+    }
+
+    // E as duas pontas do determinismo têm de estar presentes.
+    assert!(
+        exec.contains("packaging/gui-pin.txt"),
+        "o release tem que ler o pin da GUI — sem ele não se sabe QUAL GUI foi publicada"
+    );
+    assert!(
+        exec.contains("--precise"),
+        "o release tem que resolver o git-dep com `--precise` no commit da tag"
+    );
+}
