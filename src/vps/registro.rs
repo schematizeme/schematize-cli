@@ -330,11 +330,33 @@ pub fn valid_host(host: &str) -> Result<(), String> {
             "endereço de host inválido: {:?} — tem espaço, tabulação ou quebra de linha (inclusive no começo ou no fim)", resumir(host)
         ));
     }
-    // Hostname é ASCII (IDN vira punycode antes de chegar aqui). Não-ASCII abre a porta de
-    // homóglifo: `googlе.com` com `е` cirílico é outro domínio e ninguém vê a diferença.
-    if !host.chars().all(|c| c.is_ascii_graphic()) {
+    // ALLOWLIST, não "ASCII imprimível".
+    //
+    // A versão anterior aceitava qualquer `is_ascii_graphic()`, o que inclui crase, `$`,
+    // `;`, `|`, `>`, aspas e parênteses. Era o ÚNICO validador desta família por negação —
+    // `valid_alias`, `valid_opcao` e `valid_home_remoto` são todos por allowlist — e este
+    // valida TRÊS campos: `host`, `usuario` e `jump`.
+    //
+    // Não era explorável: todo consumidor de hoje usa `argv` (`ssh_args_puro`,
+    // `util::run("ssh-keyscan", …)`) ou aspas simples com escape `'\''`
+    // (`abrir_no_terminal`), e dentro de aspas simples crase e `$` são inertes.
+    //
+    // Foi corrigido assim mesmo porque a garantia estava no CONSUMIDOR, não no dado: quem
+    // acrescentasse um caminho que montasse string de shell herdaria o buraco sem saber que
+    // o herdou. Validar na fronteira existe justamente pra não ter de re-auditar cada
+    // consumidor a cada mudança.
+    //
+    // O conjunto cobre o que é legítimo nos três campos: FQDN e punycode (`xn--…`), IPv4,
+    // **IPv6 com `:` e colchetes**, usuário Linux (`.`, `_`, `-`), e `jump` na forma
+    // `[user@]host[:port]` (daí o `@`).
+    //
+    // Não-ASCII segue de fora por homóglifo: `googlе.com` com `е` cirílico é outro domínio
+    // e ninguém vê a diferença — nome internacionalizado entra em punycode.
+    const PERMITIDOS: &str = ".-_:@[]";
+    if let Some(c) = host.chars().find(|c| !c.is_ascii_alphanumeric() && !PERMITIDOS.contains(*c)) {
         return Err(format!(
-            "endereço de host inválido: {:?} — só ASCII imprimível (nome internacionalizado precisa vir em punycode, `xn--…`)", resumir(host)
+            "endereço de host inválido: {:?} — o caractere {c:?} não é aceito. Use letras, números e `{PERMITIDOS}` (FQDN, IPv4, IPv6 com colchetes, ou punycode `xn--…`)",
+            resumir(host)
         ));
     }
     Ok(())
@@ -478,6 +500,38 @@ mod tests {
 
     /// O `$HOME` que o host informa vira caminho no script de bootstrap — e o script é
     /// interpretado por um `sh` do outro lado. Quebra de citação morre antes de virar texto.
+    /// `valid_host` é allowlist, não "ASCII imprimível" — e vale para os TRÊS campos que
+    /// passam por ele (`host`, `usuario`, `jump`).
+    ///
+    /// **De onde veio:** o fuzzing adversarial da camada 3/4 do Q.A. de 2026-09-01, que
+    /// afirma a regra sobre a família inteira de validadores em vez de exemplo a exemplo.
+    /// Ele pegou `` x`id` `` sendo ACEITO — não explorável com os consumidores de hoje
+    /// (todos usam argv ou aspas simples com escape), mas a garantia estava no consumidor e
+    /// não no dado.
+    #[test]
+    fn host_so_aceita_o_que_e_endereco() {
+        for veneno in [
+            "x`id`", "x$(id)", "x;id", "x|id", "x>arq", "x<arq", "x&", "x'y", "x\"y", "x(y)",
+            "x{y}", "x*", "x?", "x\\y", "x!y", "x#y", "x%y", "x^y", "x~y", "x+y", "x=y", "x,y",
+            "x/y",
+        ] {
+            assert!(valid_host(veneno).is_err(), "host hostil aceito: {veneno:?}");
+        }
+        // E o que é endereço de verdade continua passando, nas quatro formas.
+        for ok in [
+            "srv-01.prod.example.com",   // FQDN
+            "10.0.0.5",                  // IPv4
+            "2001:db8::1",               // IPv6 cru
+            "[2001:db8::1]",             // IPv6 com colchetes
+            "xn--brs-yva.example",       // punycode (IDN)
+            "deploy",                    // usuário Linux simples
+            "ci_bot.v2-a",               // usuário com `.`, `_` e `-`
+            "deploy@bastion.example:22", // jump na forma [user@]host[:port]
+        ] {
+            assert!(valid_host(ok).is_ok(), "endereço legítimo recusado: {ok:?}");
+        }
+    }
+
     #[test]
     fn home_do_host_hostil_e_recusado() {
         for veneno in [

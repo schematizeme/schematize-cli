@@ -62,6 +62,21 @@ MUTANTES = [
   'for ext in [] as [&str; 0] {', "resolucao de ssh.exe no Windows (D10)"),
  ("src/util.rs", '    if let Some(h) = userprofile {', '    if let Some(h) = None::<String> {',
   "fallback de HOME no Windows (D11)"),
+ # --- Achados da CAMADA 7 do Q.A. de 2026-09-01: defesas que existiam SEM mutante.
+ # A camada existe pra isso: varrer os validadores de producao e cobrar um mutante em cada.
+ # Defesa sem mutante e defesa que ninguem verifica — o placar verde nao a inclui.
+ ("src/vps/registro.rs",
+  "if !alias.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-')) {",
+  "if false {",
+  "a allowlist de caracteres do alias (vira caminho, flag do ssh e nome de arquivo)"),
+ ("src/vps/registro.rs",
+  "if let Some(c) = host.chars().find(|c| !c.is_ascii_alphanumeric() && !PERMITIDOS.contains(*c)) {",
+  "if let Some(c) = host.chars().find(|_| false) {",
+  "a allowlist de host/usuario/jump (era 'ASCII imprimivel' e aceitava crase, $ e ;)"),
+ ("src/vps/catastrofico.rs",
+  "FLAGS_PERIGOSAS.iter().find(|(a, _)| n.contains(a)).map(|(_, m)| *m)",
+  "None",
+  "a deteccao de sub-flag perigosa (-exec, -c alias., --to-command)"),
  ("src/vps/bootstrap.rs", "super::registro::valid_home_remoto(home)?;", "",
   "a validacao do $HOME que o HOST informa (vira caminho no script de bootstrap)"),
  ("src/util.rs", "Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(String::new()),",

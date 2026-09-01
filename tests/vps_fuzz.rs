@@ -250,3 +250,160 @@ fn fuzz_catalogo_round_trip() {
         assert_eq!(linhas, 1, "seed {seed}: o catálogo ganhou linha");
     }
 }
+
+// ===========================================================================================
+// CAMADA 3/4 do Q.A. de 2026-09-01 — fuzzing adversarial dos validadores que NASCERAM depois
+// deste arquivo, e invariantes que valem para TODOS eles de uma vez.
+//
+// O que estas asserções pegam e as anteriores não: a família inteira de validadores é tratada
+// como UM contrato ("nenhum aceita algo que vire argumento, caminho ou comando"), em vez de
+// cada um com o seu teste de exemplos. Validador novo que entre na família sem respeitar o
+// contrato cai aqui.
+// ===========================================================================================
+
+/// Corpus adversarial compartilhado. Cresce; não encolhe.
+fn corpus_hostil() -> Vec<String> {
+    let mut v: Vec<String> = Vec::new();
+    for s in [
+        "",
+        " ",
+        "\t",
+        "\n",
+        "\r\n",
+        "\0",
+        "a\0b",
+        // quebra de citação — o vetor do `$HOME` do host
+        "x'; id; echo '",
+        "x\"; id; \"",
+        "x`id`",
+        "x$(id)",
+        "x${IFS}id",
+        // encadeamento e redirecionamento
+        "a;b",
+        "a&&b",
+        "a||b",
+        "a|b",
+        "a>b",
+        "a<b",
+        "a&",
+        "a\nb",
+        // caminho
+        "../etc/passwd",
+        "..\\..\\win",
+        "/abs",
+        "./rel",
+        "a/b",
+        "a//b",
+        "~/x",
+        "$HOME/x",
+        // flag
+        "-x",
+        "--flag",
+        "-o",
+        "-D",
+        "-",
+        "--",
+        // unicode e homóglifo
+        "café",
+        "𝓪",
+        "а",
+        "\u{202e}txt",
+        "a\u{200b}b",
+        "ｆｕｌｌ",
+        // limites
+        "0",
+        "-1",
+        "٩",
+        "１２３",
+    ] {
+        v.push(s.to_string());
+    }
+    // Comprimento: 1, no teto, e muito além.
+    for n in [1usize, 64, 65, 256, 257, 4096, 100_000] {
+        v.push("a".repeat(n));
+        v.push(format!("/{}", "a".repeat(n)));
+    }
+    // Bytes altos válidos em UTF-8 mas fora de ASCII.
+    v.push("\u{1F600}".repeat(50));
+    v
+}
+
+/// **Invariante da família:** nenhum validador entra em pânico, com nada.
+///
+/// **Por que importa:** todos rodam sobre entrada que veio de fora — perfil vindo do banco,
+/// `$HOME` vindo do host, opção vinda do usuário. Pânico num validador é o app morrendo no
+/// exato ponto que existe pra proteger.
+#[test]
+fn nenhum_validador_panica_com_entrada_hostil() {
+    for s in corpus_hostil() {
+        let _ = schematize::vps::registro::valid_alias(&s);
+        let _ = schematize::vps::registro::valid_host(&s);
+        let _ = schematize::vps::registro::valid_opcao(&s);
+        let _ = schematize::vps::registro::valid_home_remoto(&s);
+        let _ = schematize::sshkeys::valid_name(&s);
+        let _ = schematize::vps::registro::resumir(&s);
+    }
+}
+
+/// **Invariante da família:** o que é ACEITO nunca contém metacaractere de shell, separador
+/// de argumento, byte nulo, quebra de linha, nem começa por `-`.
+///
+/// **Por que como propriedade e não como lista de exemplos:** cada validador tem hoje o seu
+/// teste com os venenos que alguém lembrou. Esta versão afirma a regra sobre o corpus
+/// inteiro de uma vez — e vale automaticamente para qualquer entrada nova no corpus.
+///
+/// `valid_opcao` fica de fora do "não pode ter `=`" porque a forma dele **é** `Chave=valor`;
+/// o resto do contrato vale igual.
+#[test]
+fn o_que_passa_nunca_carrega_metacaractere() {
+    const PROIBIDOS: &[char] =
+        &[';', '&', '|', '`', '$', '>', '<', '\n', '\r', '\0', '\'', '"', '(', ')', ' ', '\t'];
+
+    for s in corpus_hostil() {
+        for (nome, aceito) in [
+            ("valid_alias", schematize::vps::registro::valid_alias(&s).is_ok()),
+            ("valid_host", schematize::vps::registro::valid_host(&s).is_ok()),
+            ("valid_opcao", schematize::vps::registro::valid_opcao(&s).is_ok()),
+            ("valid_home_remoto", schematize::vps::registro::valid_home_remoto(&s).is_ok()),
+            ("sshkeys::valid_name", schematize::sshkeys::valid_name(&s).is_ok()),
+        ] {
+            if !aceito {
+                continue;
+            }
+            for c in PROIBIDOS {
+                assert!(
+                    !s.contains(*c),
+                    "{nome} ACEITOU {s:?}, que contém {c:?} — isso vira argumento, caminho \
+                     ou comando no outro lado"
+                );
+            }
+            assert!(
+                !s.starts_with('-'),
+                "{nome} ACEITOU {s:?}, que começa por `-` e o `ssh` leria como flag"
+            );
+            assert!(
+                s.len() <= 256,
+                "{nome} ACEITOU {} bytes — sem teto, a mensagem de erro vira amplificação",
+                s.len()
+            );
+        }
+    }
+}
+
+/// **Invariante:** `resumir` limita a saída, e nunca cresce a entrada.
+///
+/// **Por que:** ele existe porque `alias inválido: {alias:?}` com 300 MB devolvia uma
+/// mensagem de 300 MB — validação virando amplificação. A propriedade é "a saída é curta",
+/// não "a saída é 120 caracteres em tal caso".
+#[test]
+fn resumir_nunca_amplifica() {
+    for s in corpus_hostil() {
+        let r = schematize::vps::registro::resumir(&s);
+        assert!(
+            r.chars().count() <= 200,
+            "resumir devolveu {} caracteres para uma entrada de {}",
+            r.chars().count(),
+            s.chars().count()
+        );
+    }
+}
