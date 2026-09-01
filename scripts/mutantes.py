@@ -62,6 +62,8 @@ MUTANTES = [
   'for ext in [] as [&str; 0] {', "resolucao de ssh.exe no Windows (D10)"),
  ("src/util.rs", '    if let Some(h) = userprofile {', '    if let Some(h) = None::<String> {',
   "fallback de HOME no Windows (D11)"),
+ ("src/vps/bootstrap.rs", "super::registro::valid_home_remoto(home)?;", "",
+  "a validacao do $HOME que o HOST informa (vira caminho no script de bootstrap)"),
  ("src/util.rs", "Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(String::new()),",
   "Err(_e) => Ok(String::new()),",
   "a distincao entre 'nao existe' e 'nao deu pra ler' (G1: erro de leitura apagava o arquivo)"),

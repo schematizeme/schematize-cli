@@ -180,7 +180,8 @@ fn d4_bootstrap_concorrente_nao_duplica_nem_perde_chave() {
     let agente = "ssh-ed25519 AAAAAGENTE agente@schematize";
     let v = vec![Verbo { nome: "deploy".into(), comando: "echo ok".into() }];
     let script =
-        script_de_instalacao(Fronteira::OpsShellUsuario, &v, agente, &home.to_string_lossy());
+        script_de_instalacao(Fronteira::OpsShellUsuario, &v, agente, &home.to_string_lossy())
+            .expect("$HOME de teste é válido");
 
     // Seis instalações simultâneas — antes deixavam SEIS linhas do agente.
     let filhos: Vec<_> = (0..6)

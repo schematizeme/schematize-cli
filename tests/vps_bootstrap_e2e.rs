@@ -54,7 +54,8 @@ fn o_script_de_instalacao_realmente_instala() {
         &catalogo(),
         pub_key,
         &home.to_string_lossy(),
-    );
+    )
+    .expect("$HOME de teste é válido");
 
     let (out, err, ok) = rodar(&script, &home);
     assert!(ok, "o script tem que rodar limpo.\nstdout: {out}\nstderr: {err}");
@@ -101,7 +102,8 @@ fn o_bootstrap_preserva_o_break_glass_e_e_idempotente() {
         &catalogo(),
         agente,
         &home.to_string_lossy(),
-    );
+    )
+    .expect("$HOME de teste é válido");
 
     for volta in 1..=2 {
         let (_, err, ok) = rodar(&script, &home);
@@ -131,7 +133,8 @@ fn o_shim_instalado_recusa_tudo_fora_do_catalogo() {
         &catalogo(),
         "ssh-ed25519 AAAA a@b",
         &home.to_string_lossy(),
-    );
+    )
+    .expect("$HOME de teste é válido");
     let (_, err, ok) = rodar(&script, &home);
     assert!(ok, "instalação falhou: {err}");
     let shim = home.join(".schematize/ops-shell");
