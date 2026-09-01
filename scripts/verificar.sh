@@ -46,6 +46,11 @@ etapa() {
 # concordar com o estilo da casa em vez do contrario (ver o arquivo). Divida paga, o gate
 # entra: a partir daqui formatacao e binaria, e ninguem discute virgula em review.
 etapa fmt     cargo fmt --check
+# O MESMO shellcheck que o CI roda. Ate 2026-09-01 esta verificacao so existia no CI, e o
+# gate local dizia VERDE sem nunca te-la rodado — foi assim que um SC2016 passou daqui e
+# reprovou la. Gate local que nao cobre o que o CI cobre e gate que ensina a confiar em
+# verde falso.
+etapa shellcheck sh scripts/shellcheck-shim.sh
 etapa shim    sh scripts/shim-portabilidade.sh
 etapa clippy  cargo clippy --all-targets -- -D warnings
 etapa testes  cargo test --all-targets --quiet

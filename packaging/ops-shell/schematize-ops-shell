@@ -56,6 +56,10 @@ recusar() {
         printf 'verbos disponíveis neste host:\n' >&2
         grep -v '^#' "$CATALOGO" 2>/dev/null | grep -v '^[[:space:]]*$' | cut -f1 | sed 's/^/  /' >&2
     fi
+    # As crases aqui sao TEXTO da mensagem de ajuda, nao substituicao de comando — e por
+    # isso a aspa simples esta certa: e ela que impede a expansao. O SC2016 avisa do caso
+    # oposto (quem QUERIA expandir e usou aspa simples por engano), que nao e este.
+    # shellcheck disable=SC2016
     printf 'para criar um verbo novo, registre-o no ops e rode `schematize vps bootstrap <alias>`.\n' >&2
     exit 126
 }
