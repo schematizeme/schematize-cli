@@ -253,31 +253,21 @@ fn plano_r2_break_glass_preservado() {
     assert!(b.contains("<<'__SCHEMATIZE_SHIM__'"), "o here-doc voltou a ser expansível");
 }
 
-/// Piso 10 — host fora do ar nunca derruba a GUI: I/O de rede só em thread.
-#[test]
-fn piso10_a_gui_nao_bloqueia_na_rede() {
-    let w = std::fs::read_to_string("../schematize_gui_slint/src/wire/vps.rs").expect("fiação");
-    let prod = w.split("#[cfg(test)]").next().unwrap_or("");
-    // Toda chamada de rede tem que estar dentro de `em_thread` ou de um `thread::spawn`.
-    for pesada in
-        ["vps::sondar(", "bootstrap::instalar(", "vps::descobrir_host_key(", "vps::executar("]
-    {
-        for (n, l) in prod.lines().enumerate() {
-            if !l.contains(pesada) {
-                continue;
-            }
-            // Procura para trás por um `spawn`/`em_thread` no mesmo bloco (janela de 30 linhas).
-            let ini = n.saturating_sub(30);
-            let contexto: String =
-                prod.lines().skip(ini).take(n - ini + 1).collect::<Vec<_>>().join("\n");
-            assert!(
-                contexto.contains("em_thread") || contexto.contains("thread::spawn"),
-                "wire/vps.rs:{}: `{pesada}` fora de thread — trava a janela",
-                n + 1
-            );
-        }
-    }
-}
+// Os dois testes que liam o fonte da GUI MUDARAM DE REPO (2026-09-01).
+//
+// `piso10_a_gui_nao_bloqueia_na_rede` e `p12_toctou_no_trust` (este em `vps_pentest.rs`)
+// asseveravam propriedades de `schematize_gui_slint/src/wire/vps.rs`, lido daqui por
+// caminho relativo (`../schematize_gui_slint/...`). Passavam na maquina de quem
+// desenvolve, com os dois repos lado a lado, e **falhavam sempre no CI**, onde so um repo
+// e clonado — foi o que reprovou o primeiro run verde deste workflow.
+//
+// Teste que nao consegue passar no CI e teste que ensina a ignorar o CI, ou que alguem
+// apaga. Foram pro repo dono do arquivo, no modulo de teste do proprio `wire/vps.rs`,
+// onde o fonte esta sempre presente. Nao foram enfraquecidos nem removidos.
+//
+// A licao geral: **teste nao atravessa fronteira de repo por caminho relativo.** O que
+// um repo pode afirmar sobre o outro e o CONTRATO que ele consome, nao o texto do fonte
+// alheio.
 
 /// A convenção "produção = tudo antes do primeiro `#[cfg(test)]`" tem que ser VERDADE.
 ///
@@ -420,6 +410,109 @@ fn ler_modificar_escrever_nunca_parte_de_vazio() {
         "ler-modificar-escrever partindo de `unwrap_or_default()`: uma falha de leitura vira \
          arquivo vazio e a escrita seguinte APAGA o conteúdo do usuário. Use \
          `util::ler_para_modificar`, que devolve vazio só quando o arquivo não existe:\n  {}",
+        violacoes.join("\n  ")
+    );
+}
+
+/// Nenhum teste pode ler arquivo FORA deste repositório.
+///
+/// **O quê:** varre `tests/**` e `src/**` e reprova qualquer caminho literal que comece com
+/// `../` — o jeito de alcançar um repo irmão a partir daqui.
+///
+/// **Onde / por quê:** dois testes deste repo liam o fonte da GUI em
+/// `../schematize_gui_slint/src/wire/vps.rs`. Passavam na máquina de quem desenvolve, com os
+/// dois repos lado a lado, e **falhavam sempre no CI**, onde só um repo é clonado. Foi o que
+/// reprovou o primeiro run do workflow recém-criado — o CI achou, no primeiro dia, um teste
+/// que nunca teve como passar nele.
+///
+/// Teste que não consegue passar no CI é teste que ensina a ignorar o CI, ou que alguém
+/// apaga. Os dois foram pro repo dono do arquivo, onde o fonte está sempre presente.
+///
+/// **A regra:** teste não atravessa fronteira de repo por caminho relativo. O que um repo
+/// pode afirmar sobre o outro é o CONTRATO que ele consome — o crate, a API, o schema —,
+/// nunca o texto do fonte alheio.
+#[test]
+fn nenhum_teste_le_fora_do_repo() {
+    /// Todo `.rs` sob `raiz`, recursivo.
+    fn fontes(raiz: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
+        let Ok(dir) = std::fs::read_dir(raiz) else { return };
+        for e in dir.flatten() {
+            let p = e.path();
+            if p.is_dir() {
+                fontes(&p, out);
+            } else if p.extension().and_then(|x| x.to_str()) == Some("rs") {
+                out.push(p);
+            }
+        }
+    }
+    let mut arquivos = Vec::new();
+    fontes(std::path::Path::new("tests"), &mut arquivos);
+    fontes(std::path::Path::new("src"), &mut arquivos);
+    arquivos.sort();
+
+    /// Normaliza `a/b/../c` sem tocar o disco, e diz se o caminho ESCAPA da raiz.
+    ///
+    /// **Onde:** o laço abaixo, uma vez por literal encontrado.
+    ///
+    /// **Por que resolver em vez de olhar o prefixo:** `../` sozinho não é defeito. Num
+    /// `include_str!` ele é relativo ao ARQUIVO, e `src/vps/bootstrap.rs` alcançando
+    /// `../../packaging/...` continua dentro deste repo — legítimo. O que não pode é o
+    /// caminho terminar FORA da raiz, porque aí só existe na máquina de quem desenvolve.
+    fn escapa(base: &std::path::Path, alvo: &str) -> bool {
+        let mut prof: i32 = base.components().count() as i32;
+        for c in std::path::Path::new(alvo).components() {
+            match c {
+                std::path::Component::ParentDir => prof -= 1,
+                std::path::Component::CurDir => {}
+                _ => prof += 1,
+            }
+            if prof < 0 {
+                return true;
+            }
+        }
+        false
+    }
+
+    // `include_str!`/`include_bytes!` resolvem contra o DIRETÓRIO DO ARQUIVO; leitura em
+    // tempo de execução resolve contra a raiz do crate. Bases diferentes, mesma pergunta.
+    const EMBUTIDOS: &[&str] = &["include_str!(", "include_bytes!("];
+    const LEITURAS: &[&str] =
+        &["read_to_string(", "read_dir(", "File::open(", "fs::read(", "fs::metadata("];
+
+    let mut violacoes = Vec::new();
+    for arq in &arquivos {
+        let src = std::fs::read_to_string(arq).unwrap();
+        for (i, l) in src.lines().enumerate() {
+            let trecho = l.trim();
+            // A própria explicação deste piso cita o caminho — em comentário.
+            if trecho.starts_with("//") {
+                continue;
+            }
+            let Some(depois) = l.split_once("\"..").map(|(_, d)| d) else { continue };
+            let Some(resto) = depois.split('"').next() else { continue };
+            let alvo = format!("..{resto}");
+
+            let embutido = EMBUTIDOS.iter().any(|f| l.contains(f));
+            let leitura = LEITURAS.iter().any(|f| l.contains(f));
+            if !embutido && !leitura {
+                continue; // literal `"../…"` como VETOR de path traversal: é teste, não leitura.
+            }
+            // Base: o diretório do arquivo (embutido) ou a raiz do crate (leitura).
+            let base = if embutido {
+                arq.parent().unwrap_or(std::path::Path::new(""))
+            } else {
+                std::path::Path::new("")
+            };
+            if escapa(base, &alvo) {
+                violacoes.push(format!("{}:{}: {trecho}", arq.display(), i + 1));
+            }
+        }
+    }
+    assert!(
+        violacoes.is_empty(),
+        "caminho pra fora do repo: no CI só ESTE repositório é clonado, então isto falha \
+         sempre lá e passa sempre aqui. Mova a asserção pro repo dono do arquivo, ou \
+         afirme sobre o CONTRATO consumido em vez do fonte alheio:\n  {}",
         violacoes.join("\n  ")
     );
 }
