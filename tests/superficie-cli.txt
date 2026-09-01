@@ -1,223 +1,328 @@
 CMD schematize
+  SOBRE Ecosystem manager for Claude — skills, overdev, and more (Linux-first).
 CMD schematize agent
+  SOBRE Resident agent: periodically checks and notifies (used by autostart)
 CMD schematize agents
+  SOBRE Orçamento de concorrência: quantos agents/subagents do Claude a máquina aguenta SEM travar (CPU/RAM/load, contando OUTRAS instâncias do claude na máquina). Persiste ~/.schematize/agents.json
   ARG json                 --json
   ARG split                --split
 CMD schematize archive
+  SOBRE Archive de evolução: materializa a estrutura do <projeto>_archive/, extrai o chat da sessão pro chats/ e gera o context_agent/#N.txt (contexto portável). Roda no dir do projeto
 CMD schematize autostart
+  SOBRE Bind the agent to the system (starts at login)
 CMD schematize autostart disable
+  SOBRE Disable and remove the autostart
 CMD schematize autostart enable
+  SOBRE Enable and start the agent (systemd --user + XDG autostart)
 CMD schematize blog
+  SOBRE Open the blog (blog.schematize.net) in the browser
 CMD schematize check
+  SOBRE Check for updates once (with --notify, fire a desktop notification)
   ARG notify               --notify
 CMD schematize db
+  SOBRE Database builder backend: introspect a DB, emit SQL/migration, or print the schema graph
 CMD schematize db graph
+  SOBRE Print the schema graph (nodes/edges: table = node, FK = edge) from a schema source
   ARG from                 --from
   ARG postgres             --postgres
   ARG sqlite               --sqlite
 CMD schematize db introspect
+  SOBRE Introspect a database (SQLite file or Postgres conn) and print a summary
   ARG json                 --json
   ARG postgres             --postgres
   ARG sqlite               --sqlite
 CMD schematize db sql
+  SOBRE Emit SQL (CREATE/ALTER/INDEX) — or a migration with --migration — from a schema source
   ARG from                 --from
   ARG migration            --migration
   ARG postgres             --postgres
   ARG sqlite               --sqlite
 CMD schematize debug
+  SOBRE Debug the updater/versioning; or --collect a shareable, secret-safe debug report
   ARG collect              --collect
   ARG online               --online
   ARG out                  --out
   ARG stdout               --stdout
 CMD schematize diagnostics
+  SOBRE Envia (OPT-IN) o relatório de diagnóstico REDIGIDO pro servidor (POST /diagnostics). Nada é enviado por padrão — só com este comando e após confirmar
   ARG yes                  --yes
 CMD schematize disco
+  SOBRE Inventário e limpeza do lixo recriável: artefato de build, cache de toolchain e camada de Docker — agrupado por DISCO (é o principal que costuma encher)
 CMD schematize disco clean
+  SOBRE Apaga os artefatos que casam com os filtros (mostra a lista antes)
   ARG min_dias             --min-dias
   ARG montagem             --montagem
   ARG tipo                 --tipo
   ARG yes                  --yes -y
 CMD schematize disco docker
+  SOBRE Uso e podas do Docker
   ARG podar                --podar
   ARG yes                  --yes -y
 CMD schematize disco list
+  SOBRE Lista o que dá pra recuperar, agrupado por DISCO e por tipo
   ARG min_dias             --min-dias
 CMD schematize doctor
+  SOBRE Diagnose the environment (add --fix to repair what's safe)
   ARG fix                  --fix
 CMD schematize env
+  SOBRE Dev environments: language runtimes (docker|mise|distro|official) + dev tools (claude|code|codex)
 CMD schematize env install
+  SOBRE Install a language runtime (via a method) OR a dev tool (claude|code|codex; --method ignored)
   ARG dry_run              --dry-run
   ARG lang                  OBRIGATORIO
   ARG method               --method
   ARG yes                  --yes
 CMD schematize env list
+  SOBRE List languages and dev tools, install paths available here, and install status
 CMD schematize env remove
+  SOBRE Remove a language environment (auto-detects the method) OR a dev tool (--method ignored)
   ARG dry_run              --dry-run
   ARG lang                  OBRIGATORIO
   ARG method               --method
 CMD schematize git
+  SOBRE Contas de git/GitHub, repositórios e o que ainda não saiu da máquina
 CMD schematize git accounts
+  SOBRE Lista as contas cadastradas
 CMD schematize git add
+  SOBRE Cadastra (ou substitui) uma conta
   ARG chave                --chave
   ARG email                --email OBRIGATORIO
   ARG rotulo                OBRIGATORIO
   ARG servico              --servico
   ARG usuario              --usuario OBRIGATORIO
 CMD schematize git detect
+  SOBRE DETECTA contas já presentes na máquina (`gh`, git config, ~/.ssh, e-mail dos repos) e mostra o que daria pra cadastrar. Só sugere; `--add` é que grava
   ARG add                  --add
 CMD schematize git log
+  SOBRE Commits do projeto atual, marcando os já enviados
   ARG limite               --limite
 CMD schematize git remove
+  SOBRE Remove uma conta pelo rótulo
   ARG rotulo                OBRIGATORIO
 CMD schematize git repos
+  SOBRE Lista os repositórios do serviço (via `gh`)
   ARG limite               --limite
   ARG rotulo               
 CMD schematize git ssh-config
+  SOBRE Escreve o alias SSH da conta no ~/.ssh/config
   ARG rotulo                OBRIGATORIO
 CMD schematize git status
+  SOBRE O que ainda NÃO saiu da máquina, projeto a projeto
 CMD schematize git use
+  SOBRE Aplica uma conta ao repositório do diretório atual
   ARG remoto               --remoto
   ARG rotulo                OBRIGATORIO
 CMD schematize git-log
+  SOBRE Show recent git commits, flagging which are pushed (● pushed / ○ local)
   ARG limit                --limit
 CMD schematize graph
+  SOBRE Graph tools (export the index graph, Obsidian-style)
 CMD schematize graph obsidian
+  SOBRE Export the index as an Obsidian vault (markdown + [[wikilinks]])
   ARG out                  --out
 CMD schematize gui
+  SOBRE Open the graphical window (same software as the CLI — just the GUI face)
 CMD schematize icon (oculto)
+  SOBRE Gera o ícone do app EM CÓDIGO (resiliente — sem rasterizar SVG). `--emit <png>` um tamanho; `--hicolor <dir>` a árvore freedesktop inteira (16..512). Usado pelo install.sh
   ARG emit                 --emit
   ARG hicolor              --hicolor
   ARG size                 --size
 CMD schematize install (oculto)
+  SOBRE (alias oculto de `skills install`)
   ARG all                  --all
   ARG names                 <valor>
   ARG with_recommended     --with-recommended
 CMD schematize lang
+  SOBRE Get/set the interface language (no args = show current; --list = all)
   ARG code                 
   ARG list                 --list
 CMD schematize list (oculto)
+  SOBRE (alias oculto de `skills list`)
 CMD schematize login
+  SOBRE Log in to the schematize platform via the browser (OAuth device flow)
 CMD schematize logout
+  SOBRE Log out (delete the local session)
 CMD schematize mcp
+  SOBRE MCP: expõe o gestor de VPS ao agente como tools tipadas (`mcp__schematize-vps__*`)
 CMD schematize mcp install
+  SOBRE Registra o servidor no `.mcp.json` do projeto e libera as tools no settings.json
   ARG dry_run              --dry-run
 CMD schematize mcp serve
+  SOBRE Roda o servidor (stdio, JSON-RPC). É o que o Claude Code invoca; raramente à mão
 CMD schematize mcp status
+  SOBRE Mostra o estado: servidor registrado? tools liberadas?
 CMD schematize mcp uninstall
+  SOBRE Remove o servidor do `.mcp.json` e as permissões do settings.json
 CMD schematize news
+  SOBRE Show the latest posts from blog.schematize.net
 CMD schematize notifications
+  SOBRE Show aggregated notifications (app update, blog posts, outdated skills), grouped by scope
   ARG concluir             --concluir
   ARG historico            --historico
   ARG lidas                --lidas
   ARG sync                 --sync
 CMD schematize open
+  SOBRE Open a resource in the browser: site | blog | github
   ARG target                OBRIGATORIO
 CMD schematize overdev
+  SOBRE Overdev mode — continuous dev until the checklist is done
 CMD schematize overdev add
+  SOBRE Add a demand to the inbox WITHOUT touching the checklist (safe while an agent runs)
   ARG texto                 <valor>
 CMD schematize overdev answer
+  SOBRE Answer a human item with text — this RELEASES the machine item it was blocking
   ARG alvo                  OBRIGATORIO
   ARG texto                 <valor>
 CMD schematize overdev caixa
+  SOBRE Inbox: list, organize a demand into items, or merge them into the checklist
 CMD schematize overdev caixa agente
+  SOBRE Open an agent in a terminal to organize the pending demands
 CMD schematize overdev caixa list
+  SOBRE Show what is captured and not yet in the checklist
 CMD schematize overdev caixa merge
+  SOBRE Merge every organized demand into the checklist (atomic, under lock)
 CMD schematize overdev caixa organizar
+  SOBRE Record the items an agent extracted from a demand (moves it to `processado`)
   ARG id                    OBRIGATORIO
   ARG itens                --item OBRIGATORIO
 CMD schematize overdev check
+  SOBRE (Stop hook) reject stopping while there is an open item
 CMD schematize overdev disable
+  SOBRE Remove the overdev hooks from settings.json
 CMD schematize overdev enable
+  SOBRE Register the hooks (Stop + AskUserQuestion veto) in settings.json
 CMD schematize overdev guard
+  SOBRE (PreToolUse hook) veto AskUserQuestion during overdev
 CMD schematize overdev history
+  SOBRE List the local DB snapshot history for this project (newest first)
   ARG limit                --limit
 CMD schematize overdev hold
+  SOBRE Mark the first open item matching the text as on-hold
   ARG texto                 <valor>
 CMD schematize overdev human
+  SOBRE Human closes a `- [H ]` item → `- [H x]`: by text and/or `--done <n>`
   ARG done                 --done
   ARG texto                 <valor>
 CMD schematize overdev index
+  SOBRE Inject `/eng-index` into a `claude` session to (re)index the project
 CMD schematize overdev load
+  SOBRE Inject `/eng-load` into a `claude` session to load the engineering precepts
 CMD schematize overdev log
+  SOBRE Print the completion log (HH:MM:SS local + item) from .schematize/overdev/completions.json
 CMD schematize overdev note
+  SOBRE Attach a human note (correction prompt / per-task point) in .schematize/overdev/NOTAS.md
   ARG kind                 --kind
   ARG texto                 <valor>
 CMD schematize overdev park
+  SOBRE Park a question (log it in the base txt) and mark the item on-hold
   ARG item                  OBRIGATORIO
   ARG pergunta              <valor>
 CMD schematize overdev refuse
+  SOBRE Refuse a human item — the machine item it blocked is CANCELLED, not resumed
   ARG alvo                  OBRIGATORIO
   ARG texto                 <valor>
 CMD schematize overdev restore
+  SOBRE Restore a snapshot (by id) back to its original path
   ARG id                    OBRIGATORIO
 CMD schematize overdev run
+  SOBRE Run overdev with an attached `claude` agent in a PTY (monitors + auto-continue)
   ARG max                  --max
   ARG yes                  --yes
 CMD schematize overdev snapshot
+  SOBRE Snapshot the `.schematize/overdev/` artifacts into the local DB (versioned backup)
 CMD schematize overdev split
+  SOBRE SPLIT do checklist em K arquivos `checklist/part-N.md` (pastas multi-arquivo) pra rodar multiagents. Respeita o governador (`schematize agents`): mostra quantos subagents por claude e recusa passar do teto seguro. `--dispatch` lança os K claudes (cada um no seu part)
   ARG dispatch             --dispatch
   ARG force                --force
   ARG k                     OBRIGATORIO
 CMD schematize overdev start
+  SOBRE Start a run in the current directory: `schematize overdev start "<goal>"`
   ARG max                  --max
   ARG objetivo              <valor>
 CMD schematize overdev status
+  SOBRE Show the run state
 CMD schematize overdev stop
+  SOBRE End the run (hooks become inert again)
 CMD schematize overdev supervise
+  SOBRE SUPERVISIONA o run deste diretório: se o agente morrer (contexto/crash/janela fechada) com item de máquina aberto, RELANÇA. É a rede que o Stop hook não cobre — ele só age quando o agente TENTA encerrar o turno, não quando o processo simplesmente acaba
   ARG max                  --max
 CMD schematize overdev terminal
+  SOBRE Abre um TERMINAL interativo já neste projeto, com o `claude` pronto e o bypass de permissões ligado. Quando o claude sai, o shell continua aberto na pasta certa
 CMD schematize panel
+  SOBRE Open the auxiliary HTML panel (overdev + index graph) in the browser
 CMD schematize projects
+  SOBRE Projects: list detected/pinned projects, pin/unpin, or drop a `.schematize` marker
 CMD schematize projects add
+  SOBRE Pin a folder as a first-class project (always listed, even without a git marker)
   ARG path                  OBRIGATORIO
 CMD schematize projects list
+  SOBRE List every project (pinned + detected from the dev dirs), flagging the pinned
 CMD schematize projects mark
+  SOBRE Drop a `.schematize` marker file in the folder (default: cwd) → a project that stops the scan from descending (turns an umbrella into ONE project)
   ARG path                 
 CMD schematize projects remove
+  SOBRE Unpin a previously pinned folder
   ARG path                  OBRIGATORIO
 CMD schematize projects unmark
+  SOBRE Remove the `.schematize` marker from the folder (default: cwd)
   ARG path                 
 CMD schematize remove (oculto)
+  SOBRE (alias oculto de `skills remove`)
   ARG name                  OBRIGATORIO
 CMD schematize skills
+  SOBRE Manage skills (a FEATURE of the app): install | update | remove | list
 CMD schematize skills applied
+  SOBRE Which skill VERSION shaped THIS project, and which fell behind the installed one
   ARG mark                 --mark
 CMD schematize skills compare
+  SOBRE Compare a forked skill against the latest official (files changed + unified diff)
   ARG slug                  OBRIGATORIO
 CMD schematize skills edit
+  SOBRE Edit an installed skill: --list its files, or --file <rel> to print one (or set it)
   ARG file                 --file
   ARG list                 --list
   ARG set_from             --set-from
   ARG slug                  OBRIGATORIO
 CMD schematize skills fork
+  SOBRE Fork an OFFICIAL skill (stash its base) so it can be edited without losing the original
   ARG slug                  OBRIGATORIO
 CMD schematize skills install
+  SOBRE Install one or more skills (or all with --all) from the latest release
   ARG all                  --all
   ARG names                 <valor>
   ARG with_recommended     --with-recommended
 CMD schematize skills list
+  SOBRE List skills: installed vs latest available
 CMD schematize skills new
+  SOBRE Create a new skill scaffold in ~/.claude/skills/schematize-<slug>/
   ARG desc                 --desc
   ARG force                --force
   ARG name                 --name
   ARG slug                  OBRIGATORIO
 CMD schematize skills remove
+  SOBRE Remove an installed skill
   ARG name                  OBRIGATORIO
 CMD schematize skills rerun
+  SOBRE Re-run a skill over this project to refresh its precepts (opens an agent)
   ARG slug                 
 CMD schematize skills update
+  SOBRE Update installed skills to latest (all if no name/--all)
   ARG all                  --all
   ARG names                 <valor>
 CMD schematize ssh
+  SOBRE SSH keys: generate, list, export and manage keys in ~/.ssh (never leaks the private key)
 CMD schematize ssh authorize
+  SOBRE Install the PUBLIC key into the remote host's ~/.ssh/authorized_keys (bootstrap access). Requires you already have access to the host (another key/agent/password)
   ARG name                  OBRIGATORIO
   ARG target                OBRIGATORIO
 CMD schematize ssh export
+  SOBRE Print the PUBLIC key (paste it on GitHub/servers); --copy sends it to the clipboard. With --bitwarden, export the key to Bitwarden instead (item in the vault if `bw` is unlocked, else a mode-600 import JSON) — the PRIVATE key never hits stdout
   ARG bitwarden            --bitwarden
   ARG copy                 --copy
   ARG name                  OBRIGATORIO
   ARG out                  --out
 CMD schematize ssh gen
+  SOBRE Generate a key pair (ed25519 by default; --rsa = rsa 4096) into ~/.ssh/<name>
   ARG agent                --agent
   ARG comment              --comment
   ARG force                --force
@@ -225,22 +330,31 @@ CMD schematize ssh gen
   ARG name                  OBRIGATORIO
   ARG rsa                  --rsa
 CMD schematize ssh github
+  SOBRE Add an existing PUBLIC key to your GitHub account (gh must be authenticated)
   ARG name                  OBRIGATORIO
 CMD schematize ssh list
+  SOBRE List keys in ~/.ssh (name, type, fingerprint, comment). Never reads the private key
 CMD schematize ssh rm
+  SOBRE Remove a key pair (private + public) with confirmation
   ARG name                  OBRIGATORIO
 CMD schematize ssh run
+  SOBRE Deploy WITHOUT pasting the key: `ssh -i <managed key> user@host [-- <remote cmd...>]`. Inherits the terminal, never prints the private key. No command = interactive session. Ex.: schematize ssh run deploy root@host -- 'cd /srv/app && git pull && ./deploy.sh'
   ARG command               <valor>
   ARG name                  OBRIGATORIO
   ARG target                OBRIGATORIO
 CMD schematize status
+  SOBRE Overview dashboard: versions, agent, overdev, language, links
 CMD schematize update (oculto)
+  SOBRE (alias oculto de `skills update`)
   ARG all                  --all
   ARG names                 <valor>
 CMD schematize upgrade
+  SOBRE Update schematize itself — atualiza o próprio schematize (o APP, o binário), não as skills
   ARG force                --force
 CMD schematize vps
+  SOBRE VPS: registro de hosts + execução remota AUDITADA (o agente nunca vê a chave). A política do cliente é UX; a fronteira é o forced command no servidor (ADR-0005)
 CMD schematize vps add
+  SOBRE Registra um host. Nasce em `prd` + `readonly` (o mais restritivo) — ajuste com `policy`
   ARG alias                 OBRIGATORIO
   ARG env                  --env
   ARG host                 --host OBRIGATORIO
@@ -249,37 +363,50 @@ CMD schematize vps add
   ARG port                 --port
   ARG user                 --user OBRIGATORIO
 CMD schematize vps authorize
+  SOBRE Instala a chave PÚBLICA do perfil no authorized_keys do host (bootstrap de acesso)
   ARG alias                 OBRIGATORIO
 CMD schematize vps bootstrap
+  SOBRE Instala a MELHOR fronteira que o host aguentar (com sudo: shim do sistema; sem sudo: shim no home; host gerenciado: explica por que não dá e segue com a política do cliente)
   ARG alias                 OBRIGATORIO
 CMD schematize vps exec
+  SOBRE Roda um comando no host, com política e auditoria. Ex.: schematize vps exec srv-01 -- systemctl status app
   ARG alias                 OBRIGATORIO
   ARG comando               <valor>
   ARG confirmar            --confirmar
 CMD schematize vps guard (oculto)
+  SOBRE (hook PreToolUse) veredito sobre uma tool use — lê o evento no stdin
 CMD schematize vps hooks
+  SOBRE Liga/desliga o hook que barra SSH cru e leitura de chave privada no agente
   ARG off                  --off
   ARG on                   --on
 CMD schematize vps list
+  SOBRE Lista os hosts registrados, com ambiente, modo e se têm fronteira server-side
 CMD schematize vps logs
+  SOBRE Mostra o que já rodou (alias vazio = todos os hosts)
   ARG alias                
   ARG n                    --n
   ARG transcript           --transcript
 CMD schematize vps policy
+  SOBRE Ajusta a política de um host: modo e ambiente
   ARG alias                 OBRIGATORIO
   ARG env                  --env
   ARG modo                 --modo
 CMD schematize vps probe
+  SOBRE Pergunta ao host que nível de fronteira ele aguenta (somente leitura, nada é instalado)
   ARG alias                 OBRIGATORIO
 CMD schematize vps rm
+  SOBRE Remove um host do registro. A trilha de auditoria dele PERMANECE
   ARG alias                 OBRIGATORIO
 CMD schematize vps trust
+  SOBRE Mostra a fingerprint da host key e, com --sim, passa a confiar nela (fim do TOFU cego)
   ARG alias                 OBRIGATORIO
   ARG sim                  --sim
 CMD schematize vps verbs
+  SOBRE Catálogo de verbos do host — o vocabulário que o agente pode falar
   ARG add                  --add
   ARG alias                 OBRIGATORIO
   ARG cmd                  --cmd
   ARG rm                   --rm
   ARG seed                 --seed
 CMD schematize whoami
+  SOBRE Show who is logged in (the account subject)

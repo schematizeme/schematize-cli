@@ -559,45 +559,50 @@ def kebab(v: str) -> str:
 
 
 def clap_entrypoints(repo: str):
-    """Superficie de CLI: variantes dos enums `#[derive(Subcommand)]` com seu doc.
+    """Superficie de CLI, lida do SNAPSHOT gerado pelo proprio clap.
 
-    Por que: no CLI o "entrypoint" que interessa ao grafo global nao e a `fn main`, e
-    o SUBCOMANDO que o usuario digita. Aliases ocultos (`hide = true`) ficam de fora —
-    sao compat, nao superficie.
+    De onde vem: `tests/superficie-cli.txt`, escrito por `superficie_da_cli_nao_mudou`
+    percorrendo a arvore de `clap::Command`. Pra onde vai: os entrypoints do grafo global.
+
+    POR QUE NAO PARSEIA MAIS O FONTE
+    --------------------------------
+    A versao anterior lia `src/cli/args.rs` com regex e capturava **10 de 126 comandos**,
+    com a descricao ERRADA em varios (`schematize archive` aparecia como "Envia o relatorio
+    de diagnostico"). Duas falhas somadas:
+
+    1. O `depth` era atualizado com a propria linha da variante, entao `Skills {` ja subia
+       pra 2 antes do teste `depth == 1`. So variantes SEM corpo (`Archive,`) casavam — e
+       nenhum enum aninhado (`SkillsCmd`, `VpsCmd`, ...) era visitado.
+    2. O acumulador `doc` nao era limpo nas variantes puladas, entao a variante seguinte
+       herdava a descricao da anterior.
+
+    Ninguem percebeu porque o indice nao tinha como se conferir: 10 linhas plausiveis num
+    arquivo de milhares. O corte do `args.rs` em submodulos levou de 10 pra 0 e SO ENTAO o
+    buraco apareceu — a falha total foi mais honesta que a parcial.
+
+    Ler o snapshot troca uma heuristica sobre texto Rust por um artefato que o clap gerou de
+    si mesmo: nao ha o que interpretar errado, e o `cargo test` garante que ele esta atual.
     """
-    args = ROOT / repo / 'src' / 'cli' / 'args.rs'
-    if not args.is_file():
+    snap = ROOT / repo / 'tests' / 'superficie-cli.txt'
+    if not snap.is_file():
         return []
-    src = args.read_text(encoding='utf-8', errors='replace')
-    lines = src.split('\n')
-    out, in_enum, depth, hidden, doc = [], False, 0, False, []
-    for i, ln in enumerate(lines):
-        st = ln.strip()
-        if re.match(r'^(pub(\([^)]*\))?\s+)?enum\s+Cmd\s*\{', st):
-            in_enum, depth = True, 1
-            continue
-        if not in_enum:
-            continue
-        depth += ln.count('{') - ln.count('}')
-        if depth <= 0:
-            break
-        if st.startswith('///'):
-            doc.append(st[3:].strip()); continue
-        if 'hide = true' in st:
-            hidden = True; continue
-        if st.startswith('#['):
-            continue
-        m = re.match(r'^([A-Z][A-Za-z0-9]*)\s*[\{\(,]', st)
-        if m and depth == 1:
-            if not hidden:
-                out.append(dict(name=f'schematize {kebab(m.group(1))}',
-                                what=first_sentence(doc) or kebab(m.group(1)),
-                                loc=f'{repo}/src/cli/args.rs:{i + 1}'))
-            doc, hidden = [], False
-        elif st.startswith('//'):
-            continue
+    out, atual = [], None
+    for i, ln in enumerate(snap.read_text(encoding='utf-8', errors='replace').split('\n')):
+        if ln.startswith('CMD '):
+            corpo = ln[4:]
+            oculto = corpo.endswith(' (oculto)')
+            if oculto:
+                corpo = corpo[: -len(' (oculto)')]
+            nome = corpo.split(' aliases=[')[0].strip()
+            # Aliases ocultos sao compat, nao superficie — mesma regra de antes.
+            atual = None if oculto else dict(name=nome, what=nome,
+                                             loc=f'{repo}/tests/superficie-cli.txt:{i + 1}')
+            if atual:
+                out.append(atual)
+        elif ln.strip().startswith('SOBRE ') and atual is not None:
+            atual['what'] = first_sentence([ln.strip()[6:]]) or atual['what']
+            atual = None
     return out
-
 
 def entrypoints(g):
     """Superficie publica do servico — o que aparece como no no grafo global."""

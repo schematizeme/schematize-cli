@@ -282,6 +282,13 @@ mod tests {
             },
             if c.is_hide_set() { " (oculto)" } else { "" }
         ));
+        // `SOBRE` é a descrição — vai pro arquivo (é dela que o índice de funcionalidades
+        // se alimenta) mas FICA DE FORA da comparação: prosa muda em revisão de texto e não
+        // é contrato. Quem quebra script é a linha `CMD`/`ARG`, não o `about`.
+        if let Some(sobre) = c.get_about() {
+            let t = sobre.to_string();
+            out.push(format!("  SOBRE {}", t.lines().next().unwrap_or("").trim()));
+        }
 
         let mut args: Vec<String> = c
             .get_arguments()
@@ -332,11 +339,21 @@ mod tests {
             "tests/superficie-cli.txt ausente — gere com \
              SCHEMATIZE_REGRAVA_SUPERFICIE=1 cargo test superficie_da_cli",
         );
-        if atual == esperado {
+        // A ASSERÇÃO é só sobre o contrato: `CMD` e `ARG`. As linhas `SOBRE` viajam no
+        // arquivo pra alimentar o índice de funcionalidades, e mudam livremente com revisão
+        // de prosa — descrição não quebra o script de ninguém.
+        let contrato = |t: &str| -> Vec<String> {
+            t.lines().filter(|l| !l.trim_start().starts_with("SOBRE ")).map(String::from).collect()
+        };
+        if contrato(&atual) == contrato(&esperado) {
+            // Só a prosa mudou: regrava sem reprovar.
+            if atual != esperado {
+                std::fs::write(snap, &atual).expect("regravar a prosa do snapshot");
+            }
             return;
         }
         // Diff legível: a primeira divergência é o que a pessoa precisa ver.
-        let (a, e): (Vec<_>, Vec<_>) = (atual.lines().collect(), esperado.lines().collect());
+        let (a, e) = (contrato(&atual), contrato(&esperado));
         let sumiram: Vec<_> = e.iter().filter(|l| !a.contains(l)).collect();
         let surgiram: Vec<_> = a.iter().filter(|l| !e.contains(l)).collect();
         panic!(
