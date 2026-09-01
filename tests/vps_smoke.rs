@@ -55,33 +55,59 @@ fn smoke_do_gestor_de_vps() {
     }
 
     // --- 2. registro: o host nasce no default MAIS RESTRITIVO ---------------------------
-    let (add, ok) = vps(&db, &["add", "srv-01", "--host", "10.0.0.5", "--user", "deploy", "--key", "id_ed25519", "--env", "hml"]);
+    let (add, ok) = vps(
+        &db,
+        &[
+            "add",
+            "srv-01",
+            "--host",
+            "10.0.0.5",
+            "--user",
+            "deploy",
+            "--key",
+            "id_ed25519",
+            "--env",
+            "hml",
+        ],
+    );
     assert!(ok, "add falhou:\n{add}");
     assert!(add.contains("readonly"), "o host tem que nascer readonly:\n{add}");
     assert!(add.contains("vps trust"), "o add tem que ensinar o próximo passo:\n{add}");
 
     let (list, ok) = vps(&db, &["list"]);
     assert!(ok, "list falhou:\n{list}");
-    assert!(list.contains("srv-01") && list.contains("deploy@10.0.0.5:22"), "shape da listagem:\n{list}");
+    assert!(
+        list.contains("srv-01") && list.contains("deploy@10.0.0.5:22"),
+        "shape da listagem:\n{list}"
+    );
     // O aviso que o ADR-0005 exige: host sem shim não tem fronteira server-side.
     assert!(list.contains("SEM"), "host sem shim tem que aparecer marcado:\n{list}");
 
     // --- 3. host não confiado não conecta (fim do TOFU cego) -----------------------------
     let (r, ok) = vps(&db, &["exec", "srv-01", "--", "uptime"]);
     assert!(!ok, "host não confiado NÃO pode sair 0:\n{r}");
-    assert!(r.contains("não confiado") && r.contains("vps trust"), "erro tem que ser acionável:\n{r}");
+    assert!(
+        r.contains("não confiado") && r.contains("vps trust"),
+        "erro tem que ser acionável:\n{r}"
+    );
 
     // --- 4. comando catastrófico é recusado antes de qualquer rede -----------------------
     let (r, ok) = vps(&db, &["exec", "srv-01", "--", "rm", "-rf", "/"]);
     assert!(!ok, "catastrófico NÃO pode sair 0:\n{r}");
     assert!(r.contains("recusado pela política"), "shape do erro de política:\n{r}");
     // ASSERTION NEGATIVA: a mensagem não pode ser a de host não confiado — a política vem ANTES.
-    assert!(!r.contains("não confiado"), "a política tem que barrar antes de tentar conectar:\n{r}");
+    assert!(
+        !r.contains("não confiado"),
+        "a política tem que barrar antes de tentar conectar:\n{r}"
+    );
 
     // --- 5. a tentativa recusada ENTRA na trilha ----------------------------------------
     let (logs, ok) = vps(&db, &["logs", "srv-01"]);
     assert!(ok, "logs falhou:\n{logs}");
-    assert!(logs.contains("deny") && logs.contains("rm -rf /"), "a recusa tem que estar na trilha:\n{logs}");
+    assert!(
+        logs.contains("deny") && logs.contains("rm -rf /"),
+        "a recusa tem que estar na trilha:\n{logs}"
+    );
     assert!(logs.contains("append-only"), "o rodapé declara a natureza da trilha:\n{logs}");
 
     // --- 6. produção pede confirmação até pro comando mais inofensivo --------------------
@@ -89,7 +115,10 @@ fn smoke_do_gestor_de_vps() {
     assert!(ok);
     let (r, ok) = vps(&db, &["exec", "srv-01", "--", "uptime"]);
     assert!(!ok, "prd sem confirmação NÃO pode sair 0:\n{r}");
-    assert!(r.contains("confirmação humana") && r.contains("--confirmar"), "shape do gate de prd:\n{r}");
+    assert!(
+        r.contains("confirmação humana") && r.contains("--confirmar"),
+        "shape do gate de prd:\n{r}"
+    );
 
     // --- 7. confirmar NÃO é --force: um Deny continua Deny -------------------------------
     let (r, ok) = vps(&db, &["exec", "srv-01", "--confirmar", "--", "rm", "-rf", "/"]);
@@ -99,7 +128,10 @@ fn smoke_do_gestor_de_vps() {
     // --- 8. host inexistente dá erro que ENSINA -----------------------------------------
     let (r, ok) = vps(&db, &["exec", "nao-existe", "--", "uptime"]);
     assert!(!ok);
-    assert!(r.contains("vps list") && r.contains("vps add"), "erro tem que ensinar as duas saídas:\n{r}");
+    assert!(
+        r.contains("vps list") && r.contains("vps add"),
+        "erro tem que ensinar as duas saídas:\n{r}"
+    );
 
     let _ = std::fs::remove_file(&db);
 }
@@ -122,6 +154,9 @@ fn self_check_o_smoke_enxerga_falha() {
 
     // E o inverso: um caminho que sabidamente funciona TEM que ser visto como sucesso.
     let (saida, ok) = vps(&db, &["--help"]);
-    assert!(ok && !saida.is_empty(), "o smoke precisa distinguir sucesso de falha, não negar sempre");
+    assert!(
+        ok && !saida.is_empty(),
+        "o smoke precisa distinguir sucesso de falha, não negar sempre"
+    );
     let _ = std::fs::remove_file(&db);
 }

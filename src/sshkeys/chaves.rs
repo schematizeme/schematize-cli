@@ -70,7 +70,8 @@ pub(crate) fn ensure_ssh_dir() -> Result<PathBuf, String> {
 /// Valida o nome da chave (allow-list). Falha fechada: só `[A-Za-z0-9._-]`, começando
 /// por alfanumérico, sem `..`, sem separador de caminho — o par NUNCA escapa de `~/.ssh`.
 pub fn valid_name(name: &str) -> Result<(), String> {
-    let bad = || Err(format!("nome de chave inválido: {name:?} (use letras, números, '.', '_' ou '-')"));
+    let bad =
+        || Err(format!("nome de chave inválido: {name:?} (use letras, números, '.', '_' ou '-')"));
     if name.is_empty() || name.len() > 64 {
         return bad();
     }

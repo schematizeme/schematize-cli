@@ -31,8 +31,8 @@ use crate::overdev;
 mod lancador;
 mod prompts;
 pub use lancador::*;
-pub use prompts::*;
 use portable_pty::{native_pty_system, Child, CommandBuilder, MasterPty, PtySize};
+pub use prompts::*;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -132,10 +132,8 @@ impl AgentRunner for ClaudeRunner {
             }
             cmd.env("PATH", parts.join(":"));
         }
-        let child = pair
-            .slave
-            .spawn_command(cmd)
-            .map_err(|e| format!("falha ao spawnar `claude`: {e}"))?;
+        let child =
+            pair.slave.spawn_command(cmd).map_err(|e| format!("falha ao spawnar `claude`: {e}"))?;
         // Fecha o lado slave no processo pai: assim o reader recebe EOF quando o
         // agente termina (base pra `is_alive`/fim do loop).
         drop(pair.slave);
@@ -280,7 +278,12 @@ pub fn run_attached(project: &Path, runner: &dyn AgentRunner, max: u64) -> Resul
                 let _ = out.write_all(more.as_bytes());
                 let _ = out.flush();
             }
-            println!("\n[schematize] o agente `{}` encerrou (open={}, mode={}).", runner.name(), prog.open, prog.mode);
+            println!(
+                "\n[schematize] o agente `{}` encerrou (open={}, mode={}).",
+                runner.name(),
+                prog.open,
+                prog.mode
+            );
             break;
         }
 
@@ -314,7 +317,10 @@ pub fn run_attached(project: &Path, runner: &dyn AgentRunner, max: u64) -> Resul
 fn print_summary(project: &Path) {
     let p = overdev::progress_at(project);
     println!("\n===== resumo do run =====");
-    println!("feitos: {}  | abertos(máquina): {}  | on-hold: {}  | humanos abertos: {}", p.done, p.open, p.hold, p.human);
+    println!(
+        "feitos: {}  | abertos(máquina): {}  | on-hold: {}  | humanos abertos: {}",
+        p.done, p.open, p.hold, p.human
+    );
     println!("ciclos: {} / max {}", p.iterations, p.max_iters);
     let perguntas = project.join("PERGUNTAS-OVERDEV.txt");
     if let Ok(q) = std::fs::read_to_string(&perguntas) {
@@ -493,4 +499,3 @@ mod tests {
         let _ = std::fs::remove_dir_all(&od);
     }
 }
-

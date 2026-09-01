@@ -5,10 +5,7 @@ use super::*;
 
 /// Imprime o plano de uma LINGUAGEM (título + passos).
 pub(crate) fn print_plan(env: &Env, method: Method, steps: &[Step]) {
-    println!(
-        "{}",
-        tf("env.plan_title", &[("lang", env.display), ("method", method.slug())])
-    );
+    println!("{}", tf("env.plan_title", &[("lang", env.display), ("method", method.slug())]));
     print_steps(steps);
 }
 
@@ -64,7 +61,12 @@ pub enum PlanAction {
 
 /// Núcleo testável da execução: decide e roda os passos via o runner injetado.
 /// Com `dry_run` NUNCA chama o runner; sem `consent` também não. Retorna o que ocorreu.
-pub fn run_steps<R>(steps: &[Step], dry_run: bool, consent: bool, mut run: R) -> Result<PlanAction, String>
+pub fn run_steps<R>(
+    steps: &[Step],
+    dry_run: bool,
+    consent: bool,
+    mut run: R,
+) -> Result<PlanAction, String>
 where
     R: FnMut(&Step) -> Result<(), String>,
 {
@@ -91,10 +93,7 @@ pub(crate) fn exec_step(s: &Step) -> Result<(), String> {
 /// Imprime como USAR a imagem docker recém-baixada (docker run + snippet devcontainer).
 pub(crate) fn print_docker_usage(env: &Env, img: &str) {
     println!("{}", t("env.docker_usage"));
-    println!(
-        "    $ docker run --rm -it -v \"$PWD\":/work -w /work {img} {}",
-        env.bin
-    );
+    println!("    $ docker run --rm -it -v \"$PWD\":/work -w /work {img} {}", env.bin);
     println!("    .devcontainer/devcontainer.json:");
     println!("      {{ \"image\": \"{img}\" }}");
 }

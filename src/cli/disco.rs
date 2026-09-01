@@ -43,13 +43,21 @@ fn listar(min_dias: u64) -> Result<(), String> {
 
     println!("\n\x1b[1mMAIORES\x1b[0m");
     for a in achados.iter().take(15) {
-        println!("  {:>10}  {:<16} {} dias  {}", legivel(a.bytes), a.tipo.rotulo(), a.dias_parado, a.caminho.display());
+        println!(
+            "  {:>10}  {:<16} {} dias  {}",
+            legivel(a.bytes),
+            a.tipo.rotulo(),
+            a.dias_parado,
+            a.caminho.display()
+        );
     }
 
     let total: u64 = achados.iter().map(|a| a.bytes).sum();
     println!("\ntotal recuperável nos projetos: \x1b[1m{}\x1b[0m", legivel(total));
     imprime_docker();
-    println!("\nlimpar: `schematize disco clean --min-dias 30`   (docker: `schematize disco docker`)");
+    println!(
+        "\nlimpar: `schematize disco clean --min-dias 30`   (docker: `schematize disco docker`)"
+    );
     Ok(())
 }
 
@@ -63,14 +71,24 @@ fn imprime_docker() {
     println!("\n\x1b[1mDOCKER\x1b[0m");
     let mut rec = 0u64;
     for c in &uso {
-        println!("  {:>10}  {:<16} (recuperável: {})", legivel(c.bytes), c.tipo, legivel(c.recuperavel));
+        println!(
+            "  {:>10}  {:<16} (recuperável: {})",
+            legivel(c.bytes),
+            c.tipo,
+            legivel(c.recuperavel)
+        );
         rec += c.recuperavel;
     }
     println!("  recuperável no docker: \x1b[1m{}\x1b[0m", legivel(rec));
 }
 
 /// Apaga os achados que casam com os filtros. Mostra a lista ANTES e pede confirmação.
-fn limpar(min_dias: u64, tipo: Option<String>, montagem: Option<String>, yes: bool) -> Result<(), String> {
+fn limpar(
+    min_dias: u64,
+    tipo: Option<String>,
+    montagem: Option<String>,
+    yes: bool,
+) -> Result<(), String> {
     let devs = config::dev_dirs();
     let alvos: Vec<_> = disco::inventario(&devs, MINIMO)
         .into_iter()
@@ -86,7 +104,13 @@ fn limpar(min_dias: u64, tipo: Option<String>, montagem: Option<String>, yes: bo
     let total: u64 = alvos.iter().map(|a| a.bytes).sum();
     println!("vou apagar {} item(ns), liberando ~{}:", alvos.len(), legivel(total));
     for a in &alvos {
-        println!("  {:>10}  {:<16} {}  \x1b[2m({})\x1b[0m", legivel(a.bytes), a.tipo.rotulo(), a.caminho.display(), a.refaz);
+        println!(
+            "  {:>10}  {:<16} {}  \x1b[2m({})\x1b[0m",
+            legivel(a.bytes),
+            a.tipo.rotulo(),
+            a.caminho.display(),
+            a.refaz
+        );
     }
     if !yes && !confirma("apagar? [s/N] ") {
         println!("cancelado.");

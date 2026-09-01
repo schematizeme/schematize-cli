@@ -85,7 +85,8 @@ pub(crate) fn parse_edge(l: &str) -> Option<(String, String, Option<String>)> {
     // acaso tinha uma seta. Um id de nó não carrega crase, `#` nem travessão: o `—` é
     // justamente o separador "nome — descrição" do formato, então vê-lo aqui significa
     // que a descrição vazou pra dentro do nó.
-    let residuo = |s: &str| s.contains('`') || s.contains('—') || s.starts_with('#') || s.starts_with('|');
+    let residuo =
+        |s: &str| s.contains('`') || s.contains('—') || s.starts_with('#') || s.starts_with('|');
     if residuo(&a) || residuo(&b) {
         return None;
     }
@@ -222,7 +223,8 @@ pub fn parse_graph_files(files: &[PathBuf]) -> (Vec<Node>, Vec<Edge>) {
                 let l = line.trim();
                 // Arestas: linhas de adjacência/mermaid (ASCII `->`/`-->` OU unicode `→`/`⟶`/`⇒`) —
                 // nunca linhas de tabela (`|`).
-                let has_arrow = l.contains("->") || l.contains('→') || l.contains('⟶') || l.contains('⇒');
+                let has_arrow =
+                    l.contains("->") || l.contains('→') || l.contains('⟶') || l.contains('⇒');
                 if has_arrow && !l.starts_with('|') {
                     if let Some((a, b, lab)) = parse_edge(l) {
                         ids.insert(a.clone());
@@ -283,10 +285,9 @@ pub(crate) fn parse_desc_row(l: &str) -> Option<(String, String)> {
     {
         return None;
     }
-    let desc = cells[1..]
-        .iter()
-        .map(|c| c.trim_matches('`').trim())
-        .find(|c| !c.is_empty() && !looks_like_loc(c) && !c.starts_with("---") && !c.starts_with(":--"))?;
+    let desc = cells[1..].iter().map(|c| c.trim_matches('`').trim()).find(|c| {
+        !c.is_empty() && !looks_like_loc(c) && !c.starts_with("---") && !c.starts_with(":--")
+    })?;
     if desc.is_empty() || desc.len() > 240 {
         return None;
     }

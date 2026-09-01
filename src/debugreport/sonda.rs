@@ -108,7 +108,9 @@ pub(crate) fn os_release() -> (String, String) {
 
 /// libfontconfig presente? (ldconfig -p, ou caminhos comuns.)
 pub(crate) fn fontconfig_present() -> String {
-    if let Ok(out) = util::run("bash", &["-lc", "ldconfig -p 2>/dev/null | grep -i libfontconfig || true"]) {
+    if let Ok(out) =
+        util::run("bash", &["-lc", "ldconfig -p 2>/dev/null | grep -i libfontconfig || true"])
+    {
         let t = out.trim();
         if !t.is_empty() {
             return format!("presente ({})", t.lines().next().unwrap_or("").trim());
@@ -284,7 +286,11 @@ pub(crate) fn cmd_out_full(bin: &str, args: &[&str]) -> String {
     match util::run("timeout", &full) {
         Ok(s) => {
             let t = s.trim();
-            if t.is_empty() { "(vazio)".to_string() } else { t.to_string() }
+            if t.is_empty() {
+                "(vazio)".to_string()
+            } else {
+                t.to_string()
+            }
         }
         Err(e) => format!("(indisponível: {})", e.lines().next().unwrap_or("").trim()),
     }
@@ -301,7 +307,9 @@ pub(crate) fn gpu_info() -> String {
     let out = cmd_out_full("lspci", &[]);
     let linhas: Vec<&str> = out
         .lines()
-        .filter(|l| l.contains("VGA") || l.contains("3D controller") || l.contains("Display controller"))
+        .filter(|l| {
+            l.contains("VGA") || l.contains("3D controller") || l.contains("Display controller")
+        })
         .collect();
     if linhas.is_empty() {
         "(nenhum adaptador VGA/3D listado)".into()

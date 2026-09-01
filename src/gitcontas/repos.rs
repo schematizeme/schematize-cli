@@ -26,7 +26,9 @@ pub struct Remoto {
 /// não inventamos lista vazia, que pareceria "você não tem repositório".
 pub fn listar(c: &Conta, limite: usize) -> Result<Vec<Remoto>, String> {
     if util::run("gh", &["--version"]).is_err() {
-        return Err("o `gh` (GitHub CLI) não está instalado — necessário pra listar repositórios.".into());
+        return Err(
+            "o `gh` (GitHub CLI) não está instalado — necessário pra listar repositórios.".into()
+        );
     }
     let n = limite.to_string();
     let saida = util::run(
@@ -98,7 +100,9 @@ pub fn repositorios(dev_dirs: &[String]) -> Vec<PathBuf> {
             let nome = nome.to_string_lossy();
             // Ruído pesado: nunca vale descer, e um `node_modules` sozinho tem mais
             // diretórios que o resto da máquina inteira.
-            if nome.starts_with('.') || matches!(nome.as_ref(), "node_modules" | "target" | "vendor" | "dist") {
+            if nome.starts_with('.')
+                || matches!(nome.as_ref(), "node_modules" | "target" | "vendor" | "dist")
+            {
                 continue;
             }
             desce(&e.path(), nivel + 1, out);
@@ -195,8 +199,10 @@ mod tests {
         assert_eq!(achados.len(), 2, "os dois sub-repos: {achados:?}");
         assert!(achados.iter().any(|p| p.ends_with("repo_a")));
         assert!(achados.iter().any(|p| p.ends_with("repo_b")));
-        assert!(!achados.iter().any(|p| p.to_string_lossy().contains("node_modules")),
-                "nunca desce em node_modules");
+        assert!(
+            !achados.iter().any(|p| p.to_string_lossy().contains("node_modules")),
+            "nunca desce em node_modules"
+        );
         let _ = std::fs::remove_dir_all(&base);
     }
 

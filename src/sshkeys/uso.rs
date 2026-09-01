@@ -56,16 +56,12 @@ pub fn add_to_github(name: &str) -> Result<(), String> {
     }
     // Checa autenticação do gh antes de tentar (mensagem clara se faltar).
     if util::run("gh", &["auth", "status"]).is_err() {
-        return Err(
-            "gh não está autenticado (ou não instalado) — rode `gh auth login` primeiro".to_string(),
-        );
+        return Err("gh não está autenticado (ou não instalado) — rode `gh auth login` primeiro"
+            .to_string());
     }
-    util::run(
-        "gh",
-        &["ssh-key", "add", &pub_p.to_string_lossy(), "--title", name],
-    )
-    .map(|_| ())
-    .map_err(|e| format!("gh ssh-key add falhou: {e}"))
+    util::run("gh", &["ssh-key", "add", &pub_p.to_string_lossy(), "--title", name])
+        .map(|_| ())
+        .map_err(|e| format!("gh ssh-key add falhou: {e}"))
 }
 
 /// Valida um alvo `user@host` (ou `host`) do ssh. Falha fechada: não-vazio, sem espaço e
@@ -97,9 +93,12 @@ pub fn run_ssh(name: &str, target: &str, args: &[String]) -> Result<i32, String>
     }
     valid_target(target)?;
     let mut cmd = Command::new("ssh");
-    cmd.arg("-i").arg(&key)
-        .arg("-o").arg("IdentitiesOnly=yes")
-        .arg("-o").arg("StrictHostKeyChecking=yes")
+    cmd.arg("-i")
+        .arg(&key)
+        .arg("-o")
+        .arg("IdentitiesOnly=yes")
+        .arg("-o")
+        .arg("StrictHostKeyChecking=yes")
         .arg(target);
     // `--` não vai: o ssh já trata tudo após o alvo como o comando remoto.
     for a in args {
@@ -160,10 +159,8 @@ pub fn authorize_com_opcoes(name: &str, target: &str, opcoes: &[String]) -> Resu
         for o in opcoes {
             cmd.arg("-o").arg(o);
         }
-        let status = cmd
-            .arg(target)
-            .status()
-            .map_err(|e| format!("falha ao executar ssh-copy-id: {e}"))?;
+        let status =
+            cmd.arg(target).status().map_err(|e| format!("falha ao executar ssh-copy-id: {e}"))?;
         return if status.success() {
             Ok(())
         } else {
@@ -172,8 +169,8 @@ pub fn authorize_com_opcoes(name: &str, target: &str, opcoes: &[String]) -> Resu
     }
 
     // Fallback: append remoto por ssh, com a pública entrando pelo stdin (umask 077).
-    let pubkey = fs::read_to_string(&pub_p)
-        .map_err(|e| format!("não consegui ler a pública: {e}"))?;
+    let pubkey =
+        fs::read_to_string(&pub_p).map_err(|e| format!("não consegui ler a pública: {e}"))?;
     let remote = "umask 077; mkdir -p ~/.ssh && cat >> ~/.ssh/authorized_keys";
     let mut ssh = Command::new("ssh");
     for o in opcoes {
@@ -227,15 +224,10 @@ pub(crate) fn run_with_stdin(cmd: &str, args: &[&str], input: &str) -> Result<St
             .write_all(input.as_bytes())
             .map_err(|e| format!("falha ao escrever no stdin de {cmd}: {e}"))?;
     }
-    let out = child
-        .wait_with_output()
-        .map_err(|e| format!("{cmd} não finalizou: {e}"))?;
+    let out = child.wait_with_output().map_err(|e| format!("{cmd} não finalizou: {e}"))?;
     if out.status.success() {
         Ok(String::from_utf8_lossy(&out.stdout).into_owned())
     } else {
-        Err(format!(
-            "{cmd} falhou: {}",
-            String::from_utf8_lossy(&out.stderr).trim()
-        ))
+        Err(format!("{cmd} falhou: {}", String::from_utf8_lossy(&out.stderr).trim()))
     }
 }

@@ -67,7 +67,12 @@ mod tests {
         let alvo = std::env::temp_dir();
         let ponto = ponto_de_montagem(&alvo);
         let alvo_c = alvo.canonicalize().unwrap_or(alvo);
-        assert!(alvo_c.starts_with(&ponto), "{} não começa com {}", alvo_c.display(), ponto.display());
+        assert!(
+            alvo_c.starts_with(&ponto),
+            "{} não começa com {}",
+            alvo_c.display(),
+            ponto.display()
+        );
     }
 
     /// Caminho que não existe não entra em pânico nem devolve vazio.

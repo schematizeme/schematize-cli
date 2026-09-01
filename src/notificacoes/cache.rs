@@ -68,7 +68,13 @@ pub const MAX_HISTORICO: usize = 500;
 /// não precisa de resistência criptográfica — precisa de estabilidade.
 pub fn id_de(kind: &str, titulo: &str, acao: &str) -> String {
     let mut h: u64 = 0xcbf2_9ce4_8422_2325;
-    for b in kind.bytes().chain(b"\x1f".iter().copied()).chain(titulo.bytes()).chain(b"\x1f".iter().copied()).chain(acao.bytes()) {
+    for b in kind
+        .bytes()
+        .chain(b"\x1f".iter().copied())
+        .chain(titulo.bytes())
+        .chain(b"\x1f".iter().copied())
+        .chain(acao.bytes())
+    {
         h ^= b as u64;
         h = h.wrapping_mul(0x0000_0100_0000_01b3);
     }
@@ -136,8 +142,10 @@ pub fn fundir(atual: &[Registro], novas: Vec<Registro>) -> Vec<Registro> {
     });
     // Poda: só CONCLUÍDAS saem, e da cauda. Nunca se descarta o que ainda pede atenção.
     if out.len() > MAX_HISTORICO {
-        let mut mantidas: Vec<Registro> = out.iter().filter(|r| r.estado != Estado::Concluida).cloned().collect();
-        let concluidas: Vec<Registro> = out.into_iter().filter(|r| r.estado == Estado::Concluida).collect();
+        let mut mantidas: Vec<Registro> =
+            out.iter().filter(|r| r.estado != Estado::Concluida).cloned().collect();
+        let concluidas: Vec<Registro> =
+            out.into_iter().filter(|r| r.estado == Estado::Concluida).collect();
         let cabem = MAX_HISTORICO.saturating_sub(mantidas.len());
         mantidas.extend(concluidas.into_iter().take(cabem));
         return mantidas;
@@ -249,11 +257,19 @@ mod tests {
     /// Abrir o painel zera o badge sem apagar nada.
     #[test]
     fn abrir_o_painel_marca_lidas_sem_perder_item() {
-        let mut v = vec![reg("a", Estado::Nova, 1), reg("b", Estado::Nova, 2), reg("c", Estado::Concluida, 3)];
+        let mut v = vec![
+            reg("a", Estado::Nova, 1),
+            reg("b", Estado::Nova, 2),
+            reg("c", Estado::Concluida, 3),
+        ];
         assert_eq!(marcar_todas_lidas(&mut v), 2);
         assert_eq!(v.len(), 3);
         assert_eq!(nao_lidas(&v), 0);
-        assert_eq!(v.iter().filter(|r| r.estado == Estado::Concluida).count(), 1, "concluída não virou lida");
+        assert_eq!(
+            v.iter().filter(|r| r.estado == Estado::Concluida).count(),
+            1,
+            "concluída não virou lida"
+        );
     }
 
     /// A poda tira só CONCLUÍDAS. O que ainda pede atenção nunca é descartado por teto.
@@ -262,10 +278,15 @@ mod tests {
         let atual: Vec<Registro> = (0..MAX_HISTORICO + 50)
             .map(|i| reg(&format!("c{i}"), Estado::Concluida, i as u64))
             .collect();
-        let novas: Vec<Registro> = (0..10).map(|i| reg(&format!("n{i}"), Estado::Nova, 9999)).collect();
+        let novas: Vec<Registro> =
+            (0..10).map(|i| reg(&format!("n{i}"), Estado::Nova, 9999)).collect();
         let out = fundir(&atual, novas);
         assert!(out.len() <= MAX_HISTORICO);
-        assert_eq!(out.iter().filter(|r| r.estado == Estado::Nova).count(), 10, "as 10 novas sobreviveram");
+        assert_eq!(
+            out.iter().filter(|r| r.estado == Estado::Nova).count(),
+            10,
+            "as 10 novas sobreviveram"
+        );
     }
 
     /// O id vem do CONTEÚDO: mesma notificação = mesmo id em qualquer execução. É o que

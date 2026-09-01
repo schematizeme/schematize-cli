@@ -55,7 +55,13 @@ pub fn family_from(os_release: &str) -> Family {
     if has("debian") || has("ubuntu") || has("linuxmint") {
         return Family::Debian;
     }
-    if has("suse") || has("opensuse") || has("sles") || has("fedora") || has("rhel") || has("centos") {
+    if has("suse")
+        || has("opensuse")
+        || has("sles")
+        || has("fedora")
+        || has("rhel")
+        || has("centos")
+    {
         return Family::Rpm;
     }
     Family::Unknown

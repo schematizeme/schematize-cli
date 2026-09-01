@@ -46,7 +46,10 @@ jobs:
           if [ "$antes" = "$agora" ]; then
             echo "::error::O código mudou mas a versão continua $agora."
             echo "::error::Sem bump, o app instalado de ninguém enxerga esta atualização."
-            echo "::error::Suba a `version` no Cargo.toml (e rode o release: tag v<versão>)."
+            # Sem crase: dentro de aspas duplas no bash, `version` e SUBSTITUICAO DE COMANDO.
+            # O shell tentava executar `version`, e a mensagem que a pessoa le no momento
+            # exato em que o gate a barra saia mutilada, sem a palavra que importa.
+            echo "::error::Suba o campo version no Cargo.toml (e rode o release: tag v<versão>)."
             exit 1
           fi
 

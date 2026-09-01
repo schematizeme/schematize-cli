@@ -72,10 +72,8 @@ fn o_script_de_instalacao_realmente_instala() {
 
     // --- o catálogo foi inteiro, com a contagem certa -------------------------------------
     let cat = std::fs::read_to_string(home.join(".schematize/catalogo")).expect("catálogo");
-    let verbos_no_arquivo = cat
-        .lines()
-        .filter(|l| !l.trim_start().starts_with('#') && l.contains('\t'))
-        .count();
+    let verbos_no_arquivo =
+        cat.lines().filter(|l| !l.trim_start().starts_with('#') && l.contains('\t')).count();
     assert_eq!(verbos_no_arquivo, catalogo().len(), "nº de verbos no host == nº no catálogo");
 
     // --- a linha do authorized_keys aponta pro caminho LITERAL ----------------------------
@@ -98,7 +96,12 @@ fn o_bootstrap_preserva_o_break_glass_e_e_idempotente() {
     std::fs::write(home.join(".ssh/authorized_keys"), format!("{humana}\n{outra}\n")).unwrap();
 
     let agente = "ssh-ed25519 AAAAAGENTE agente@schematize";
-    let script = script_de_instalacao(Fronteira::OpsShellUsuario, &catalogo(), agente, &home.to_string_lossy());
+    let script = script_de_instalacao(
+        Fronteira::OpsShellUsuario,
+        &catalogo(),
+        agente,
+        &home.to_string_lossy(),
+    );
 
     for volta in 1..=2 {
         let (_, err, ok) = rodar(&script, &home);

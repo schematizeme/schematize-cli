@@ -33,7 +33,12 @@ pub fn check() -> Vec<Upd> {
         if let Some(inst) = skills::installed_version(&it) {
             if let Ok(latest) = skills::resolve_latest(&it) {
                 if inst != latest {
-                    out.push(Upd { name: it.slug.clone(), installed: inst, latest, item: Some(it) });
+                    out.push(Upd {
+                        name: it.slug.clone(),
+                        installed: inst,
+                        latest,
+                        item: Some(it),
+                    });
                 }
             }
         }
@@ -41,7 +46,12 @@ pub fn check() -> Vec<Upd> {
     let cur = env!("CARGO_PKG_VERSION");
     if let Some(latest) = cli_latest() {
         if latest != cur {
-            out.push(Upd { name: "schematize (CLI)".into(), installed: cur.into(), latest, item: None });
+            out.push(Upd {
+                name: "schematize (CLI)".into(),
+                installed: cur.into(),
+                latest,
+                item: None,
+            });
         }
     }
     out
@@ -72,11 +82,8 @@ fn apply(ups: &[Upd]) {
         n.summary(&t("agent.updated_title"))
             .body(&tf("agent.n_updated", &[("n", &ok.to_string())]));
     } else {
-        let body = format!(
-            "{}\n{}",
-            tf("agent.n_updated", &[("n", &ok.to_string())]),
-            errs.join("\n"),
-        );
+        let body =
+            format!("{}\n{}", tf("agent.n_updated", &[("n", &ok.to_string())]), errs.join("\n"),);
         n.summary(&t("agent.update_failed")).body(&body);
     }
     let _ = n.timeout(0).show();
@@ -84,8 +91,14 @@ fn apply(ups: &[Upd]) {
 
 /// Mostra a notificação com o botão Atualizar e trata o clique (bloqueia até ação/fechar).
 fn notify(ups: &[Upd]) {
-    let names: Vec<String> = ups.iter().map(|u| format!("{} {}→{}", u.name, u.installed, u.latest)).collect();
-    let body = format!("{}\n{}\n\n{}", tf("agent.n_updates", &[("n", &ups.len().to_string())]), names.join("\n"), t("agent.hint"));
+    let names: Vec<String> =
+        ups.iter().map(|u| format!("{} {}→{}", u.name, u.installed, u.latest)).collect();
+    let body = format!(
+        "{}\n{}\n\n{}",
+        tf("agent.n_updates", &[("n", &ups.len().to_string())]),
+        names.join("\n"),
+        t("agent.hint")
+    );
     let res = Notification::new()
         .summary(&t("agent.updates_available"))
         .body(&body)

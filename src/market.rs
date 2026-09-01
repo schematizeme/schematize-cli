@@ -18,11 +18,9 @@ const NET_TIMEOUT: &str = "6";
 /// erro/rede/parse ou se a resposta não traz os campos de avaliação. Nunca panica.
 pub fn market_rating(slug: &str) -> Option<(f32, u32)> {
     let url = format!("{}/skills/{}", account::api_base(), slug);
-    let body = util::run(
-        "curl",
-        &["-sfL", "-m", NET_TIMEOUT, "-H", "User-Agent: schematize-cli", &url],
-    )
-    .ok()?;
+    let body =
+        util::run("curl", &["-sfL", "-m", NET_TIMEOUT, "-H", "User-Agent: schematize-cli", &url])
+            .ok()?;
     let v: serde_json::Value = serde_json::from_str(&body).ok()?;
     // A skill pode vir na raiz ou aninhada em "skill"/"data".
     let node = v.get("skill").or_else(|| v.get("data")).unwrap_or(&v);
@@ -54,11 +52,29 @@ pub fn market_ratings_all() -> HashMap<String, (f32, u32)> {
 pub fn extract_rating(node: &serde_json::Value) -> Option<(f32, u32)> {
     let avg = first_f32(
         node,
-        &["rating_avg", "rating_average", "average_rating", "average", "avg", "rating", "stars", "score"],
+        &[
+            "rating_avg",
+            "rating_average",
+            "average_rating",
+            "average",
+            "avg",
+            "rating",
+            "stars",
+            "score",
+        ],
     )?;
     let count = first_u32(
         node,
-        &["rating_count", "ratings_count", "reviews_count", "review_count", "num_ratings", "count", "reviews", "ratings"],
+        &[
+            "rating_count",
+            "ratings_count",
+            "reviews_count",
+            "review_count",
+            "num_ratings",
+            "count",
+            "reviews",
+            "ratings",
+        ],
     )
     .unwrap_or(0);
     // Sanidade: nota fora de [0,5] é dado ruim → descarta (deny-by-default).
@@ -86,10 +102,7 @@ pub fn parse_ratings_all(body: &str) -> HashMap<String, (f32, u32)> {
             .unwrap_or_default()
     };
     for item in arr {
-        let slug = item
-            .get("slug")
-            .or_else(|| item.get("name"))
-            .and_then(|s| s.as_str());
+        let slug = item.get("slug").or_else(|| item.get("name")).and_then(|s| s.as_str());
         if let (Some(slug), Some(rating)) = (slug, extract_rating(&item)) {
             out.insert(slug.to_string(), rating);
         }

@@ -118,7 +118,13 @@ pub fn executar_interno(
     origem: &str,
 ) -> Result<ExecOut, String> {
     let sessao = auditoria::abrir_sessao(conn, &p.alias, origem)?;
-    let r = rodar(conn, &sessao, p, comando, &Veredito::Confirm("operação interna do app (sondagem/bootstrap)".into()));
+    let r = rodar(
+        conn,
+        &sessao,
+        p,
+        comando,
+        &Veredito::Confirm("operação interna do app (sondagem/bootstrap)".into()),
+    );
     auditoria::fechar_sessao(conn, &sessao);
     r
 }
@@ -168,7 +174,13 @@ fn rodar(
 ) -> Result<ExecOut, String> {
     let falhou = |e: String| -> String {
         let _ = auditoria::registrar_comando(
-            conn, sessao, comando, veredito, None, 0, &format!("--- falha local ---\n{e}\n"),
+            conn,
+            sessao,
+            comando,
+            veredito,
+            None,
+            0,
+            &format!("--- falha local ---\n{e}\n"),
         );
         e
     };
@@ -214,7 +226,13 @@ fn rodar(
         transcript.push_str("\n--- AVISO ---\nO tempo limite estourou e o ssh foi encerrado. O comando pode ainda estar rodando NO HOST.\n");
     }
     let auditoria_id = auditoria::registrar_comando(
-        conn, sessao, comando, veredito, exit_code, duracao_ms, &transcript,
+        conn,
+        sessao,
+        comando,
+        veredito,
+        exit_code,
+        duracao_ms,
+        &transcript,
     )?;
 
     Ok(ExecOut { exit_code, stdout, stderr, duracao_ms, auditoria_id, erro })
@@ -354,7 +372,11 @@ mod tests {
         let e = executar(&c, &p, "uptime", "teste", Confirmacao::Ausente).unwrap_err();
         assert!(e.contains("confirmação humana"), "{e}");
         assert!(e.contains("--confirmar"), "a mensagem tem que dizer o que fazer: {e}");
-        assert_eq!(auditoria::contar_comandos(&c, "srv").unwrap(), 1, "a tentativa entra na trilha");
+        assert_eq!(
+            auditoria::contar_comandos(&c, "srv").unwrap(),
+            1,
+            "a tentativa entra na trilha"
+        );
     }
 
     #[test]
@@ -364,7 +386,10 @@ mod tests {
         let (c, mut p) = ambiente("naoforce");
         p.ambiente = Ambiente::Prd;
         let e = executar(&c, &p, "rm -rf /", "teste", Confirmacao::HumanoConfirmou).unwrap_err();
-        assert!(e.contains("recusado pela política"), "confirmar não pode liberar catastrófico: {e}");
+        assert!(
+            e.contains("recusado pela política"),
+            "confirmar não pode liberar catastrófico: {e}"
+        );
     }
 
     #[test]
@@ -374,9 +399,17 @@ mod tests {
         let e = executar(&c, &p, "uptime", "teste", Confirmacao::HumanoConfirmou).unwrap_err();
         assert!(e.contains("não confiado"), "{e}");
         // O que NÃO conseguiu rodar é justamente o que se quer ver depois.
-        assert_eq!(auditoria::contar_comandos(&c, "srv").unwrap(), 1, "a falha local também é trilha");
+        assert_eq!(
+            auditoria::contar_comandos(&c, "srv").unwrap(),
+            1,
+            "a falha local também é trilha"
+        );
         let l = &auditoria::listar_comandos(&c, "srv", 1).unwrap()[0];
-        assert!(l.transcript.contains("falha local"), "o motivo tem que ficar registrado: {}", l.transcript);
+        assert!(
+            l.transcript.contains("falha local"),
+            "o motivo tem que ficar registrado: {}",
+            l.transcript
+        );
         assert_eq!(l.exit_code, None);
     }
 
@@ -422,8 +455,12 @@ mod tests {
         // O que sustenta o diagnóstico da sondagem: `erro` preenchido significa "não falei com
         // o host", e isso NÃO pode ser confundido com "o host respondeu nada".
         let base = ExecOut {
-            exit_code: Some(255), stdout: String::new(), stderr: String::new(),
-            duracao_ms: 1, auditoria_id: 1, erro: None,
+            exit_code: Some(255),
+            stdout: String::new(),
+            stderr: String::new(),
+            duracao_ms: 1,
+            auditoria_id: 1,
+            erro: None,
         };
         let sem_conexao = ExecOut { erro: Some(ErroSsh::PermissaoNegada), ..base.clone() };
         let respondeu_vazio = ExecOut { exit_code: Some(0), ..base };

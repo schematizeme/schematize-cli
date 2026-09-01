@@ -68,8 +68,14 @@ impl Comando {
 /// Flags longas com equivalente curto conhecido. Sem isto, `--recursive` escapa de uma regra
 /// escrita em cima de `-r`.
 const LONGA_PARA_CURTA: &[(&str, char)] = &[
-    ("recursive", 'r'), ("force", 'f'), ("all", 'a'), ("verbose", 'v'),
-    ("interactive", 'i'), ("preserve", 'p'), ("archive", 'a'), ("quiet", 'q'),
+    ("recursive", 'r'),
+    ("force", 'f'),
+    ("all", 'a'),
+    ("verbose", 'v'),
+    ("interactive", 'i'),
+    ("preserve", 'p'),
+    ("archive", 'a'),
+    ("quiet", 'q'),
 ];
 
 /// Tira aspas simples/duplas de um token e resolve `~` para a forma canônica `~`.
@@ -98,7 +104,9 @@ pub fn analisar(cmd: &str) -> Comando {
     // Prefixos e atribuições de ambiente.
     while let Some(t) = toks.peek() {
         let t = *t;
-        if (t.contains('=') && !t.starts_with('-')) || matches!(t, "sudo" | "env" | "nohup" | "time" | "nice" | "exec" | "command" | "doas") {
+        if (t.contains('=') && !t.starts_with('-'))
+            || matches!(t, "sudo" | "env" | "nohup" | "time" | "nice" | "exec" | "command" | "doas")
+        {
             toks.next();
         } else {
             break;
@@ -137,7 +145,8 @@ pub fn analisar(cmd: &str) -> Comando {
 }
 
 /// Alvos que significam "o sistema todo" ou "a casa do usuário".
-pub const ALVOS_FATAIS: &[&str] = &["/", "/*", "~", "~/", "~/*", "/.", "/..", "$HOME", "/home", "/etc", "/var", "/usr", "/boot"];
+pub const ALVOS_FATAIS: &[&str] =
+    &["/", "/*", "~", "~/", "~/*", "/.", "/..", "$HOME", "/home", "/etc", "/var", "/usr", "/boot"];
 
 /// Dispositivos de bloco: escrever neles destrói o disco.
 pub fn e_dispositivo_de_bloco(s: &str) -> bool {
@@ -159,7 +168,9 @@ mod tests {
         assert!(c.operando_em(&["/"]));
 
         // Todas estas são o MESMO comando — e a versão antiga só pegava a primeira.
-        for variante in ["rm -r -f /", "rm -f -r /", "rm --recursive --force /", "rm -R -f /", "rm -Rf /"] {
+        for variante in
+            ["rm -r -f /", "rm -f -r /", "rm --recursive --force /", "rm -R -f /", "rm -Rf /"]
+        {
             let c = analisar(variante);
             assert_eq!(c.binario, "rm", "{variante}");
             assert!(c.tem('r') && c.tem('f'), "{variante}: flags não normalizadas -> {c:?}");
@@ -177,7 +188,13 @@ mod tests {
 
     #[test]
     fn prefixos_nao_escondem_o_binario() {
-        for variante in ["sudo rm -rf /", "env FOO=1 rm -rf /", "nice rm -rf /", "/bin/rm -rf /", "doas rm -rf /"] {
+        for variante in [
+            "sudo rm -rf /",
+            "env FOO=1 rm -rf /",
+            "nice rm -rf /",
+            "/bin/rm -rf /",
+            "doas rm -rf /",
+        ] {
             assert_eq!(analisar(variante).binario, "rm", "{variante}");
         }
     }

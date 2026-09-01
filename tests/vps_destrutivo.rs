@@ -8,7 +8,11 @@
 //!
 //! DE ONDE VEM: nada externo. PRA ONDE VAI: só temporários, apagados no fim.
 
-use schematize::vps::{self, politica::{avaliar, Veredito}, registro::{Ambiente, ModoPolitica, VpsProfile}};
+use schematize::vps::{
+    self,
+    politica::{avaliar, Veredito},
+    registro::{Ambiente, ModoPolitica, VpsProfile},
+};
 
 fn perfil_permissivo() -> VpsProfile {
     let mut p = VpsProfile::novo("srv", "10.0.0.1", "u", "k");
@@ -29,14 +33,40 @@ fn d1_denylist_nao_e_mais_burlavel_por_forma_de_escrita() {
     let p = perfil_permissivo();
     // Todos estes PASSAVAM antes. Nenhum é evasão sofisticada — `rm -r -f /` é gente digitando.
     let variantes = [
-        "rm -r -f /", "rm -f -r /", "rm --recursive --force /", "rm --force --recursive /",
-        "rm -R -f /", "rm -Rf /", r#"rm -rf "/""#, "rm -rf '/'", "rm -rf ~", "rm -rf /etc",
-        "rm -rf /usr", "rm -rf /var", "sudo rm -r -f /", "/bin/rm -r -f /", "env X=1 rm -rf /",
-        r#"dd if=/dev/zero of="/dev/sda""#, "dd if=/dev/zero of='/dev/sda'",
-        "wipefs -a /dev/sda", "blkdiscard /dev/sda", "sgdisk -Z /dev/sda", "parted /dev/sda mklabel gpt",
-        "shred -u /etc/passwd", "truncate -s 0 /etc/passwd", "chattr +i /etc", "setfacl -b -R /",
-        "systemctl mask sshd", "systemctl stop ssh", "killall -9 sshd", "pkill sshd",
-        "chown -R nobody /", "chmod -R 000 /", "mkfs.ext4 /dev/sda1", "userdel deploy", "passwd root",
+        "rm -r -f /",
+        "rm -f -r /",
+        "rm --recursive --force /",
+        "rm --force --recursive /",
+        "rm -R -f /",
+        "rm -Rf /",
+        r#"rm -rf "/""#,
+        "rm -rf '/'",
+        "rm -rf ~",
+        "rm -rf /etc",
+        "rm -rf /usr",
+        "rm -rf /var",
+        "sudo rm -r -f /",
+        "/bin/rm -r -f /",
+        "env X=1 rm -rf /",
+        r#"dd if=/dev/zero of="/dev/sda""#,
+        "dd if=/dev/zero of='/dev/sda'",
+        "wipefs -a /dev/sda",
+        "blkdiscard /dev/sda",
+        "sgdisk -Z /dev/sda",
+        "parted /dev/sda mklabel gpt",
+        "shred -u /etc/passwd",
+        "truncate -s 0 /etc/passwd",
+        "chattr +i /etc",
+        "setfacl -b -R /",
+        "systemctl mask sshd",
+        "systemctl stop ssh",
+        "killall -9 sshd",
+        "pkill sshd",
+        "chown -R nobody /",
+        "chmod -R 000 /",
+        "mkfs.ext4 /dev/sda1",
+        "userdel deploy",
+        "passwd root",
     ];
     let mut escaparam = Vec::new();
     for c in variantes {
@@ -56,11 +86,21 @@ fn d1_denylist_nao_e_mais_burlavel_por_forma_de_escrita() {
 fn d1b_denylist_nao_bloqueia_deploy_legitimo() {
     let p = perfil_permissivo();
     let legitimos = [
-        "rm -rf /srv/app/build", "rm -rf /var/cache/app/tmp", "rm -rf ./target", "rm -rf node_modules",
+        "rm -rf /srv/app/build",
+        "rm -rf /var/cache/app/tmp",
+        "rm -rf ./target",
+        "rm -rf node_modules",
         "dd if=/dev/urandom of=/srv/app/seed bs=1M count=1",
-        "chmod 640 /srv/app/.env", "chown deploy:deploy /srv/app", "truncate -s 0 /srv/app/log",
-        "systemctl restart app", "systemctl status app", "journalctl -u app -n 100",
-        "docker ps", "docker logs app", "git status", "df -h",
+        "chmod 640 /srv/app/.env",
+        "chown deploy:deploy /srv/app",
+        "truncate -s 0 /srv/app/log",
+        "systemctl restart app",
+        "systemctl status app",
+        "journalctl -u app -n 100",
+        "docker ps",
+        "docker logs app",
+        "git status",
+        "df -h",
     ];
     let mut bloqueados = Vec::new();
     for c in legitimos {
@@ -110,7 +150,11 @@ fn d3_nao_escreve_atraves_de_symlink() {
         let r = vps::db::escrever_sem_seguir_link(&link, b"INVASOR");
         assert!(r.is_err(), "escreveu através do link");
         assert!(r.unwrap_err().contains("link simbólico"), "o erro tem que explicar");
-        assert_eq!(std::fs::read_to_string(&alvo).unwrap(), "CONTEUDO ORIGINAL", "o alvo foi destruído");
+        assert_eq!(
+            std::fs::read_to_string(&alvo).unwrap(),
+            "CONTEUDO ORIGINAL",
+            "o alvo foi destruído"
+        );
 
         // E o caminho normal continua funcionando, com modo 600.
         let normal = dir.join("normal.txt");
@@ -135,27 +179,39 @@ fn d4_bootstrap_concorrente_nao_duplica_nem_perde_chave() {
 
     let agente = "ssh-ed25519 AAAAAGENTE agente@schematize";
     let v = vec![Verbo { nome: "deploy".into(), comando: "echo ok".into() }];
-    let script = script_de_instalacao(Fronteira::OpsShellUsuario, &v, agente, &home.to_string_lossy());
+    let script =
+        script_de_instalacao(Fronteira::OpsShellUsuario, &v, agente, &home.to_string_lossy());
 
     // Seis instalações simultâneas — antes deixavam SEIS linhas do agente.
-    let filhos: Vec<_> = (0..6).map(|_| {
-        let (s, h) = (script.clone(), home.clone());
-        std::thread::spawn(move || {
-            let _ = std::process::Command::new("sh").arg("-c").arg(&s).env("HOME", &h).output();
+    let filhos: Vec<_> = (0..6)
+        .map(|_| {
+            let (s, h) = (script.clone(), home.clone());
+            std::thread::spawn(move || {
+                let _ = std::process::Command::new("sh").arg("-c").arg(&s).env("HOME", &h).output();
+            })
         })
-    }).collect();
-    for f in filhos { f.join().unwrap(); }
+        .collect();
+    for f in filhos {
+        f.join().unwrap();
+    }
 
     let ak = std::fs::read_to_string(home.join(".ssh/authorized_keys")).unwrap();
-    assert_eq!(ak.lines().filter(|l| l.contains(agente)).count(), 1, "a linha do agente duplicou:\n{ak}");
+    assert_eq!(
+        ak.lines().filter(|l| l.contains(agente)).count(),
+        1,
+        "a linha do agente duplicou:\n{ak}"
+    );
     assert!(ak.contains(humana), "o break-glass humano SUMIU sob concorrência:\n{ak}");
     assert!(ak.contains(ci), "a chave de CI sumiu:\n{ak}");
     assert_eq!(ak.lines().filter(|l| !l.trim().is_empty()).count(), 3, "linhas a mais:\n{ak}");
     // Nem trava nem temporário ficam para trás.
     assert!(!home.join(".ssh/.schematize-bootstrap.lock").exists(), "a trava ficou presa");
-    let sobras: Vec<_> = std::fs::read_dir(home.join(".ssh")).unwrap()
-        .filter_map(|e| e.ok()).map(|e| e.file_name().to_string_lossy().into_owned())
-        .filter(|n| n.contains("schematize.")).collect();
+    let sobras: Vec<_> = std::fs::read_dir(home.join(".ssh"))
+        .unwrap()
+        .filter_map(|e| e.ok())
+        .map(|e| e.file_name().to_string_lossy().into_owned())
+        .filter(|n| n.contains("schematize."))
+        .collect();
     assert!(sobras.is_empty(), "temporários órfãos: {sobras:?}");
     let _ = std::fs::remove_dir_all(&home);
 }
@@ -267,7 +323,10 @@ fn d11_home_resolve_em_qualquer_plataforma() {
     let s = |x: &str| Some(x.to_string());
 
     // Unix: `HOME` vence.
-    assert_eq!(resolver_home(s("/home/tom"), s("/C/Users/tom"), None, None), PathBuf::from("/home/tom"));
+    assert_eq!(
+        resolver_home(s("/home/tom"), s("/C/Users/tom"), None, None),
+        PathBuf::from("/home/tom")
+    );
     // Windows moderno: sem `HOME`, cai no `USERPROFILE`.
     assert_eq!(resolver_home(None, s(r"C:\Users\tom"), None, None), PathBuf::from(r"C:\Users\tom"));
     // Windows antigo / domínio: o par HOMEDRIVE + HOMEPATH, com a barra inicial descartada

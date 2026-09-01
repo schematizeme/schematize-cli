@@ -38,7 +38,10 @@ pub fn progress_at(root: &Path) -> Progress {
     let d = dir_at(root);
     let st = load_at(root);
     let c = count_str(&crate::paths::read_multidoc(&d, "CHECKLIST.md", "checklist"));
-    let it = fs::read_to_string(d.join("iterations")).ok().and_then(|s| s.trim().parse().ok()).unwrap_or(0);
+    let it = fs::read_to_string(d.join("iterations"))
+        .ok()
+        .and_then(|s| s.trim().parse().ok())
+        .unwrap_or(0);
     Progress {
         mode: st.as_ref().map(|s| s.mode.clone()).unwrap_or_default(),
         open: c.open,
@@ -54,7 +57,11 @@ pub fn progress_at(root: &Path) -> Progress {
 /// Itens de MÁQUINA abertos (`- [ ]`) do CHECKLIST de `<root>` (até `limit`).
 /// É a lista que o auto-continue reenvia ao agente ocioso.
 pub fn open_items_at(root: &Path, limit: usize) -> Vec<String> {
-    items_with_marker(&crate::paths::read_multidoc(&dir_at(root), "CHECKLIST.md", "checklist"), "- [ ]", limit)
+    items_with_marker(
+        &crate::paths::read_multidoc(&dir_at(root), "CHECKLIST.md", "checklist"),
+        "- [ ]",
+        limit,
+    )
 }
 
 /// Objetivo do run pra montar o prompt inicial do agente: prioriza o campo
@@ -68,10 +75,7 @@ pub fn objetivo_at(root: &Path) -> Option<String> {
         }
     }
     let txt = fs::read_to_string(dir_at(root).join("OBJETIVO.md")).ok()?;
-    txt.lines()
-        .map(str::trim)
-        .find(|l| !l.is_empty() && !l.starts_with('#'))
-        .map(String::from)
+    txt.lines().map(str::trim).find(|l| !l.is_empty() && !l.starts_with('#')).map(String::from)
 }
 
 /// Checklist de 2 níveis: contagem das 4 categorias.
@@ -148,5 +152,9 @@ pub(crate) fn open_items() -> Vec<String> {
 }
 
 pub(crate) fn human_items() -> Vec<String> {
-    items_with_marker(&crate::paths::read_multidoc(&dir(), "CHECKLIST.md", "checklist"), "- [H ]", 12)
+    items_with_marker(
+        &crate::paths::read_multidoc(&dir(), "CHECKLIST.md", "checklist"),
+        "- [H ]",
+        12,
+    )
 }

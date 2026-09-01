@@ -36,7 +36,12 @@ pub(crate) fn sec_instalacao(o: &mut String) {
         if all.is_empty() {
             kv(o, name, "não está no PATH");
         } else {
-            let _ = writeln!(o, "  {name} no PATH ({}{}):", all.len(), if all.len() > 1 { " — SHADOW!" } else { "" });
+            let _ = writeln!(
+                o,
+                "  {name} no PATH ({}{}):",
+                all.len(),
+                if all.len() > 1 { " — SHADOW!" } else { "" }
+            );
             for p in &all {
                 let _ = writeln!(o, "    - {}", describe_file(p));
             }
@@ -44,7 +49,11 @@ pub(crate) fn sec_instalacao(o: &mut String) {
     }
 
     // Coexistência de pacote (dpkg/rpm).
-    kv(o, "dpkg -l schematize", &pkg_query_line(&cmd_out("dpkg-query", &["-W", "-f=${Version}", "schematize"])));
+    kv(
+        o,
+        "dpkg -l schematize",
+        &pkg_query_line(&cmd_out("dpkg-query", &["-W", "-f=${Version}", "schematize"])),
+    );
     kv(o, "rpm -q schematize", &pkg_query_line(&cmd_out("rpm", &["-q", "schematize"])));
 
     // Lançadores .desktop (linha Exec=).
@@ -81,7 +90,8 @@ pub(crate) fn sec_path_env(o: &mut String) {
         kv(o, name, &getenv(name));
     }
     // Todas as XDG_* (útil pro lançador GUI).
-    let mut xdg: Vec<(String, String)> = std::env::vars().filter(|(k, _)| k.starts_with("XDG_")).collect();
+    let mut xdg: Vec<(String, String)> =
+        std::env::vars().filter(|(k, _)| k.starts_with("XDG_")).collect();
     xdg.sort();
     for (k, v) in xdg {
         kv(o, &k, &v);
@@ -115,7 +125,11 @@ pub(crate) fn sec_dependencias(o: &mut String) {
         "kitty",
     ];
     let present: Vec<&str> = terms.iter().copied().filter(|t| has_bin(t)).collect();
-    kv(o, "terminais disponíveis", &if present.is_empty() { "(nenhum)".into() } else { present.join(", ") });
+    kv(
+        o,
+        "terminais disponíveis",
+        &if present.is_empty() { "(nenhum)".into() } else { present.join(", ") },
+    );
 
     kv(o, "node --version", &cmd_out("node", &["--version"]));
     kv(o, "npm --version", &cmd_out("npm", &["--version"]));
@@ -147,7 +161,8 @@ pub(crate) fn sec_config(o: &mut String) {
                 let _ = writeln!(o, "    (vazio)");
             }
             for (name, size, is_dir) in ents {
-                let _ = writeln!(o, "    - {name}{}  ({size} bytes)", if is_dir { "/" } else { "" });
+                let _ =
+                    writeln!(o, "    - {name}{}  ({size} bytes)", if is_dir { "/" } else { "" });
             }
         }
         Err(e) => {
@@ -182,7 +197,15 @@ pub(crate) fn sec_skills(o: &mut String, online: bool) {
     }
     if online {
         let cat = registry::catalog();
-        kv(o, "catálogo (alcance)", &format!("{} skills{}", cat.len(), if cat.len() >= 19 { " (remoto ok)" } else { " (embutido? offline?)" }));
+        kv(
+            o,
+            "catálogo (alcance)",
+            &format!(
+                "{} skills{}",
+                cat.len(),
+                if cat.len() >= 19 { " (remoto ok)" } else { " (embutido? offline?)" }
+            ),
+        );
     } else {
         kv(o, "catálogo (alcance)", "(pulado — offline)");
     }
@@ -193,7 +216,8 @@ pub(crate) fn sec_overdev(o: &mut String) -> Vec<PathBuf> {
     hdr(o, "7. OVERDEV");
     let roots = overdev_roots();
     if roots.is_empty() {
-        let _ = writeln!(o, "  (nenhum projeto com .overdev/state.json nas dev_dirs/recent_projects)");
+        let _ =
+            writeln!(o, "  (nenhum projeto com .overdev/state.json nas dev_dirs/recent_projects)");
         return roots;
     }
     for root in &roots {

@@ -49,9 +49,7 @@ pub fn api_base() -> String {
 /// Lê uma env não-vazia, senão devolve o default (aparando `/` final pra compor URLs limpas).
 fn env_or(key: &str, default: &str) -> String {
     let raw = std::env::var(key).ok().filter(|v| !v.trim().is_empty());
-    raw.unwrap_or_else(|| default.to_string())
-        .trim_end_matches('/')
-        .to_string()
+    raw.unwrap_or_else(|| default.to_string()).trim_end_matches('/').to_string()
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -418,10 +416,7 @@ mod tests {
     #[test]
     fn token_erros_mapeados() {
         let mk = |e: &str| format!(r#"{{"error":"{e}","error_description":"x"}}"#);
-        assert!(matches!(
-            parse_token_at(&mk("authorization_pending"), 0),
-            PollResult::Pending
-        ));
+        assert!(matches!(parse_token_at(&mk("authorization_pending"), 0), PollResult::Pending));
         assert!(matches!(parse_token_at(&mk("slow_down"), 0), PollResult::SlowDown));
         assert!(matches!(parse_token_at(&mk("expired_token"), 0), PollResult::Expired));
         assert!(matches!(parse_token_at(&mk("access_denied"), 0), PollResult::Denied));

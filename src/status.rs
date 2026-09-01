@@ -26,11 +26,17 @@ pub fn run() {
 
     // Agente
     header(&t("status.section_agent"));
-    println!("  {}", if autostart::is_active() { t("status.agent_active") } else { t("status.agent_inactive") });
+    println!(
+        "  {}",
+        if autostart::is_active() { t("status.agent_active") } else { t("status.agent_inactive") }
+    );
 
     // Overdev
     header(&t("status.section_overdev"));
-    println!("  hooks: {}", if settings::overdev_enabled() { t("common.on") } else { t("common.off") });
+    println!(
+        "  hooks: {}",
+        if settings::overdev_enabled() { t("common.on") } else { t("common.off") }
+    );
     match overdev::status_brief() {
         (true, Some(obj)) => println!("  {}", tf("status.overdev_run_active", &[("obj", &obj)])),
         _ => println!("  {}", t("status.overdev_run_none")),

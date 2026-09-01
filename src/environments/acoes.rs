@@ -38,7 +38,13 @@ pub fn install(lang: &str, method: Option<String>, dry_run: bool, yes: bool) -> 
     let steps = match recipe {
         Recipe::Steps(s) => s,
         Recipe::Todo(note) => {
-            println!("{}", tf("env.todo", &[("lang", env.display), ("method", method.slug()), ("note", &note)]));
+            println!(
+                "{}",
+                tf(
+                    "env.todo",
+                    &[("lang", env.display), ("method", method.slug()), ("note", &note)]
+                )
+            );
             return Ok(());
         }
         Recipe::Na(note) => return Err(tf("env.na", &[("note", &note)])),
@@ -97,7 +103,13 @@ pub fn remove(lang: &str, method: Option<String>, dry_run: bool) -> Result<(), S
     let steps = match recipe {
         Recipe::Steps(s) => s,
         Recipe::Todo(note) => {
-            println!("{}", tf("env.todo", &[("lang", env.display), ("method", method.slug()), ("note", &note)]));
+            println!(
+                "{}",
+                tf(
+                    "env.todo",
+                    &[("lang", env.display), ("method", method.slug()), ("note", &note)]
+                )
+            );
             return Ok(());
         }
         Recipe::Na(note) => return Err(tf("env.na", &[("note", &note)])),
@@ -111,13 +123,20 @@ pub fn remove(lang: &str, method: Option<String>, dry_run: bool) -> Result<(), S
     match run_steps(&steps, dry_run, consent, exec_step)? {
         PlanAction::DryRun => println!("{}", t("env.dry_run")),
         PlanAction::Aborted => println!("{}", t("env.aborted")),
-        PlanAction::Executed => println!("{}", tf("env.done", &[("lang", env.display), ("method", method.slug())])),
+        PlanAction::Executed => {
+            println!("{}", tf("env.done", &[("lang", env.display), ("method", method.slug())]))
+        }
     }
     Ok(())
 }
 
 /// `schematize env install <tool>` — caminho canônico da ferramenta (por família no VS Code).
-pub(crate) fn install_tool(tool: &Tool, method: Option<String>, dry_run: bool, yes: bool) -> Result<(), String> {
+pub(crate) fn install_tool(
+    tool: &Tool,
+    method: Option<String>,
+    dry_run: bool,
+    yes: bool,
+) -> Result<(), String> {
     warn_method_ignored(tool, &method);
     let m = Machine::probe();
 
@@ -153,7 +172,11 @@ pub(crate) fn install_tool(tool: &Tool, method: Option<String>, dry_run: bool, y
 }
 
 /// `schematize env remove <tool>` — desfaz o caminho canônico (por família no VS Code).
-pub(crate) fn remove_tool(tool: &Tool, method: Option<String>, dry_run: bool) -> Result<(), String> {
+pub(crate) fn remove_tool(
+    tool: &Tool,
+    method: Option<String>,
+    dry_run: bool,
+) -> Result<(), String> {
     warn_method_ignored(tool, &method);
     let m = Machine::probe();
 

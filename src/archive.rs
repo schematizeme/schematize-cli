@@ -11,9 +11,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 /// Subdirs canônicos do archive (a estrutura obrigatória).
-const SUBDIRS: &[&str] = &[
-    "overdev", "chats", "decisoes", "index", "audit", "pentest", "context_agent",
-];
+const SUBDIRS: &[&str] =
+    &["overdev", "chats", "decisoes", "index", "audit", "pentest", "context_agent"];
 
 /// Materializa a estrutura + extrai o chat da sessão pro `chats/` + gera o `context_agent/#N.txt` +
 /// commita no repo do archive. Devolve um resumo do que foi feito.
@@ -27,18 +26,14 @@ pub fn sync(root: &Path) -> Result<String, String> {
     let ctx = write_context_agent(root, &arch)?;
     let msg = format!("archive sync: {chats} · {ctx}");
     commit_archive(&arch, &msg);
-    Ok(format!(
-        "archive em {}\n  {chats}\n  {ctx}",
-        arch.display()
-    ))
+    Ok(format!("archive em {}\n  {chats}\n  {ctx}", arch.display()))
 }
 
 /// Garante que o archive é um repo git (init + README se preciso). Best-effort.
 fn ensure_git_repo(arch: &Path) {
     if !arch.join(".git").is_dir() {
-        let _ = std::process::Command::new("git")
-            .arg("-C").arg(arch).arg("init").arg("-q")
-            .status();
+        let _ =
+            std::process::Command::new("git").arg("-C").arg(arch).arg("init").arg("-q").status();
     }
     let readme = arch.join("README.md");
     if !readme.exists() {
@@ -198,14 +193,14 @@ fn write_context_agent(root: &Path, arch: &Path) -> Result<String, String> {
 /// Commita tudo no repo do archive (best-effort — nunca quebra o fluxo).
 fn commit_archive(arch: &Path, msg: &str) {
     let run = |args: &[&str]| {
-        let _ = std::process::Command::new("git")
-            .arg("-C").arg(arch).args(args)
-            .status();
+        let _ = std::process::Command::new("git").arg("-C").arg(arch).args(args).status();
     };
     run(&["add", "-A"]);
     // só commita se há mudança staged (git diff --cached --quiet → exit 1 se há diff).
     let has_change = std::process::Command::new("git")
-        .arg("-C").arg(arch).args(["diff", "--cached", "--quiet"])
+        .arg("-C")
+        .arg(arch)
+        .args(["diff", "--cached", "--quiet"])
         .status()
         .map(|s| !s.success())
         .unwrap_or(false);

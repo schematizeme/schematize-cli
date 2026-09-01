@@ -13,20 +13,13 @@ pub(crate) struct Machine {
 impl Machine {
     /// Sonda a máquina (família da distro, mise/docker presentes).
     pub(crate) fn probe() -> Machine {
-        Machine {
-            family: detect::family(),
-            mise: detect::has_mise(),
-            docker: detect::has_docker(),
-        }
+        Machine { family: detect::family(), mise: detect::has_mise(), docker: detect::has_docker() }
     }
 
     /// Métodos DISPONÍVEIS nesta máquina, em ordem estável.
     /// mise/official sempre disponíveis (bootstrappáveis); docker só com docker; distro só com família.
     pub(crate) fn available(&self) -> Vec<Method> {
-        Method::ALL
-            .into_iter()
-            .filter(|m| self.method_reason(*m).is_ok())
-            .collect()
+        Method::ALL.into_iter().filter(|m| self.method_reason(*m).is_ok()).collect()
     }
 
     /// Ok se o método é utilizável aqui; Err(razão) caso contrário (deny-by-default).
@@ -59,9 +52,9 @@ pub(crate) fn installed_method(env: &Env, m: &Machine) -> Option<Method> {
 /// Idempotência: environment já satisfeito por este método?
 pub(crate) fn already_installed(env: &Env, method: Method, m: &Machine) -> bool {
     match method {
-        Method::Docker => defs::docker_image(env.lang)
-            .map(detect::docker_image_present)
-            .unwrap_or(false),
+        Method::Docker => {
+            defs::docker_image(env.lang).map(detect::docker_image_present).unwrap_or(false)
+        }
         Method::Mise => {
             m.mise && detect::mise_has(defs::mise_tools(env.lang).last().copied().unwrap_or(""))
         }

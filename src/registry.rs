@@ -100,10 +100,9 @@ fn builtin() -> Vec<Item> {
 
 /// O catálogo atual: tenta o índice remoto; cai no embutido se falhar/vazio.
 pub fn catalog() -> Vec<Item> {
-    if let Ok(body) = util::run(
-        "curl",
-        &["-sfL", "-m", "8", "-H", "User-Agent: schematize-cli", CATALOG_URL],
-    ) {
+    if let Ok(body) =
+        util::run("curl", &["-sfL", "-m", "8", "-H", "User-Agent: schematize-cli", CATALOG_URL])
+    {
         if let Ok(c) = serde_json::from_str::<Catalog>(&body) {
             if !c.skills.is_empty() {
                 return c.skills;
@@ -120,8 +119,5 @@ pub fn find(cat: &[Item], slug: &str) -> Option<Item> {
 
 /// URL do release "latest" (sempre a última versão publicada da skill).
 pub fn latest_zip_url(it: &Item) -> String {
-    format!(
-        "https://github.com/{ORG}/{}/releases/latest/download/{}",
-        it.repo, it.zip
-    )
+    format!("https://github.com/{ORG}/{}/releases/latest/download/{}", it.repo, it.zip)
 }

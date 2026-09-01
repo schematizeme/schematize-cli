@@ -132,7 +132,12 @@ fn migrar(conn: &Connection) -> Result<(), String> {
 /// **Onde:** [`migrar`]. `CREATE TABLE IF NOT EXISTS` não altera tabela que já existe — quem
 /// já tinha um `vps.db` da versão anterior ficaria sem as colunas novas e todo `SELECT`
 /// quebraria. Isto é a migração expand-only: só acrescenta, nunca dropa nem renomeia.
-fn coluna_se_faltar(conn: &Connection, tabela: &str, coluna: &str, tipo: &str) -> Result<(), String> {
+fn coluna_se_faltar(
+    conn: &Connection,
+    tabela: &str,
+    coluna: &str,
+    tipo: &str,
+) -> Result<(), String> {
     // DDL é a ÚNICA exceção ao "SQL sempre parametrizado" do piso 2, e por um motivo técnico:
     // SQLite não aceita `?` no lugar de nome de tabela ou coluna. Como não dá pra parametrizar,
     // a defesa é blindar o identificador — assim nem um chamador futuro consegue injetar.
@@ -198,7 +203,9 @@ pub fn escrever_sem_seguir_link(caminho: &std::path::Path, conteudo: &[u8]) -> R
         opts.mode(0o600);
         opts.custom_flags(libc_o_nofollow());
     }
-    let mut f = opts.open(caminho).map_err(|e| format!("não consegui gravar {}: {e}", caminho.display()))?;
+    let mut f = opts
+        .open(caminho)
+        .map_err(|e| format!("não consegui gravar {}: {e}", caminho.display()))?;
     f.write_all(conteudo).map_err(|e| format!("não consegui gravar {}: {e}", caminho.display()))?;
     #[cfg(unix)]
     {
@@ -212,11 +219,30 @@ pub fn escrever_sem_seguir_link(caminho: &std::path::Path, conteudo: &[u8]) -> R
 #[cfg(unix)]
 fn libc_o_nofollow() -> i32 {
     #[cfg(target_os = "linux")]
-    { 0o400000 }
-    #[cfg(any(target_os = "macos", target_os = "ios", target_os = "freebsd", target_os = "openbsd", target_os = "netbsd"))]
-    { 0x0100 }
-    #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "ios", target_os = "freebsd", target_os = "openbsd", target_os = "netbsd")))]
-    { 0 }
+    {
+        0o400000
+    }
+    #[cfg(any(
+        target_os = "macos",
+        target_os = "ios",
+        target_os = "freebsd",
+        target_os = "openbsd",
+        target_os = "netbsd"
+    ))]
+    {
+        0x0100
+    }
+    #[cfg(not(any(
+        target_os = "linux",
+        target_os = "macos",
+        target_os = "ios",
+        target_os = "freebsd",
+        target_os = "openbsd",
+        target_os = "netbsd"
+    )))]
+    {
+        0
+    }
 }
 
 /// Restringe um diretório a 700 (best-effort).
@@ -240,10 +266,7 @@ pub fn restringir_dir(dir: &std::path::Path) {
 /// **Onde:** carimbo de `criado_em`, `abriu_em`, `ts`.
 pub fn agora_secs() -> i64 {
     use std::time::{SystemTime, UNIX_EPOCH};
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_secs() as i64)
-        .unwrap_or(0)
+    SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs() as i64).unwrap_or(0)
 }
 
 #[cfg(test)]
@@ -264,7 +287,9 @@ mod tests {
         let p = crate::vps::db_de_teste("schema");
         let conn = open_at(&p).unwrap();
         let mut achadas: Vec<String> = conn
-            .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")
+            .prepare(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'",
+            )
             .unwrap()
             .query_map([], |r| r.get::<_, String>(0))
             .unwrap()
@@ -283,11 +308,20 @@ mod tests {
         for (t, col) in [
             ("hosts; DROP TABLE hosts;--", "x"),
             ("hosts", "x TEXT); DROP TABLE hosts;--"),
-            ("", "x"), ("hosts", ""), ("1hosts", "x"), ("hosts", "a-b"),
+            ("", "x"),
+            ("hosts", ""),
+            ("1hosts", "x"),
+            ("hosts", "a-b"),
         ] {
-            assert!(coluna_se_faltar(&c, t, col, "INTEGER NOT NULL DEFAULT 0").is_err(), "{t:?}.{col:?}");
+            assert!(
+                coluna_se_faltar(&c, t, col, "INTEGER NOT NULL DEFAULT 0").is_err(),
+                "{t:?}.{col:?}"
+            );
         }
-        assert!(coluna_se_faltar(&c, "hosts", "nova", "DROP TABLE hosts").is_err(), "tipo fora do vocabulário");
+        assert!(
+            coluna_se_faltar(&c, "hosts", "nova", "DROP TABLE hosts").is_err(),
+            "tipo fora do vocabulário"
+        );
         // O caminho legítimo continua funcionando.
         assert!(coluna_se_faltar(&c, "hosts", "outra_col", "INTEGER NOT NULL DEFAULT 0").is_ok());
     }
@@ -308,7 +342,9 @@ mod tests {
             .unwrap();
         }
         let c = open_at(&p).expect("abrir um DB antigo tem que MIGRAR, não falhar");
-        let f: String = c.query_row("SELECT fronteira FROM hosts WHERE alias='velho'", [], |r| r.get(0)).unwrap();
+        let f: String = c
+            .query_row("SELECT fronteira FROM hosts WHERE alias='velho'", [], |r| r.get(0))
+            .unwrap();
         assert_eq!(f, "sem", "linha existente ganha o default mais restritivo");
         // Migrar duas vezes não pode explodir.
         drop(c);

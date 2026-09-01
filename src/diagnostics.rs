@@ -122,12 +122,21 @@ pub fn send(yes: bool) -> Result<(), String> {
     let out = util::run(
         "curl",
         &[
-            "-sS", "-m", "30", "-X", "POST",
-            "-H", "User-Agent: schematize-cli",
-            "-H", "Content-Type: application/json",
-            "-H", &auth,
-            "--data-binary", &data,
-            "-w", "\n%{http_code}",
+            "-sS",
+            "-m",
+            "30",
+            "-X",
+            "POST",
+            "-H",
+            "User-Agent: schematize-cli",
+            "-H",
+            "Content-Type: application/json",
+            "-H",
+            &auth,
+            "--data-binary",
+            &data,
+            "-w",
+            "\n%{http_code}",
             &url,
         ],
     );
@@ -270,7 +279,8 @@ mod tests {
     /// pra triagem.
     #[test]
     fn erro_do_servidor_nao_e_envio() {
-        let e = resposta_do_envio("boom\n500", "https://api.x/diagnostics").expect_err("500 é erro");
+        let e =
+            resposta_do_envio("boom\n500", "https://api.x/diagnostics").expect_err("500 é erro");
         assert!(e.contains("500") && e.contains("boom"), "{e}");
     }
 }

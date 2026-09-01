@@ -66,7 +66,8 @@ pub fn installed_version(it: &Item) -> Option<String> {
 /// Resolve a última versão de uma skill/CLI a partir do FONTE (raw main) — NÃO da API
 /// do GitHub (que é limitada a 60/h e por isso quebrava o versionamento). Ver `latest_version_raw`.
 pub fn resolve_latest(it: &Item) -> Result<String, String> {
-    latest_version_raw(&it.repo).ok_or_else(|| format!("não consegui resolver a versão de {}", it.slug))
+    latest_version_raw(&it.repo)
+        .ok_or_else(|| format!("não consegui resolver a versão de {}", it.slug))
 }
 
 /// Última versão lida de `raw.githubusercontent.com/<org>/<repo>/main/...` — SEM a API
@@ -76,7 +77,8 @@ pub fn latest_version_raw(repo: &str) -> Option<String> {
     let is_cli = repo == "schematize-cli";
     let file = if is_cli { "Cargo.toml" } else { "VERSION" };
     let url = format!("https://raw.githubusercontent.com/{}/{}/main/{}", registry::ORG, repo, file);
-    let body = util::run("curl", &["-sfL", "-m", "8", "-H", "User-Agent: schematize-cli", &url]).ok()?;
+    let body =
+        util::run("curl", &["-sfL", "-m", "8", "-H", "User-Agent: schematize-cli", &url]).ok()?;
     if is_cli {
         // primeira linha `version = "x.y.z"` do [package]
         body.lines()
@@ -103,7 +105,8 @@ pub fn latest_versions_bulk(slugs: &[String]) -> BTreeMap<String, String> {
         return BTreeMap::new();
     }
     let url = format!("{}/versions?skills={}", crate::account::api_base(), slugs.join(","));
-    let Ok(body) = util::run("curl", &["-sfL", "-m", "8", "-H", "User-Agent: schematize-cli", &url])
+    let Ok(body) =
+        util::run("curl", &["-sfL", "-m", "8", "-H", "User-Agent: schematize-cli", &url])
     else {
         return BTreeMap::new();
     };
@@ -134,10 +137,18 @@ fn parse_versions(json: &str) -> BTreeMap<String, String> {
 /// sem "v". Limitada a 60/h/IP — por isso NÃO é mais o caminho primário de detecção.
 pub fn latest_release_tag(repo: &str) -> Option<String> {
     let url = format!("https://api.github.com/repos/{}/{}/releases/latest", registry::ORG, repo);
-    let body = util::run("curl", &[
-        "-sfL", "-H", "Accept: application/vnd.github+json",
-        "-H", "User-Agent: schematize-cli", &url,
-    ]).ok()?;
+    let body = util::run(
+        "curl",
+        &[
+            "-sfL",
+            "-H",
+            "Accept: application/vnd.github+json",
+            "-H",
+            "User-Agent: schematize-cli",
+            &url,
+        ],
+    )
+    .ok()?;
     let v: serde_json::Value = serde_json::from_str(&body).ok()?;
     let tag = v.get("tag_name")?.as_str()?;
     Some(tag.trim_start_matches('v').to_string())
@@ -189,7 +200,12 @@ pub fn install(it: &Item) -> Result<String, String> {
         // Reinstalar do oficial ZERA o estado de fork da entrada (a pasta ativa volta a ser oficial).
         st.skills.insert(
             it.slug.to_string(),
-            Entry { version: version.clone(), installed_at: util::now_unix(), forked: false, fork_base_version: None },
+            Entry {
+                version: version.clone(),
+                installed_at: util::now_unix(),
+                forked: false,
+                fork_base_version: None,
+            },
         );
         save_state(&st)?;
     }
@@ -271,7 +287,10 @@ fn copy_tree(src: &Path, dst: &Path) -> Result<(), String> {
         fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
     let _ = fs::remove_dir_all(dst);
-    util::run("cp", &["-r", src.to_str().ok_or("path inválido")?, dst.to_str().ok_or("path inválido")?])?;
+    util::run(
+        "cp",
+        &["-r", src.to_str().ok_or("path inválido")?, dst.to_str().ok_or("path inválido")?],
+    )?;
     Ok(())
 }
 
@@ -381,10 +400,7 @@ fn list_tree(root: &Path) -> Vec<String> {
 /// (erro real do diff) vira `Err`. Se o `diff` do sistema faltar, retorna aviso (não quebra o Compare).
 fn unified_diff(a: &Path, b: &Path) -> String {
     use std::process::Command;
-    match Command::new("diff")
-        .args(["-ruN", &a.to_string_lossy(), &b.to_string_lossy()])
-        .output()
-    {
+    match Command::new("diff").args(["-ruN", &a.to_string_lossy(), &b.to_string_lossy()]).output() {
         Ok(out) => {
             let code = out.status.code().unwrap_or(0);
             if code >= 2 {
@@ -406,7 +422,9 @@ pub fn compare_update(slug: &str) -> Result<Compare, String> {
     let st = load_state();
     let entry = st.skills.get(slug).ok_or_else(|| format!("skill {slug} não está instalada"))?;
     if !entry.forked {
-        return Err(format!("skill {slug} não é um fork — nada a comparar (edite-a pra criar o fork)"));
+        return Err(format!(
+            "skill {slug} não é um fork — nada a comparar (edite-a pra criar o fork)"
+        ));
     }
     let base_version = entry.fork_base_version.clone().unwrap_or_else(|| "?".into());
 
@@ -452,9 +470,13 @@ pub fn compare_update(slug: &str) -> Result<Compare, String> {
             (true, true) => {
                 let a = fs::read(fork_dir.join(&rel)).unwrap_or_default();
                 let b = fs::read(official.join(&rel)).unwrap_or_default();
-                if a == b { "igual" } else { "mudou" }
+                if a == b {
+                    "igual"
+                } else {
+                    "mudou"
+                }
             }
-            (true, false) => "novo",     // existe só no fork (o usuário adicionou)
+            (true, false) => "novo", // existe só no fork (o usuário adicionou)
             (false, true) => "removido", // existe só na nova oficial (fork removeu / upstream adicionou)
             (false, false) => continue,
         };
@@ -575,7 +597,9 @@ mod tests {
         let root = tmp();
         let mut st = State::default();
         // Oficial mas não instalada em disco → erro claro (nada a copiar).
-        assert!(ensure_fork(&root.join("skills"), &root.join("base"), &mut st, "sumida", true).is_err());
+        assert!(
+            ensure_fork(&root.join("skills"), &root.join("base"), &mut st, "sumida", true).is_err()
+        );
         fs::remove_dir_all(&root).ok();
     }
 

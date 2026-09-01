@@ -33,8 +33,10 @@ fn codigo(caminho: &str) -> String {
 #[test]
 fn adr0006_o_perfil_e_a_fonte_unica_da_conexao() {
     let c = codigo("src/vps/conexao.rs");
-    assert!(c.contains(r#"a.push("-F".into());"#) && c.contains(r#"a.push("none".into());"#),
-            "o `-F none` sumiu — o config do usuário voltaria a entrar e a auditoria poderia mentir");
+    assert!(
+        c.contains(r#"a.push("-F".into());"#) && c.contains(r#"a.push("none".into());"#),
+        "o `-F none` sumiu — o config do usuário voltaria a entrar e a auditoria poderia mentir"
+    );
     assert!(c.contains("IdentitiesOnly=yes"), "sem IdentitiesOnly, outras chaves são oferecidas");
     assert!(c.contains("StrictHostKeyChecking=yes"), "o pinning virou TOFU");
     assert!(!c.contains("accept-new"), "TOFU cego voltou ao caminho de conexão");
@@ -54,27 +56,41 @@ fn adr0006_nenhuma_implementacao_propria_de_ssh() {
 /// ADR-0005 — a chave privada NUNCA é lida; só referenciada por caminho.
 #[test]
 fn adr0005_a_privada_nunca_e_lida() {
-    for f in ["src/vps/conexao.rs", "src/vps/exec.rs", "src/vps/bootstrap.rs", "src/vps/registro.rs"] {
+    for f in
+        ["src/vps/conexao.rs", "src/vps/exec.rs", "src/vps/bootstrap.rs", "src/vps/registro.rs"]
+    {
         let s = producao(f);
         for leitura in ["read_to_string(&chave", "read_to_string(&key", "fs::read(&chave"] {
             assert!(!s.contains(leitura), "{f}: alguém está LENDO a chave privada ({leitura})");
         }
     }
     // A pública é que sai — e é só ela que o bootstrap manda pro host.
-    assert!(producao("src/vps/bootstrap.rs").contains("export_public"),
-            "o bootstrap tem que enviar a PÚBLICA");
+    assert!(
+        producao("src/vps/bootstrap.rs").contains("export_public"),
+        "o bootstrap tem que enviar a PÚBLICA"
+    );
 }
 
 /// ADR-0005 — não existe válvula de escape em lugar nenhum do caminho de decisão.
 #[test]
 fn adr0005_sem_valvula_de_escape() {
     let alvos = [
-        "src/vps/politica.rs", "src/vps/exec.rs", "src/mcp/tools.rs",
-        "src/vps/hook.rs", "src/vps/conexao.rs",
+        "src/vps/politica.rs",
+        "src/vps/exec.rs",
+        "src/mcp/tools.rs",
+        "src/vps/hook.rs",
+        "src/vps/conexao.rs",
     ];
     for f in alvos {
         let s = producao(f);
-        for proibido in ["skip_policy", "force_policy", "bypass_policy", "ignore_policy", "no_audit", "skip_audit"] {
+        for proibido in [
+            "skip_policy",
+            "force_policy",
+            "bypass_policy",
+            "ignore_policy",
+            "no_audit",
+            "skip_audit",
+        ] {
             assert!(!s.contains(proibido), "{f}: válvula de escape {proibido:?}");
         }
     }
@@ -89,7 +105,15 @@ fn adr0005_sem_valvula_de_escape() {
 #[test]
 fn adr0005_o_mcp_nao_alcanca_o_que_nao_deve() {
     let t = producao("src/mcp/tools.rs");
-    for proibido in ["executar_interno", "registrar_comando", "abrir_sessao", "bootstrap::", "sondar", "confiar", "salvar"] {
+    for proibido in [
+        "executar_interno",
+        "registrar_comando",
+        "abrir_sessao",
+        "bootstrap::",
+        "sondar",
+        "confiar",
+        "salvar",
+    ] {
         assert!(!t.contains(proibido), "o MCP alcança {proibido:?} — o agente não pode");
     }
     assert!(t.contains("Confirmacao::Ausente"), "o MCP tem que passar Ausente sempre");
@@ -100,7 +124,8 @@ fn adr0005_o_mcp_nao_alcanca_o_que_nao_deve() {
 #[test]
 fn piso_auditoria_append_only() {
     let a = producao("src/vps/auditoria.rs");
-    for proibido in ["DELETE FROM comandos", "DELETE FROM sessoes", "UPDATE comandos", "DROP TABLE"] {
+    for proibido in ["DELETE FROM comandos", "DELETE FROM sessoes", "UPDATE comandos", "DROP TABLE"]
+    {
         assert!(!a.contains(proibido), "auditoria deixou de ser append-only: {proibido}");
     }
     // A redação acontece na ESCRITA (se migrar pra leitura, o segredo vai ao disco em claro).
@@ -122,7 +147,8 @@ fn piso_sql_sempre_parametrizado() {
             if t.contains("ALTER TABLE") && t.contains("format!") {
                 assert!(
                     producao(f).contains("identificador_ok"),
-                    "{f}:{}: DDL concatenado SEM blindagem de identificador -> {t}", n + 1
+                    "{f}:{}: DDL concatenado SEM blindagem de identificador -> {t}",
+                    n + 1
                 );
             }
         }
@@ -133,17 +159,30 @@ fn piso_sql_sempre_parametrizado() {
 #[test]
 fn piso_nenhum_unwrap_em_producao() {
     let modulos = [
-        "src/vps/mod.rs", "src/vps/db.rs", "src/vps/registro.rs", "src/vps/conexao.rs",
-        "src/vps/exec.rs", "src/vps/auditoria.rs", "src/vps/politica.rs", "src/vps/hook.rs",
-        "src/vps/capacidade.rs", "src/vps/bootstrap.rs", "src/vps/verbos.rs",
-        "src/mcp/mod.rs", "src/mcp/protocolo.rs", "src/mcp/tools.rs",
-        "src/cli/vps.rs", "src/cli/mcp.rs",
+        "src/vps/mod.rs",
+        "src/vps/db.rs",
+        "src/vps/registro.rs",
+        "src/vps/conexao.rs",
+        "src/vps/exec.rs",
+        "src/vps/auditoria.rs",
+        "src/vps/politica.rs",
+        "src/vps/hook.rs",
+        "src/vps/capacidade.rs",
+        "src/vps/bootstrap.rs",
+        "src/vps/verbos.rs",
+        "src/mcp/mod.rs",
+        "src/mcp/protocolo.rs",
+        "src/mcp/tools.rs",
+        "src/cli/vps.rs",
+        "src/cli/mcp.rs",
     ];
     let mut culpados = Vec::new();
     for f in modulos {
         let s = producao(f);
         let n = s.matches(".unwrap()").count() + s.matches(".expect(").count();
-        if n > 0 { culpados.push(format!("{f}: {n}")); }
+        if n > 0 {
+            culpados.push(format!("{f}: {n}"));
+        }
     }
     assert!(culpados.is_empty(), "unwrap/expect em produção: {culpados:?}");
 }
@@ -152,11 +191,17 @@ fn piso_nenhum_unwrap_em_producao() {
 #[test]
 fn piso_tamanho_de_arquivo() {
     let mut grandes = Vec::new();
-    for entrada in std::fs::read_dir("src/vps").unwrap().chain(std::fs::read_dir("src/mcp").unwrap()) {
+    for entrada in
+        std::fs::read_dir("src/vps").unwrap().chain(std::fs::read_dir("src/mcp").unwrap())
+    {
         let p = entrada.unwrap().path();
-        if p.extension().and_then(|e| e.to_str()) != Some("rs") { continue; }
+        if p.extension().and_then(|e| e.to_str()) != Some("rs") {
+            continue;
+        }
         let total = std::fs::read_to_string(&p).unwrap().lines().count();
-        if total > 750 { grandes.push(format!("{}: {total}", p.display())); }
+        if total > 750 {
+            grandes.push(format!("{}: {total}", p.display()));
+        }
     }
     assert!(grandes.is_empty(), "acima do teto de 750 linhas: {grandes:?}");
 }
@@ -168,17 +213,23 @@ fn piso_toda_funcao_publica_documentada() {
     for dir in ["src/vps", "src/mcp"] {
         for entrada in std::fs::read_dir(dir).unwrap() {
             let p = entrada.unwrap().path();
-            if p.extension().and_then(|e| e.to_str()) != Some("rs") { continue; }
+            if p.extension().and_then(|e| e.to_str()) != Some("rs") {
+                continue;
+            }
             let src = std::fs::read_to_string(&p).unwrap();
             let prod = src.split("#[cfg(test)]").next().unwrap_or("");
             let linhas: Vec<&str> = prod.lines().collect();
             for (i, l) in linhas.iter().enumerate() {
-                if !l.trim_start().starts_with("pub fn ") && !l.trim_start().starts_with("pub const ") {
+                if !l.trim_start().starts_with("pub fn ")
+                    && !l.trim_start().starts_with("pub const ")
+                {
                     continue;
                 }
                 // A linha anterior (ignorando atributos) tem que ser doc-comment.
                 let mut j = i;
-                while j > 0 && linhas[j - 1].trim_start().starts_with('#') { j -= 1; }
+                while j > 0 && linhas[j - 1].trim_start().starts_with('#') {
+                    j -= 1;
+                }
                 let anterior = if j > 0 { linhas[j - 1].trim_start() } else { "" };
                 if !anterior.starts_with("///") {
                     sem_doc.push(format!("{}:{}: {}", p.display(), i + 1, l.trim()));
@@ -186,8 +237,11 @@ fn piso_toda_funcao_publica_documentada() {
             }
         }
     }
-    assert!(sem_doc.is_empty(), "função/const pública sem doc-comment (quebra o índice §39):\n  {}",
-            sem_doc.join("\n  "));
+    assert!(
+        sem_doc.is_empty(),
+        "função/const pública sem doc-comment (quebra o índice §39):\n  {}",
+        sem_doc.join("\n  ")
+    );
 }
 
 /// Plano §5 R2 — o break-glass humano nunca é removido pelo bootstrap.
@@ -205,15 +259,21 @@ fn piso10_a_gui_nao_bloqueia_na_rede() {
     let w = std::fs::read_to_string("../schematize_gui_slint/src/wire/vps.rs").expect("fiação");
     let prod = w.split("#[cfg(test)]").next().unwrap_or("");
     // Toda chamada de rede tem que estar dentro de `em_thread` ou de um `thread::spawn`.
-    for pesada in ["vps::sondar(", "bootstrap::instalar(", "vps::descobrir_host_key(", "vps::executar("] {
+    for pesada in
+        ["vps::sondar(", "bootstrap::instalar(", "vps::descobrir_host_key(", "vps::executar("]
+    {
         for (n, l) in prod.lines().enumerate() {
-            if !l.contains(pesada) { continue; }
+            if !l.contains(pesada) {
+                continue;
+            }
             // Procura para trás por um `spawn`/`em_thread` no mesmo bloco (janela de 30 linhas).
             let ini = n.saturating_sub(30);
-            let contexto: String = prod.lines().skip(ini).take(n - ini + 1).collect::<Vec<_>>().join("\n");
+            let contexto: String =
+                prod.lines().skip(ini).take(n - ini + 1).collect::<Vec<_>>().join("\n");
             assert!(
                 contexto.contains("em_thread") || contexto.contains("thread::spawn"),
-                "wire/vps.rs:{}: `{pesada}` fora de thread — trava a janela", n + 1
+                "wire/vps.rs:{}: `{pesada}` fora de thread — trava a janela",
+                n + 1
             );
         }
     }
@@ -250,7 +310,8 @@ fn teste_no_fim_do_arquivo() {
     arquivos.sort();
     assert!(arquivos.len() > 20, "a varredura não achou os fontes: {}", arquivos.len());
 
-    let inicios = ["pub ", "fn ", "const ", "static ", "struct ", "enum ", "impl ", "type ", "trait "];
+    let inicios =
+        ["pub ", "fn ", "const ", "static ", "struct ", "enum ", "impl ", "type ", "trait "];
     let mut violacoes = Vec::new();
     for arq in &arquivos {
         let src = std::fs::read_to_string(arq).unwrap();
@@ -311,7 +372,13 @@ fn ler_modificar_escrever_nunca_parte_de_vazio() {
     // do PRÓPRIO app cujo conteúdo é um link único, substituído por inteiro a cada
     // escrita — não há conteúdo do usuário pra perder. O pior caso de uma leitura falha é
     // reanunciar um post, não destruir dado.
-    let permitidos = ["src/news.rs:116"];
+    //
+    // A exceção casa por CONTEÚDO, não por `arquivo:linha`. A primeira versão usava
+    // `src/news.rs:116` e quebrou na primeira passada do `cargo fmt`, que empurrou a linha
+    // pra 126. O modo de falhar barulhento foi esse; o silencioso é pior: se o código
+    // andasse de tal jeito que uma violação de VERDADE caísse na linha 116, ela herdaria a
+    // isenção sem ninguém notar. Allowlist ancorada em número de linha é armadilha.
+    let permitidos: &[(&str, &str)] = &[("src/news.rs", "marker_path()")];
 
     /// Todo `.rs` sob `raiz`, recursivo.
     fn fontes(raiz: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
@@ -341,11 +408,11 @@ fn ler_modificar_escrever_nunca_parte_de_vazio() {
             if !(janela.contains("fs::write(") || janela.contains("escreve_atomico(")) {
                 continue; // leitura pura: `unwrap_or_default` aqui é legítimo.
             }
-            let local = format!("{}:{}", arq.display(), i + 1);
-            if permitidos.contains(&local.as_str()) {
+            let caminho = arq.display().to_string();
+            if permitidos.iter().any(|(f, marca)| caminho.ends_with(f) && l.contains(marca)) {
                 continue;
             }
-            violacoes.push(format!("{local}: {}", l.trim()));
+            violacoes.push(format!("{caminho}:{}: {}", i + 1, l.trim()));
         }
     }
     assert!(

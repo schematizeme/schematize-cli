@@ -9,28 +9,40 @@
 //!
 //! DE ONDE VEM: nada externo. PRA ONDE VAI: nada — só asserção.
 
-use schematize::vps::{self, politica::Veredito, registro::{Ambiente, ModoPolitica, VpsProfile}};
+use schematize::vps::{
+    self,
+    politica::Veredito,
+    registro::{Ambiente, ModoPolitica, VpsProfile},
+};
 
 /// PRNG determinístico (xorshift64*). Nada de `rand`: uma falha aqui precisa ser reproduzível
 /// pela seed impressa, e um gerador do sistema tornaria isso impossível.
 struct Rng(u64);
 impl Rng {
-    fn novo(seed: u64) -> Self { Rng(seed | 1) }
+    fn novo(seed: u64) -> Self {
+        Rng(seed | 1)
+    }
     fn proximo(&mut self) -> u64 {
         self.0 ^= self.0 >> 12;
         self.0 ^= self.0 << 25;
         self.0 ^= self.0 >> 27;
         self.0.wrapping_mul(0x2545_F491_4F6C_DD1D)
     }
-    fn ate(&mut self, n: usize) -> usize { if n == 0 { 0 } else { (self.proximo() % n as u64) as usize } }
+    fn ate(&mut self, n: usize) -> usize {
+        if n == 0 {
+            0
+        } else {
+            (self.proximo() % n as u64) as usize
+        }
+    }
 }
 
 /// Alfabeto deliberadamente hostil: metacaracteres, unicode confuso, controle e byte nulo
 /// misturados a caracteres normais.
 const ALFABETO: &[char] = &[
-    'a', 'b', 'z', 'A', 'Z', '0', '9', ' ', '\t', '\n', '\r', '\0',
-    ';', '&', '|', '`', '$', '(', ')', '>', '<', '\'', '"', '\\', '/', '-', '.', '_', '=', '*',
-    '\u{0440}', '\u{202e}', '\u{200b}', '\u{FEFF}', 'ç', 'é', '中', '🙂', '\u{1}', '\u{7f}',
+    'a', 'b', 'z', 'A', 'Z', '0', '9', ' ', '\t', '\n', '\r', '\0', ';', '&', '|', '`', '$', '(',
+    ')', '>', '<', '\'', '"', '\\', '/', '-', '.', '_', '=', '*', '\u{0440}', '\u{202e}',
+    '\u{200b}', '\u{FEFF}', 'ç', 'é', '中', '🙂', '\u{1}', '\u{7f}',
 ];
 
 fn palavra(r: &mut Rng, max: usize) -> String {
@@ -40,8 +52,16 @@ fn palavra(r: &mut Rng, max: usize) -> String {
 
 fn perfil(r: &mut Rng) -> VpsProfile {
     let mut p = VpsProfile::novo("srv", "10.0.0.1", "u", "k");
-    p.modo = match r.ate(3) { 0 => ModoPolitica::ReadOnly, 1 => ModoPolitica::OpsVerbs, _ => ModoPolitica::Livre };
-    p.ambiente = match r.ate(3) { 0 => Ambiente::Dev, 1 => Ambiente::Hml, _ => Ambiente::Prd };
+    p.modo = match r.ate(3) {
+        0 => ModoPolitica::ReadOnly,
+        1 => ModoPolitica::OpsVerbs,
+        _ => ModoPolitica::Livre,
+    };
+    p.ambiente = match r.ate(3) {
+        0 => Ambiente::Dev,
+        1 => Ambiente::Hml,
+        _ => Ambiente::Prd,
+    };
     p
 }
 
@@ -93,15 +113,22 @@ fn fuzz_validacao_nunca_aceita_o_que_escapa() {
         if ok {
             // Um alias aceito é SEGURO por construção: vira nome de arquivo e nada mais.
             assert!(!alias.is_empty() && alias.len() <= 64, "seed {seed}: {alias:?}");
-            assert!(alias.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-')),
-                    "seed {seed}: caractere fora do allow-list em {alias:?}");
+            assert!(
+                alias.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-')),
+                "seed {seed}: caractere fora do allow-list em {alias:?}"
+            );
             assert!(!alias.contains(".."), "seed {seed}: travessia em {alias:?}");
-            assert!(alias.chars().next().is_some_and(|c| c.is_ascii_alphanumeric()),
-                    "seed {seed}: não começa por alfanumérico: {alias:?}");
+            assert!(
+                alias.chars().next().is_some_and(|c| c.is_ascii_alphanumeric()),
+                "seed {seed}: não começa por alfanumérico: {alias:?}"
+            );
             // E o caminho derivado dele fica DENTRO do dir de known_hosts.
             let kh = vps::known_hosts_path(&alias).expect("alias válido tem caminho");
-            assert_eq!(kh.parent(), Some(vps::known_hosts_dir().as_path()),
-                       "seed {seed}: {alias:?} escapou do dir");
+            assert_eq!(
+                kh.parent(),
+                Some(vps::known_hosts_dir().as_path()),
+                "seed {seed}: {alias:?} escapou do dir"
+            );
         }
         // Opções: aceito => tem `=`, sem espaço, e a chave está na allowlist.
         let opcao = palavra(&mut r, 30);
@@ -133,16 +160,20 @@ fn fuzz_hook_nunca_panica_e_nunca_barra_a_porta_certa() {
         let _ = avaliar_tool_use(tool, &json!({ "command": cmd, "file_path": cmd }));
         // Se barrou, o motivo ENSINA o caminho certo.
         if let Some(m) = avaliar_tool_use("Bash", &json!({ "command": cmd })) {
-            assert!(m.contains("schematize") , "seed {seed}: recusa sem caminho: {m}");
+            assert!(m.contains("schematize"), "seed {seed}: recusa sem caminho: {m}");
         }
     }
     // A porta certa NUNCA é barrada, com qualquer sufixo hostil grudado.
     for seed in 1..=500u64 {
         let mut r = Rng::novo(seed);
-        let sufixo: String = palavra(&mut r, 20).chars().filter(|c| c.is_ascii_alphanumeric()).collect();
+        let sufixo: String =
+            palavra(&mut r, 20).chars().filter(|c| c.is_ascii_alphanumeric()).collect();
         let cmd = format!("schematize vps exec srv -- uptime{sufixo}");
-        assert_eq!(avaliar_tool_use("Bash", &json!({ "command": cmd })), None,
-                   "seed {seed}: a porta certa foi barrada: {cmd:?}");
+        assert_eq!(
+            avaliar_tool_use("Bash", &json!({ "command": cmd })),
+            None,
+            "seed {seed}: a porta certa foi barrada: {cmd:?}"
+        );
     }
 }
 
@@ -175,7 +206,9 @@ fn fuzz_mcp_sempre_responde_e_nunca_panica() {
     let schema = tools::schema();
     for seed in 1..=3000u64 {
         let mut r = Rng::novo(seed);
-        let metodo = ["initialize", "tools/list", "tools/call", "ping", "", &palavra(&mut r, 20)][r.ate(6)].to_string();
+        let metodo = ["initialize", "tools/list", "tools/call", "ping", "", &palavra(&mut r, 20)]
+            [r.ate(6)]
+        .to_string();
         let nome = palavra(&mut r, 20);
         let msg = json!({
             "jsonrpc": if r.ate(4) == 0 { "1.0" } else { "2.0" },
@@ -196,7 +229,9 @@ fn fuzz_mcp_sempre_responde_e_nunca_panica() {
 /// INVARIANTE do catálogo: o que passa na validação sobrevive ao round-trip do formato.
 #[test]
 fn fuzz_catalogo_round_trip() {
-    use schematize::vps::verbos::{catalogo_texto, parse_catalogo, valid_comando, valid_verbo, Verbo};
+    use schematize::vps::verbos::{
+        catalogo_texto, parse_catalogo, valid_comando, valid_verbo, Verbo,
+    };
     for seed in 1..=3000u64 {
         let mut r = Rng::novo(seed);
         let nome = palavra(&mut r, 20);
@@ -208,7 +243,10 @@ fn fuzz_catalogo_round_trip() {
         let volta = parse_catalogo(&catalogo_texto(&v));
         assert_eq!(volta, v, "seed {seed}: round-trip perdeu {nome:?} -> {comando:?}");
         // E o texto gerado nunca cria uma LINHA a mais (seria um verbo não aprovado).
-        let linhas = catalogo_texto(&v).lines().filter(|l| !l.starts_with('#') && !l.trim().is_empty()).count();
+        let linhas = catalogo_texto(&v)
+            .lines()
+            .filter(|l| !l.starts_with('#') && !l.trim().is_empty())
+            .count();
         assert_eq!(linhas, 1, "seed {seed}: o catálogo ganhou linha");
     }
 }

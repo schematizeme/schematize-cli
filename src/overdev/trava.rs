@@ -276,5 +276,4 @@ mod tests {
         assert!(sobrou.is_empty(), "temporários vazados: {sobrou:?}");
         let _ = std::fs::remove_dir_all(alvo.parent().unwrap());
     }
-
 }

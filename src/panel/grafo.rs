@@ -80,11 +80,8 @@ pub fn load_graph(root: &Path) -> (Vec<Node>, Vec<Edge>, Option<PathBuf>) {
     match find_index_dir(root) {
         Some(dir) => {
             let global = dir.join("GRAFO_GLOBAL.md");
-            let (n, e) = if global.is_file() {
-                parse_graph_files(&[global])
-            } else {
-                parse_graph(&dir)
-            };
+            let (n, e) =
+                if global.is_file() { parse_graph_files(&[global]) } else { parse_graph(&dir) };
             (n, e, Some(dir))
         }
         None => (Vec::new(), Vec::new(), None),
@@ -150,19 +147,20 @@ pub fn aggregate_by_service(nodes: &[Node], edges: &[Edge]) -> (Vec<Node>, Vec<E
     // contagem por serviço → rótulo "<serviço> · N".
     let mut counts: BTreeMap<String, usize> = BTreeMap::new();
     for n in nodes {
-        *counts.entry(name_svc.get(n.id.as_str()).cloned().unwrap_or_else(|| "(raiz)".into())).or_default() += 1;
+        *counts
+            .entry(name_svc.get(n.id.as_str()).cloned().unwrap_or_else(|| "(raiz)".into()))
+            .or_default() += 1;
     }
-    let agg_nodes: Vec<Node> = counts
-        .iter()
-        .map(|(svc, n)| Node { id: format!("{svc} · {n}"), loc: None })
-        .collect();
+    let agg_nodes: Vec<Node> =
+        counts.iter().map(|(svc, n)| Node { id: format!("{svc} · {n}"), loc: None }).collect();
     // mapa serviço → id-rotulado (pra as arestas casarem os nós agregados).
     let svc_label: BTreeMap<&str, String> =
         counts.iter().map(|(svc, n)| (svc.as_str(), format!("{svc} · {n}"))).collect();
     let mut seen: std::collections::BTreeSet<(String, String)> = Default::default();
     let mut agg_edges = Vec::new();
     for e in edges {
-        let (Some(sa), Some(sb)) = (name_svc.get(e.from.as_str()), name_svc.get(e.to.as_str())) else {
+        let (Some(sa), Some(sb)) = (name_svc.get(e.from.as_str()), name_svc.get(e.to.as_str()))
+        else {
             continue;
         };
         if sa == sb {
@@ -177,13 +175,18 @@ pub fn aggregate_by_service(nodes: &[Node], edges: &[Edge]) -> (Vec<Node>, Vec<E
 }
 
 /// Subgrafo de um serviço: só os nós cujo `loc` começa com `<servico>/` (+ arestas entre eles).
-pub(crate) fn service_subgraph(nodes: &[Node], edges: &[Edge], servico: &str) -> (Vec<Node>, Vec<Edge>) {
+pub(crate) fn service_subgraph(
+    nodes: &[Node],
+    edges: &[Edge],
+    servico: &str,
+) -> (Vec<Node>, Vec<Edge>) {
     let keep: std::collections::HashSet<&str> = nodes
         .iter()
         .filter(|n| service_of(&n.loc).as_deref() == Some(servico))
         .map(|n| n.id.as_str())
         .collect();
-    let sub_nodes: Vec<Node> = nodes.iter().filter(|n| keep.contains(n.id.as_str())).cloned().collect();
+    let sub_nodes: Vec<Node> =
+        nodes.iter().filter(|n| keep.contains(n.id.as_str())).cloned().collect();
     let sub_edges: Vec<Edge> = edges
         .iter()
         .filter(|e| keep.contains(e.from.as_str()) && keep.contains(e.to.as_str()))

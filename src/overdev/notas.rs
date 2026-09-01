@@ -41,7 +41,11 @@ pub fn park(item_substr: &str, pergunta: &str) -> Result<(), String> {
 ///
 /// Todo o ciclo ler-modificar-escrever sob a MESMA trava — o agente pode estar
 /// escrevendo no checklist agora, e o alvo é posicional.
-pub fn resolver(alvo: super::resposta::Alvo, acao: super::resposta::Acao, texto: &str) -> Result<(), String> {
+pub fn resolver(
+    alvo: super::resposta::Alvo,
+    acao: super::resposta::Acao,
+    texto: &str,
+) -> Result<(), String> {
     let cl = checklist();
     let r = super::trava::com_trava(&cl, || {
         let s = fs::read_to_string(&cl).map_err(|e| e.to_string())?;
@@ -70,7 +74,11 @@ pub fn resolver(alvo: super::resposta::Alvo, acao: super::resposta::Acao, texto:
             println!("recusado: {}", r.item);
             println!("→ cancelado: {m}");
         }
-        (None, _) => println!("{}: {}", if acao == super::resposta::Acao::Responder { "respondido" } else { "recusado" }, r.item),
+        (None, _) => println!(
+            "{}: {}",
+            if acao == super::resposta::Acao::Responder { "respondido" } else { "recusado" },
+            r.item
+        ),
     }
     let _ = crate::overdevdb::snapshot(Path::new("."));
     Ok(())
@@ -111,7 +119,11 @@ pub fn hold(substr: &str) -> Result<(), String> {
 /// Fecha o primeiro `- [H ]` (humano aberto) → `- [H x]` — PURO, testável.
 /// Casa por `substr` (contém) OU por `index` (1-based entre os humanos abertos).
 /// Retorna (novo conteúdo, texto do item fechado).
-pub(crate) fn mark_human_str(s: &str, substr: Option<&str>, index: Option<usize>) -> Result<(String, String), String> {
+pub(crate) fn mark_human_str(
+    s: &str,
+    substr: Option<&str>,
+    index: Option<usize>,
+) -> Result<(String, String), String> {
     let mut seen = 0usize; // contador de humanos abertos vistos (1-based)
     let mut hit: Option<String> = None;
     let out: Vec<String> = s
@@ -182,7 +194,8 @@ pub fn add_note(root: &Path, kind: &str, texto: &str) -> Result<(), String> {
     if let Some(d) = f.parent() {
         fs::create_dir_all(d).map_err(|e| e.to_string())?;
     }
-    let mut cur = fs::read_to_string(&f).unwrap_or_else(|_| "# OVERDEV — NOTAS do humano\n\n".to_string());
+    let mut cur =
+        fs::read_to_string(&f).unwrap_or_else(|_| "# OVERDEV — NOTAS do humano\n\n".to_string());
     cur.push_str(&note_block(kind, texto));
     fs::write(&f, cur).map_err(|e| e.to_string())?;
     // Versiona a nota no DB local (best-effort).

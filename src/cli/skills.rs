@@ -1,13 +1,10 @@
 //! Subcomandos de SKILLS: instalar, atualizar, remover, listar, forkar, comparar,
 //! criar do zero e editar.
 
-use schematize::i18n::{t, tf};
-use schematize::{
-    registry, skilledit,
-    skills,
-};
-use schematize::{market};
 use crate::cli::args::*;
+use schematize::i18n::{t, tf};
+use schematize::market;
+use schematize::{registry, skilledit, skills};
 
 pub(crate) fn resolve(cat: &[registry::Item], names: &[String], all: bool) -> Vec<registry::Item> {
     if all || names.is_empty() {
@@ -42,7 +39,9 @@ pub(crate) fn skills_fork(slug: &str) -> Result<(), String> {
         return Ok(());
     }
     skills::fork(slug)?;
-    println!("skill {slug} forkada: a pasta ativa é editável e a base oficial ficou guardada no stash.");
+    println!(
+        "skill {slug} forkada: a pasta ativa é editável e a base oficial ficou guardada no stash."
+    );
     println!("compare depois com: schematize skills compare {slug}");
     Ok(())
 }
@@ -50,7 +49,10 @@ pub(crate) fn skills_fork(slug: &str) -> Result<(), String> {
 /// `schematize skills compare <slug>` — mostra o diff do fork ativo vs a nova oficial (latest).
 pub(crate) fn skills_compare(slug: &str) -> Result<(), String> {
     let cmp = skills::compare_update(slug)?;
-    println!("Comparando fork de {slug}: base v{} → nova oficial v{}", cmp.base_version, cmp.new_version);
+    println!(
+        "Comparando fork de {slug}: base v{} → nova oficial v{}",
+        cmp.base_version, cmp.new_version
+    );
     if cmp.files.is_empty() {
         println!("  (nenhum arquivo — nada a comparar)");
     }
@@ -65,7 +67,12 @@ pub(crate) fn skills_compare(slug: &str) -> Result<(), String> {
 }
 
 /// `schematize skills new <slug>` — scaffolda o piso mínimo válido de uma skill nova.
-pub(crate) fn skills_new(slug: &str, name: Option<String>, desc: Option<String>, force: bool) -> Result<(), String> {
+pub(crate) fn skills_new(
+    slug: &str,
+    name: Option<String>,
+    desc: Option<String>,
+    force: bool,
+) -> Result<(), String> {
     let name = name.unwrap_or_else(|| slug.to_string());
     let desc = desc.unwrap_or_default();
     let dest = if force {
@@ -78,11 +85,17 @@ pub(crate) fn skills_new(slug: &str, name: Option<String>, desc: Option<String>,
 }
 
 /// `schematize skills edit <slug>` — lista os arquivos, imprime um, ou o grava de um arquivo fonte.
-pub(crate) fn skills_edit(slug: &str, list: bool, file: Option<String>, set_from: Option<String>) -> Result<(), String> {
+pub(crate) fn skills_edit(
+    slug: &str,
+    list: bool,
+    file: Option<String>,
+    set_from: Option<String>,
+) -> Result<(), String> {
     // Com --file: escreve (se --set-from) ou imprime o conteúdo.
     if let Some(rel) = file {
         if let Some(src) = set_from {
-            let content = std::fs::read_to_string(&src).map_err(|e| format!("falha ao ler {src}: {e}"))?;
+            let content =
+                std::fs::read_to_string(&src).map_err(|e| format!("falha ao ler {src}: {e}"))?;
             skilledit::write_file(slug, &rel, &content)?;
             println!("{}", tf("skilledit.wrote", &[("file", &rel)]));
             return Ok(());
@@ -102,7 +115,11 @@ pub(crate) fn skills_edit(slug: &str, list: bool, file: Option<String>, set_from
 }
 
 /// Instala skills (ou todas com --all) e, opcionalmente, as recomendadas.
-pub(crate) fn skills_install(names: &[String], all: bool, with_recommended: bool) -> Result<(), String> {
+pub(crate) fn skills_install(
+    names: &[String],
+    all: bool,
+    with_recommended: bool,
+) -> Result<(), String> {
     let cat = registry::catalog();
     let selected = resolve(&cat, names, all);
     for it in &selected {
@@ -131,7 +148,10 @@ pub(crate) fn skills_install(names: &[String], all: bool, with_recommended: bool
                 for rec in &suggested {
                     if let Some(r) = registry::find(&cat, rec) {
                         match skills::install(&r) {
-                            Ok(v) => println!("✓ {}", tf("skills.installed_ok", &[("name", &r.slug), ("v", &v)])),
+                            Ok(v) => println!(
+                                "✓ {}",
+                                tf("skills.installed_ok", &[("name", &r.slug), ("v", &v)])
+                            ),
                             Err(e) => eprintln!("✗ {}: {e}", r.slug),
                         }
                     }
@@ -179,7 +199,9 @@ pub(crate) fn skills_list() -> Result<(), String> {
 pub(crate) fn skills_remove(name: &str) -> Result<(), String> {
     let cat = registry::catalog();
     match registry::find(&cat, name) {
-        Some(it) => skills::remove(&it).map(|_| println!("{}", tf("skills.removed", &[("name", &it.slug)]))),
+        Some(it) => {
+            skills::remove(&it).map(|_| println!("{}", tf("skills.removed", &[("name", &it.slug)])))
+        }
         None => Err(tf("skills.unknown", &[("name", name)])),
     }
 }

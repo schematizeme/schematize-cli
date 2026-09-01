@@ -333,7 +333,10 @@ mod tests {
     /// AÇÃO INTERNA nunca vem da rede — segundo cadeado da escalada.
     #[test]
     fn acao_remota_nunca_e_interna() {
-        assert_eq!(acao_valida(Some("upgrade"), &Kind::Server("server".into()), Origem::Remota), Acao::Nenhuma);
+        assert_eq!(
+            acao_valida(Some("upgrade"), &Kind::Server("server".into()), Origem::Remota),
+            Acao::Nenhuma
+        );
         assert_eq!(
             acao_valida(Some("skills update web"), &Kind::Server("server".into()), Origem::Remota),
             Acao::Nenhuma

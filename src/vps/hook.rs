@@ -78,7 +78,8 @@ pub fn binarios_invocados(cmd: &str) -> Vec<String> {
             // Atribuição de env (`FOO=bar cmd`) OU prefixo que só embrulha o binário real:
             // nos dois casos o token é descartado e o binário está mais adiante.
             let atribuicao = t.contains('=') && !t.starts_with('-');
-            let prefixo = matches!(t, "env" | "sudo" | "nohup" | "time" | "exec" | "command" | "nice");
+            let prefixo =
+                matches!(t, "env" | "sudo" | "nohup" | "time" | "exec" | "command" | "nice");
             if atribuicao || prefixo {
                 toks.next();
             } else {
@@ -90,7 +91,8 @@ pub fn binarios_invocados(cmd: &str) -> Vec<String> {
             // `\ssh`, `'ssh'`, `"ssh"` e `s"s"h` são todos o binário `ssh` para o shell,
             // e um filtro que compara o token cru deixa os quatro passarem. Achado no
             // pentest (P5) com `\ssh root@host`.
-            let limpo: String = t.chars().filter(|c| !matches!(c, '"' | '\'' | '\\' | '(')).collect();
+            let limpo: String =
+                t.chars().filter(|c| !matches!(c, '"' | '\'' | '\\' | '(')).collect();
             let base = limpo.rsplit('/').next().unwrap_or(&limpo);
             if !base.is_empty() {
                 out.push(base.to_ascii_lowercase());
@@ -111,7 +113,9 @@ pub fn comando_barrado(cmd: &str) -> Option<&'static str> {
     }
     // `rsync -e ssh` é um ssh disfarçado de cópia.
     let n = cmd.to_ascii_lowercase();
-    if binarios_invocados(cmd).iter().any(|b| b == "rsync") && (n.contains("-e ssh") || n.contains("--rsh")) {
+    if binarios_invocados(cmd).iter().any(|b| b == "rsync")
+        && (n.contains("-e ssh") || n.contains("--rsh"))
+    {
         return Some("rsync sobre SSH é sessão remota sem auditoria");
     }
     None
@@ -133,7 +137,10 @@ pub fn caminho_de_chave_privada(caminho: &str) -> bool {
     }
     if c.contains("/.ssh/") || c.starts_with("~/.ssh") || c.starts_with(".ssh/") {
         // Dentro de ~/.ssh, os arquivos de infra são lidos à vontade; o resto é chave.
-        return !matches!(nome, "config" | "known_hosts" | "known_hosts.old" | "authorized_keys" | "environment");
+        return !matches!(
+            nome,
+            "config" | "known_hosts" | "known_hosts.old" | "authorized_keys" | "environment"
+        );
     }
     nome.starts_with("id_") && !nome.ends_with(".pub")
 }
@@ -261,7 +268,10 @@ mod tests {
         ] {
             let v = bash(cmd);
             assert!(v.is_some(), "{cmd:?} deveria ser barrado");
-            assert!(v.unwrap().contains("schematize vps exec"), "a mensagem tem que ensinar a porta certa");
+            assert!(
+                v.unwrap().contains("schematize vps exec"),
+                "a mensagem tem que ensinar a porta certa"
+            );
         }
     }
 
@@ -297,14 +307,19 @@ mod tests {
 
     #[test]
     fn tool_de_arquivo_tambem_e_barrada() {
-        assert!(avaliar_tool_use("Read", &json!({"file_path": "/home/tom/.ssh/id_ed25519"})).is_some());
+        assert!(
+            avaliar_tool_use("Read", &json!({"file_path": "/home/tom/.ssh/id_ed25519"})).is_some()
+        );
         assert!(avaliar_tool_use("Edit", &json!({"file_path": "~/.ssh/id_rsa"})).is_some());
-        assert!(avaliar_tool_use("Read", &json!({"file_path": "/srv/certs/servidor.pem"})).is_some());
+        assert!(
+            avaliar_tool_use("Read", &json!({"file_path": "/srv/certs/servidor.pem"})).is_some()
+        );
     }
 
     #[test]
     fn chave_privada_em_qualquer_campo_de_qualquer_tool_e_barrada() {
-        let chave = "-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNz\n-----END OPENSSH PRIVATE KEY-----";
+        let chave =
+            "-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNz\n-----END OPENSSH PRIVATE KEY-----";
         // Um Write com a chave no conteúdo.
         let v = avaliar_tool_use("Write", &json!({"file_path": "/tmp/k", "content": chave}));
         assert!(v.is_some(), "chave no conteúdo de um Write");
@@ -312,8 +327,16 @@ mod tests {
         // Uma tool arbitrária, campo arbitrário.
         assert!(avaliar_tool_use("QualquerCoisa", &json!({"x": {"y": chave}})).is_some());
         // Formato PuTTY e RSA clássico.
-        assert!(avaliar_tool_use("Bash", &json!({"command": format!("echo '{}'", "-----BEGIN RSA PRIVATE KEY-----")})).is_some());
-        assert!(avaliar_tool_use("Write", &json!({"content": "PuTTY-User-Key-File-3: ssh-ed25519"})).is_some());
+        assert!(avaliar_tool_use(
+            "Bash",
+            &json!({"command": format!("echo '{}'", "-----BEGIN RSA PRIVATE KEY-----")})
+        )
+        .is_some());
+        assert!(avaliar_tool_use(
+            "Write",
+            &json!({"content": "PuTTY-User-Key-File-3: ssh-ed25519"})
+        )
+        .is_some());
     }
 
     #[test]

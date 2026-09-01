@@ -50,8 +50,12 @@ pub fn enable(exe: &str) -> Result<(), String> {
     // 3) habilita + inicia agora (best-effort; não falha se systemd --user ausente).
     let _ = util::run("systemctl", &["--user", "daemon-reload"]);
     match util::run("systemctl", &["--user", "enable", "--now", UNIT]) {
-        Ok(_) => println!("agente habilitado (systemd --user) + XDG autostart. Inicia com a sessão."),
-        Err(e) => println!("XDG autostart criado; systemd --user não disponível ({e}). Inicia no próximo login."),
+        Ok(_) => {
+            println!("agente habilitado (systemd --user) + XDG autostart. Inicia com a sessão.")
+        }
+        Err(e) => println!(
+            "XDG autostart criado; systemd --user não disponível ({e}). Inicia no próximo login."
+        ),
     }
     Ok(())
 }

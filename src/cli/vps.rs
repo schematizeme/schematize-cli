@@ -74,21 +74,34 @@ fn listar() -> Result<(), String> {
         println!("nenhum host registrado. Use `schematize vps add <alias> --host <ip> --user <user> --key <chave>`");
         return Ok(());
     }
-    println!("{:<18} {:<24} {:<5} {:<9} {:<8} FRONTEIRA", "ALIAS", "DESTINO", "ENV", "MODO", "HOSTKEY");
+    println!(
+        "{:<18} {:<24} {:<5} {:<9} {:<8} FRONTEIRA",
+        "ALIAS", "DESTINO", "ENV", "MODO", "HOSTKEY"
+    );
     for h in &hosts {
         let destino = format!("{}@{}:{}", h.usuario, h.host, h.port);
         let hostkey = if vps::esta_confiado(h) { "pinada" } else { "NÃO" };
         // Cada host mostra o nível que de fato tem — não um sim/não que esconde a diferença.
         println!(
             "{:<18} {:<24} {:<5} {:<9} {:<8} {}",
-            h.alias, destino, h.ambiente.as_str(), h.modo.as_str(), hostkey, h.fronteira.rotulo()
+            h.alias,
+            destino,
+            h.ambiente.as_str(),
+            h.modo.as_str(),
+            hostkey,
+            h.fronteira.rotulo()
         );
     }
     let sem = hosts.iter().filter(|h| !h.fronteira.e_server_side()).count();
     let nunca_sondado = hosts.iter().filter(|h| h.sondado_em == 0).count();
     if sem > 0 {
-        println!("\n{sem} host(s) sem fronteira no servidor — {}", vps::Fronteira::Sem.explicacao());
-        println!("tente subir de nível com `schematize vps bootstrap <alias>` (ele descobre o que dá).");
+        println!(
+            "\n{sem} host(s) sem fronteira no servidor — {}",
+            vps::Fronteira::Sem.explicacao()
+        );
+        println!(
+            "tente subir de nível com `schematize vps bootstrap <alias>` (ele descobre o que dá)."
+        );
     }
     if nunca_sondado > 0 {
         println!("{nunca_sondado} host(s) nunca sondado(s) — `schematize vps probe <alias>` diz o que cada um aguenta.");
@@ -127,11 +140,8 @@ fn executar(alias: &str, confirmar: bool, comando: &[String]) -> Result<(), Stri
     let conn = vps::db::open()?;
     let p = vps::buscar(&conn, alias)?.ok_or_else(|| host_ausente(alias))?;
     let cmd = comando.join(" ");
-    let confirmacao = if confirmar {
-        vps::Confirmacao::HumanoConfirmou
-    } else {
-        vps::Confirmacao::Ausente
-    };
+    let confirmacao =
+        if confirmar { vps::Confirmacao::HumanoConfirmou } else { vps::Confirmacao::Ausente };
     let out = vps::executar(&conn, &p, &cmd, "cli", confirmacao)?;
     print!("{}", out.stdout);
     if !out.stderr.trim().is_empty() {
@@ -226,7 +236,10 @@ fn autorizar(alias: &str) -> Result<(), String> {
     ];
     let alvo = format!("{}@{}", p.usuario, p.host);
     schematize::sshkeys::authorize_com_opcoes(&p.key_name, &alvo, &opcoes)?;
-    println!("chave pública de {:?} instalada em {alvo} (host key pinada, sem TOFU cego)", p.key_name);
+    println!(
+        "chave pública de {:?} instalada em {alvo} (host key pinada, sem TOFU cego)",
+        p.key_name
+    );
     println!("nota: isto dá acesso por chave SEM forced command. Para instalar a fronteira,");
     println!("      rode `schematize vps bootstrap {alias}` — ele descobre o nível que este host aguenta.");
     Ok(())
@@ -319,7 +332,9 @@ fn verbos(
         return Err(host_ausente(alias));
     }
     if let Some(nome) = &add {
-        let c = cmd.as_deref().ok_or("--add precisa do --cmd com o comando real que o verbo dispara")?;
+        let c = cmd
+            .as_deref()
+            .ok_or("--add precisa do --cmd com o comando real que o verbo dispara")?;
         vps::verbos::definir(&conn, alias, nome, c)?;
         println!("verbo {nome:?} definido.");
     }
@@ -337,7 +352,9 @@ fn verbos(
     let lista = vps::verbos::listar(&conn, alias)?;
     if lista.is_empty() {
         println!("catálogo de {alias:?} vazio.");
-        println!("semeie um inicial com `schematize vps verbs {alias} --seed`, ou crie um a um com");
+        println!(
+            "semeie um inicial com `schematize vps verbs {alias} --seed`, ou crie um a um com"
+        );
         println!("`schematize vps verbs {alias} --add <verbo> --cmd '<comando>'`.");
         return Ok(());
     }

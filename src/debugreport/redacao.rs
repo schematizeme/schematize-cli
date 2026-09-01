@@ -165,7 +165,8 @@ pub(crate) fn is_aws_key_id(w: &str) -> bool {
     for pfx in ["AKIA", "ASIA", "AIDA", "AROA"] {
         if let Some(idx) = w.find(pfx) {
             let after = &w[idx + pfx.len()..];
-            let n = after.chars().take_while(|c| c.is_ascii_uppercase() || c.is_ascii_digit()).count();
+            let n =
+                after.chars().take_while(|c| c.is_ascii_uppercase() || c.is_ascii_digit()).count();
             if n >= 16 {
                 return true;
             }
@@ -225,8 +226,18 @@ pub(crate) fn looks_like_secret_token(w: &str) -> bool {
     }
     // Prefixos conhecidos, seguidos de >=8 chars do charset do token.
     const PREFIXES: &[&str] = &[
-        "re_", "sk-", "ghp_", "gho_", "ghu_", "ghs_", "ghr_", "github_pat_", "xoxb-", "xoxa-",
-        "xoxp-", "xapp-",
+        "re_",
+        "sk-",
+        "ghp_",
+        "gho_",
+        "ghu_",
+        "ghs_",
+        "ghr_",
+        "github_pat_",
+        "xoxb-",
+        "xoxa-",
+        "xoxp-",
+        "xapp-",
     ];
     for pfx in PREFIXES {
         if let Some(idx) = w.find(pfx) {
@@ -258,12 +269,10 @@ pub(crate) fn is_jwt(s: &str) -> bool {
     if parts.len() < 3 || !parts[0].starts_with("eyJ") {
         return false;
     }
-    parts
-        .iter()
-        .take(3)
-        .all(|p| !p.is_empty() && p.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-'))
+    parts.iter().take(3).all(|p| {
+        !p.is_empty() && p.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+    })
 }
-
 
 #[cfg(test)]
 mod tests_lacunas {
@@ -274,7 +283,11 @@ mod tests_lacunas {
     fn fecha_as_lacunas_do_pentest() {
         let casos = [
             ("postgres://app:hunter2000@db.internal:5432/prod", "hunter2000", "senha em URL"),
-            ("DATABASE_URL=mysql://root:s3nh4@127.0.0.1/app", "s3nh4", "senha em URL dentro de env"),
+            (
+                "DATABASE_URL=mysql://root:s3nh4@127.0.0.1/app",
+                "s3nh4",
+                "senha em URL dentro de env",
+            ),
             ("amqp://svc:p4ssw0rd@rabbit:5672/%2f", "p4ssw0rd", "senha em AMQP"),
             ("mysqldump -u root -psenhaSecreta app", "senhaSecreta", "senha colada no -p"),
             ("AKIAIOSFODNN7EXAMPLE", "AKIAIOSFODNN7EXAMPLE", "access key id da AWS"),
@@ -315,12 +328,21 @@ mod tests_lacunas {
             "file:///home/tom/.schematize/vps.db",
             "ssh://deploy@10.0.0.5:22",
             // Flags que começam com -p mas não são senha.
-            "-p", "-p 5432", "-p5432", "psql -p 5432 -h db",
+            "-p",
+            "-p 5432",
+            "-p5432",
+            "psql -p 5432 -h db",
             "docker run -p 8080:80 nginx",
             "ssh -p 2222 deploy@host",
             // Palavras que contêm prefixos de token mas não são token.
-            "sk-", "re_", "resource_id", "skeleton", "reset",
-            "AKIA", "ASIAtico", "AROMA",
+            "sk-",
+            "re_",
+            "resource_id",
+            "skeleton",
+            "reset",
+            "AKIA",
+            "ASIAtico",
+            "AROMA",
             // Saída normal de deploy.
             "systemctl status app.service",
             "Active: active (running) since Fri 2026-08-30 12:00:00 UTC",
@@ -351,7 +373,10 @@ mod tests_lacunas {
             ("re_AbCdEf0123456789", "AbCdEf0123456789"),
             ("sk-abc123def456ghi789jkl", "abc123def456ghi789jkl"),
             ("ghp_AbCdEf0123456789AbCdEf0123456789Ab", "AbCdEf0123456789"),
-            ("Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.aaaa", "eyJhbGciOiJIUzI1NiJ9"),
+            (
+                "Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.aaaa",
+                "eyJhbGciOiJIUzI1NiJ9",
+            ),
             ("DB_PASSWORD=hunter2000000", "hunter2000000"),
             ("API_KEY=qualquercoisa", "qualquercoisa"),
         ] {

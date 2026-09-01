@@ -17,20 +17,19 @@ pub mod caixa;
 pub mod resposta;
 pub mod trava;
 
-mod progresso;
+mod arquivo;
 mod conclusoes;
 mod divisao;
 mod gate;
-pub mod supervisor;
 mod notas;
-mod arquivo;
-pub use progresso::*;
+mod progresso;
+pub mod supervisor;
+pub use arquivo::*;
 pub use conclusoes::*;
 pub use divisao::*;
 pub use gate::*;
 pub use notas::*;
-pub use arquivo::*;
-
+pub use progresso::*;
 
 const DEFAULT_MAX_ITERS: u64 = 200;
 const QUESTIONS_FILE: &str = "PERGUNTAS-OVERDEV.txt";
@@ -84,13 +83,10 @@ fn dir_at(root: &Path) -> PathBuf {
 
 /// Carrega o state.json de um projeto arbitrário (None se ausente/ilegível).
 fn load_at(root: &Path) -> Option<OverState> {
-    fs::read_to_string(dir_at(root).join("state.json")).ok().and_then(|s| serde_json::from_str(&s).ok())
+    fs::read_to_string(dir_at(root).join("state.json"))
+        .ok()
+        .and_then(|s| serde_json::from_str(&s).ok())
 }
-
-
-
-
-
 
 // ---------------------------------------------------------------------------
 // LOG DE CONCLUSÕES: cada `- [x]` (máquina) que aparece no CHECKLIST ganha a HORA
@@ -99,31 +95,11 @@ fn load_at(root: &Path) -> Option<OverState> {
 // Registro em `.overdev/completions.json` (mapa text->ts, epoch secs).
 // ---------------------------------------------------------------------------
 
-
-
-
-
-
-
-
-
-
 fn save(st: &OverState) -> Result<(), String> {
     fs::create_dir_all(dir()).map_err(|e| e.to_string())?;
     fs::write(state_file(), serde_json::to_string_pretty(st).map_err(|e| e.to_string())?)
         .map_err(|e| e.to_string())
 }
-
-
-
-
-
-
-
-
-
-
-
 
 /// Inicia um run de overdev no diretório atual.
 pub fn start(objetivo: &str, max_iters: Option<u64>) -> Result<(), String> {
@@ -174,28 +150,10 @@ pub fn start(objetivo: &str, max_iters: Option<u64>) -> Result<(), String> {
     Ok(())
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
 // ---------------------------------------------------------------------------
 // Notas do humano: prompt de correção do overdev + pontos por task.
 // Gravadas em .overdev/NOTAS.md pra a GUI ler depois. `add_note`/`read_notes`.
 // ---------------------------------------------------------------------------
-
-
-
-
-
 
 /// Mostra o estado atual: checklist em duas colunas (MÁQUINA vs HUMANO).
 pub fn status() {
@@ -385,7 +343,8 @@ não é item
     /// Cria um root de projeto temporário com `.overdev/CHECKLIST.md` = `body`.
     fn fresh_root(body: &str) -> PathBuf {
         let n = SEQ.fetch_add(1, Ordering::SeqCst);
-        let root = std::env::temp_dir().join(format!("schematize-comp-{}-{}", std::process::id(), n));
+        let root =
+            std::env::temp_dir().join(format!("schematize-comp-{}-{}", std::process::id(), n));
         let _ = fs::remove_dir_all(&root);
         fs::create_dir_all(root.join(".overdev")).unwrap();
         fs::write(root.join(".overdev").join("CHECKLIST.md"), body).unwrap();
@@ -453,7 +412,7 @@ mod archive_name_tests {
     fn projeto_e_prefixo_comum_dos_microservicos() {
         let tmp = std::env::temp_dir().join(format!("schz-proj-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&tmp);
-        for ms in ["schematize_cli_rs","schematizeskills_api_rs","schematize_gui_slint"] {
+        for ms in ["schematize_cli_rs", "schematizeskills_api_rs", "schematize_gui_slint"] {
             std::fs::create_dir_all(tmp.join(ms)).unwrap();
         }
         assert_eq!(project_name(&tmp), "schematize");

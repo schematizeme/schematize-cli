@@ -32,7 +32,9 @@ fn marker_path() -> std::path::PathBuf {
 /// Baixa o primeiro feed que responder com corpo não-vazio.
 fn fetch_feed() -> Option<String> {
     for u in FEEDS {
-        if let Ok(body) = util::run("curl", &["-sfL", "-m", "8", "-H", "User-Agent: schematize-cli", u]) {
+        if let Ok(body) =
+            util::run("curl", &["-sfL", "-m", "8", "-H", "User-Agent: schematize-cli", u])
+        {
             if body.contains("<item") || body.contains("<entry") {
                 return Some(body);
             }

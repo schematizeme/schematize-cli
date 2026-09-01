@@ -25,20 +25,49 @@ pub struct Env {
 
 /// A tabela dos 7 environments suportados (fonte de verdade).
 pub const ENVS: &[Env] = &[
-    Env { lang: "go", display: "Go", runtime: "Go toolchain",
-        tools: &["gopls", "golangci-lint", "delve", "goimports"], bin: "go" },
-    Env { lang: "rust", display: "Rust", runtime: "rustup (rustc/cargo)",
-        tools: &["rust-analyzer", "clippy", "rustfmt"], bin: "cargo" },
-    Env { lang: "elixir", display: "Elixir", runtime: "Erlang/OTP + Elixir",
-        tools: &["elixir-ls", "hex", "mix"], bin: "elixir" },
-    Env { lang: "csharp", display: "C# / .NET", runtime: ".NET SDK",
-        tools: &["csharp-ls", "dotnet tools"], bin: "dotnet" },
-    Env { lang: "zig", display: "Zig", runtime: "Zig",
-        tools: &["zls"], bin: "zig" },
-    Env { lang: "ruby", display: "Ruby", runtime: "Ruby",
-        tools: &["ruby-lsp", "rubocop", "bundler"], bin: "ruby" },
-    Env { lang: "node", display: "Node.js", runtime: "Node.js",
-        tools: &["pnpm", "typescript-language-server", "eslint", "prettier"], bin: "node" },
+    Env {
+        lang: "go",
+        display: "Go",
+        runtime: "Go toolchain",
+        tools: &["gopls", "golangci-lint", "delve", "goimports"],
+        bin: "go",
+    },
+    Env {
+        lang: "rust",
+        display: "Rust",
+        runtime: "rustup (rustc/cargo)",
+        tools: &["rust-analyzer", "clippy", "rustfmt"],
+        bin: "cargo",
+    },
+    Env {
+        lang: "elixir",
+        display: "Elixir",
+        runtime: "Erlang/OTP + Elixir",
+        tools: &["elixir-ls", "hex", "mix"],
+        bin: "elixir",
+    },
+    Env {
+        lang: "csharp",
+        display: "C# / .NET",
+        runtime: ".NET SDK",
+        tools: &["csharp-ls", "dotnet tools"],
+        bin: "dotnet",
+    },
+    Env { lang: "zig", display: "Zig", runtime: "Zig", tools: &["zls"], bin: "zig" },
+    Env {
+        lang: "ruby",
+        display: "Ruby",
+        runtime: "Ruby",
+        tools: &["ruby-lsp", "rubocop", "bundler"],
+        bin: "ruby",
+    },
+    Env {
+        lang: "node",
+        display: "Node.js",
+        runtime: "Node.js",
+        tools: &["pnpm", "typescript-language-server", "eslint", "prettier"],
+        bin: "node",
+    },
 ];
 
 /// Resolve um environment pelo slug da linguagem.
@@ -68,12 +97,27 @@ pub struct Tool {
 
 /// A tabela das ferramentas de dev suportadas (fonte de verdade).
 pub const TOOLS: &[Tool] = &[
-    Tool { slug: "claude", display: "Claude Code", desc: "Anthropic Claude Code CLI",
-        bin: "claude", source_hint: "official (curl|sh)" },
-    Tool { slug: "code", display: "VS Code", desc: "Visual Studio Code",
-        bin: "code", source_hint: "distro repo (deb/rpm)" },
-    Tool { slug: "codex", display: "Codex CLI", desc: "OpenAI Codex CLI (needs Node.js)",
-        bin: "codex", source_hint: "npm -g" },
+    Tool {
+        slug: "claude",
+        display: "Claude Code",
+        desc: "Anthropic Claude Code CLI",
+        bin: "claude",
+        source_hint: "official (curl|sh)",
+    },
+    Tool {
+        slug: "code",
+        display: "VS Code",
+        desc: "Visual Studio Code",
+        bin: "code",
+        source_hint: "distro repo (deb/rpm)",
+    },
+    Tool {
+        slug: "codex",
+        display: "Codex CLI",
+        desc: "OpenAI Codex CLI (needs Node.js)",
+        bin: "codex",
+        source_hint: "npm -g",
+    },
 ];
 
 /// Resolve uma ferramenta pelo slug.
@@ -193,9 +237,15 @@ fn distro_pkgs(lang: &str) -> Option<DistroPkgs> {
         "go" => DistroPkgs { debian: "golang-go", zypper: "go", dnf: "golang" },
         "rust" => DistroPkgs { debian: "rustc cargo", zypper: "rust cargo", dnf: "rust cargo" },
         "elixir" => DistroPkgs { debian: "elixir", zypper: "elixir", dnf: "elixir" },
-        "csharp" => DistroPkgs { debian: "dotnet-sdk-8.0", zypper: "dotnet-sdk-8.0", dnf: "dotnet-sdk-8.0" },
+        "csharp" => {
+            DistroPkgs { debian: "dotnet-sdk-8.0", zypper: "dotnet-sdk-8.0", dnf: "dotnet-sdk-8.0" }
+        }
         "zig" => DistroPkgs { debian: "zig", zypper: "zig", dnf: "zig" },
-        "ruby" => DistroPkgs { debian: "ruby ruby-dev", zypper: "ruby ruby-devel", dnf: "ruby ruby-devel" },
+        "ruby" => DistroPkgs {
+            debian: "ruby ruby-dev",
+            zypper: "ruby ruby-devel",
+            dnf: "ruby ruby-devel",
+        },
         "node" => DistroPkgs { debian: "nodejs npm", zypper: "nodejs npm", dnf: "nodejs npm" },
         _ => return None,
     })
@@ -204,7 +254,9 @@ fn distro_pkgs(lang: &str) -> Option<DistroPkgs> {
 /// Comando de instalar pacotes conforme a família (embute o if zypper/dnf pra rpm).
 fn distro_install_cmd(fam: Family, pkgs: &DistroPkgs) -> String {
     match fam {
-        Family::Debian => format!("sudo apt-get update -qq && sudo apt-get install -y {}", pkgs.debian),
+        Family::Debian => {
+            format!("sudo apt-get update -qq && sudo apt-get install -y {}", pkgs.debian)
+        }
         Family::Rpm => format!(
             "if command -v zypper >/dev/null; then sudo zypper --non-interactive install -y {}; \
              else sudo dnf install -y {}; fi",
@@ -233,8 +285,18 @@ fn distro_remove_cmd(fam: Family, pkgs: &DistroPkgs) -> String {
 fn tool_steps(lang: &str, method: Method) -> Vec<Step> {
     match lang {
         "go" => vec![
-            step("go install golang.org/x/tools/gopls@latest", "go install (proxy.golang.org)", false, false),
-            step("go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest", "go install", false, false),
+            step(
+                "go install golang.org/x/tools/gopls@latest",
+                "go install (proxy.golang.org)",
+                false,
+                false,
+            ),
+            step(
+                "go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest",
+                "go install",
+                false,
+                false,
+            ),
             step("go install github.com/go-delve/delve/cmd/dlv@latest", "go install", false, false),
             step("go install golang.org/x/tools/cmd/goimports@latest", "go install", false, false),
         ],
@@ -244,22 +306,35 @@ fn tool_steps(lang: &str, method: Method) -> Vec<Step> {
             if method == Method::Distro {
                 vec![] // ver caveats: instalar via `rustup component add` ou pacotes da distro
             } else {
-                vec![step("rustup component add rust-analyzer clippy rustfmt", "rustup component", false, false)]
+                vec![step(
+                    "rustup component add rust-analyzer clippy rustfmt",
+                    "rustup component",
+                    false,
+                    false,
+                )]
             }
         }
         "elixir" => vec![
             step("mix local.hex --force", "hex.pm", false, false),
             step("mix local.rebar --force", "hex.pm", false, false),
         ],
-        "csharp" => vec![
-            step("dotnet tool install -g csharp-ls", "NuGet (dotnet tool)", false, false),
-        ],
-        "ruby" => vec![
-            step("gem install ruby-lsp rubocop bundler", "rubygems.org", false, false),
-        ],
+        "csharp" => {
+            vec![step("dotnet tool install -g csharp-ls", "NuGet (dotnet tool)", false, false)]
+        }
+        "ruby" => vec![step("gem install ruby-lsp rubocop bundler", "rubygems.org", false, false)],
         "node" => vec![
-            step("corepack enable && corepack prepare pnpm@latest --activate", "corepack (Node oficial)", false, false),
-            step("npm install -g typescript-language-server eslint prettier", "npmjs.com", false, false),
+            step(
+                "corepack enable && corepack prepare pnpm@latest --activate",
+                "corepack (Node oficial)",
+                false,
+                false,
+            ),
+            step(
+                "npm install -g typescript-language-server eslint prettier",
+                "npmjs.com",
+                false,
+                false,
+            ),
         ],
         _ => vec![],
     }
@@ -271,11 +346,15 @@ pub fn tool_caveats(lang: &str, method: Method) -> Vec<&'static str> {
     let mut v: Vec<&'static str> = Vec::new();
     match lang {
         // elixir-ls não tem instalador oficial de uma linha (o editor costuma buildar do fonte).
-        "elixir" => v.push("elixir-ls: instale pelo seu editor (ElixirLS) — sem instalador oficial de 1 comando."),
+        "elixir" => v.push(
+            "elixir-ls: instale pelo seu editor (ElixirLS) — sem instalador oficial de 1 comando.",
+        ),
         // zls acompanha a versão do Zig; via mise há plugin, senão baixe de github.com/zigtools/zls/releases.
         "zig" => {
             if method != Method::Mise {
-                v.push("zls: baixe de github.com/zigtools/zls/releases (case a versão com a do Zig).");
+                v.push(
+                    "zls: baixe de github.com/zigtools/zls/releases (case a versão com a do Zig).",
+                );
             }
         }
         "rust" if method == Method::Distro => {
@@ -309,12 +388,7 @@ pub fn install_recipe(env: &Env, method: Method, fam: Family, mise_present: bool
                 steps.push(step("curl https://mise.run | sh", "https://mise.run", false, true));
             }
             let tools = mise_tools(env.lang).join("@latest ");
-            steps.push(step(
-                &format!("mise use -g {tools}@latest"),
-                "mise registry",
-                false,
-                false,
-            ));
+            steps.push(step(&format!("mise use -g {tools}@latest"), "mise registry", false, false));
             steps.extend(tool_steps(env.lang, Method::Mise));
             Recipe::Steps(steps)
         }
@@ -324,7 +398,9 @@ pub fn install_recipe(env: &Env, method: Method, fam: Family, mise_present: bool
             }
             let pkgs = match distro_pkgs(env.lang) {
                 Some(p) => p,
-                None => return Recipe::Na(format!("sem pacote de distro mapeado pra {}.", env.display)),
+                None => {
+                    return Recipe::Na(format!("sem pacote de distro mapeado pra {}.", env.display))
+                }
             };
             let mut steps = vec![step(&distro_install_cmd(fam, &pkgs), fam.label(), true, false)];
             steps.extend(tool_steps(env.lang, Method::Distro));
@@ -411,7 +487,9 @@ fn note_step(msg: &str) -> Step {
 pub fn remove_recipe(env: &Env, method: Method, fam: Family) -> Recipe {
     match method {
         Method::Docker => match docker_image(env.lang) {
-            Some(img) => Recipe::Steps(vec![step(&format!("docker rmi {img}"), "docker", false, false)]),
+            Some(img) => {
+                Recipe::Steps(vec![step(&format!("docker rmi {img}"), "docker", false, false)])
+            }
             None => Recipe::Na(format!("sem imagem docker oficial pra {}.", env.display)),
         },
         Method::Mise => {
@@ -423,15 +501,24 @@ pub fn remove_recipe(env: &Env, method: Method, fam: Family) -> Recipe {
                 return Recipe::Na("família da distro não detectada.".into());
             }
             match distro_pkgs(env.lang) {
-                Some(p) => Recipe::Steps(vec![step(&distro_remove_cmd(fam, &p), fam.label(), true, false)]),
+                Some(p) => {
+                    Recipe::Steps(vec![step(&distro_remove_cmd(fam, &p), fam.label(), true, false)])
+                }
                 None => Recipe::Na(format!("sem pacote de distro mapeado pra {}.", env.display)),
             }
         }
         Method::Official => match env.lang {
             "go" => Recipe::Steps(vec![step("sudo rm -rf /usr/local/go", "go.dev", true, false)]),
             "rust" => Recipe::Steps(vec![step("rustup self uninstall -y", "rustup", false, false)]),
-            "csharp" => Recipe::Steps(vec![step("rm -rf \"$HOME/.dotnet\"", "dotnet-install", false, false)]),
-            "node" => Recipe::Steps(vec![step("rm -rf \"$HOME/.local/share/fnm\"", "fnm", false, false)]),
+            "csharp" => Recipe::Steps(vec![step(
+                "rm -rf \"$HOME/.dotnet\"",
+                "dotnet-install",
+                false,
+                false,
+            )]),
+            "node" => {
+                Recipe::Steps(vec![step("rm -rf \"$HOME/.local/share/fnm\"", "fnm", false, false)])
+            }
             _ => Recipe::Todo(format!(
                 "remoção oficial de {} não definida (instalação oficial é TODO nesta combinação).",
                 env.display
@@ -525,12 +612,9 @@ pub fn tool_remove_recipe(tool: &Tool, fam: Family) -> Recipe {
             false,
         )]),
         "code" => match fam {
-            Family::Debian => Recipe::Steps(vec![step(
-                "sudo apt-get remove -y code",
-                fam.label(),
-                true,
-                false,
-            )]),
+            Family::Debian => {
+                Recipe::Steps(vec![step("sudo apt-get remove -y code", fam.label(), true, false)])
+            }
             Family::Rpm => Recipe::Steps(vec![step(
                 "if command -v zypper >/dev/null; then sudo zypper --non-interactive rm -y code; \
                  else sudo dnf remove -y code; fi",

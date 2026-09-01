@@ -128,7 +128,10 @@ mod tests {
 
     #[test]
     fn escape_troca_nao_alfanumerico_por_traco() {
-        assert_eq!(escape_project_path(Path::new("/home/tom/proj/Adventury")), "-home-tom-proj-Adventury");
+        assert_eq!(
+            escape_project_path(Path::new("/home/tom/proj/Adventury")),
+            "-home-tom-proj-Adventury"
+        );
         // `.` e `_` também viram `-`.
         assert_eq!(escape_project_path(Path::new("/a/.b_c")), "-a--b-c");
     }
@@ -138,19 +141,24 @@ mod tests {
         let d = fresh_dir();
         let jsonl = concat!(
             // 1) opus com usage
-            r#"{"message":{"model":"claude-opus-5","usage":{"input_tokens":10,"output_tokens":5,"cache_read_input_tokens":100,"cache_creation_input_tokens":7}}}"#, "\n",
+            r#"{"message":{"model":"claude-opus-5","usage":{"input_tokens":10,"output_tokens":5,"cache_read_input_tokens":100,"cache_creation_input_tokens":7}}}"#,
+            "\n",
             // 2) linha SEM usage (deve ser pulada, mesmo tendo model)
-            r#"{"message":{"model":"claude-opus-5"},"type":"whatever"}"#, "\n",
+            r#"{"message":{"model":"claude-opus-5"},"type":"whatever"}"#,
+            "\n",
             // 3) sonnet com usage
-            r#"{"message":{"model":"claude-sonnet-5","usage":{"input_tokens":20,"output_tokens":3,"cache_read_input_tokens":0,"cache_creation_input_tokens":0}}}"#, "\n",
+            r#"{"message":{"model":"claude-sonnet-5","usage":{"input_tokens":20,"output_tokens":3,"cache_read_input_tokens":0,"cache_creation_input_tokens":0}}}"#,
+            "\n",
             // 4) opus de novo (pra opus ficar com 2 msgs e ser o principal)
-            r#"{"message":{"model":"claude-opus-5","usage":{"input_tokens":1,"output_tokens":1}}}"#, "\n",
+            r#"{"message":{"model":"claude-opus-5","usage":{"input_tokens":1,"output_tokens":1}}}"#,
+            "\n",
             // linha lixo que nem é JSON mas não tem "usage" → pulada sem erro
             "isto nao e json\n",
         );
         std::fs::write(d.join("session.jsonl"), jsonl).unwrap();
         // arquivo não-jsonl é ignorado
-        std::fs::write(d.join("outro.txt"), r#"{"message":{"usage":{"input_tokens":999}}}"#).unwrap();
+        std::fs::write(d.join("outro.txt"), r#"{"message":{"usage":{"input_tokens":999}}}"#)
+            .unwrap();
 
         let u = usage_from_dir(&d);
         assert_eq!(u.input, 31, "10+20+1");

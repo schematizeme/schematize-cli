@@ -76,9 +76,7 @@ fn resolve_within(root: &Path, rel: &str) -> Result<PathBuf, String> {
     let candidate = root.join(&safe);
 
     // A raiz da skill tem que existir pra canonicalizar (a skill precisa estar instalada).
-    let croot = root
-        .canonicalize()
-        .map_err(|e| format!("raiz da skill inacessível: {e}"))?;
+    let croot = root.canonicalize().map_err(|e| format!("raiz da skill inacessível: {e}"))?;
 
     // Sobe até o primeiro ancestral que existe (o arquivo alvo pode ainda não existir num write).
     let mut existing = candidate.clone();
@@ -133,7 +131,8 @@ fn scaffold_in(
                 dest.display()
             ));
         }
-        fs::remove_dir_all(&dest).map_err(|e| format!("não consegui limpar {}: {e}", dest.display()))?;
+        fs::remove_dir_all(&dest)
+            .map_err(|e| format!("não consegui limpar {}: {e}", dest.display()))?;
     }
 
     // Estrutura de diretórios.
@@ -145,11 +144,7 @@ fn scaffold_in(
     write_new(&dest, "skill.toml", &tpl_skill_toml(slug, name, description))?;
     write_new(&dest, "VERSION", &format!("{INITIAL_VERSION}\n"))?;
     write_new(&dest, "references/visao-geral.md", &tpl_reference(slug, name))?;
-    write_new(
-        &dest,
-        &format!("assets/commands/{slug}-help.md"),
-        &tpl_command_help(slug, name),
-    )?;
+    write_new(&dest, &format!("assets/commands/{slug}-help.md"), &tpl_command_help(slug, name))?;
     write_new(&dest, "assets/CLAUDE.md", &tpl_claude_md(slug, name, description))?;
 
     Ok(dest)
@@ -206,7 +201,11 @@ fn collect_md(root: &Path, subdir: &str, out: &mut Vec<String>) {
             if p.is_file() && p.extension().and_then(|s| s.to_str()) == Some("md") {
                 if let Some(fname) = p.file_name().and_then(|s| s.to_str()) {
                     // Sempre com `/` — caminho relativo canônico da skill (multiplataforma no display).
-                    out.push(format!("{}/{}", subdir.replace(std::path::MAIN_SEPARATOR, "/"), fname));
+                    out.push(format!(
+                        "{}/{}",
+                        subdir.replace(std::path::MAIN_SEPARATOR, "/"),
+                        fname
+                    ));
                 }
             }
         }
@@ -398,7 +397,8 @@ mod tests {
         use std::sync::atomic::{AtomicU64, Ordering};
         static N: AtomicU64 = AtomicU64::new(0);
         let id = N.fetch_add(1, Ordering::Relaxed);
-        let p = std::env::temp_dir().join(format!("schematize_skilledit_{}_{id}", std::process::id()));
+        let p =
+            std::env::temp_dir().join(format!("schematize_skilledit_{}_{id}", std::process::id()));
         fs::create_dir_all(&p).unwrap();
         p
     }

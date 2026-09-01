@@ -24,28 +24,18 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 // Submódulos (piso da casa: <=750 linhas, uma unidade lógica por arquivo).
+mod fmt;
 mod redacao;
 mod secoes;
 mod sonda;
-mod fmt;
+use fmt::*;
 pub use redacao::*;
 use secoes::*;
 use sonda::*;
-use fmt::*;
-
 
 // ================================================================================================
 // REDAÇÃO (scrub) — a rede de segurança. Sem crate de regex: varredura à mão (estilo da casa).
 // ================================================================================================
-
-
-
-
-
-
-
-
-
 
 // ================================================================================================
 // COLETA — monta o relatório seção a seção. Tudo best-effort.
@@ -61,8 +51,13 @@ pub fn collect(online: bool) -> String {
     let mut o = String::new();
     let _ = writeln!(o, "===== SCHEMATIZE DEBUG REPORT =====");
     let _ = writeln!(o, "gerado em: {} (epoch {})", fmt_epoch(util::now_unix()), util::now_unix());
-    let _ = writeln!(o, "modo: {}", if online { "online (inclui rede)" } else { "offline (rápido; use --online p/ rede)" });
-    let _ = writeln!(o, "AVISO: segredos são redigidos automaticamente; revise antes de compartilhar.");
+    let _ = writeln!(
+        o,
+        "modo: {}",
+        if online { "online (inclui rede)" } else { "offline (rápido; use --online p/ rede)" }
+    );
+    let _ =
+        writeln!(o, "AVISO: segredos são redigidos automaticamente; revise antes de compartilhar.");
 
     sec_sistema(&mut o);
     sec_hardware(&mut o);
@@ -77,7 +72,10 @@ pub fn collect(online: bool) -> String {
         sec_doctor(&mut o);
     } else {
         hdr(&mut o, "8-9. UPDATER + DOCTOR (rede)");
-        let _ = writeln!(&mut o, "  (pulados no modo offline — rode `schematize debug --collect --online` p/ incluir)");
+        let _ = writeln!(
+            &mut o,
+            "  (pulados no modo offline — rode `schematize debug --collect --online` p/ incluir)"
+        );
     }
     sec_logs(&mut o, &overdev_roots);
 
@@ -95,7 +93,8 @@ pub fn write_report(out: Option<&Path>, online: bool) -> Result<PathBuf, String>
         Some(p) => p.to_path_buf(),
         None => {
             let dir = util::home_app_dir();
-            fs::create_dir_all(&dir).map_err(|e| format!("falha ao criar {}: {e}", dir.display()))?;
+            fs::create_dir_all(&dir)
+                .map_err(|e| format!("falha ao criar {}: {e}", dir.display()))?;
             crate::util::definir_modo(&dir, 0o700);
             dir.join(format!("debug-report-{}.txt", util::now_unix()))
         }
@@ -120,42 +119,13 @@ pub fn short_summary() -> String {
 // Seções.
 // ------------------------------------------------------------------------------------------------
 
-
-
-
-
-
-
-
-
-
-
 // ------------------------------------------------------------------------------------------------
 // Helpers de coleta/formatação.
 // ------------------------------------------------------------------------------------------------
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 // ================================================================================================
 // TESTES — foco na scrub (o piso de segurança). Não tocam em rede/HOME.
 // ================================================================================================
-
 
 /// Resumo ESTRUTURADO do ambiente, pro corpo do `POST /diagnostics`.
 ///
@@ -206,7 +176,6 @@ pub fn ambiente() -> serde_json::Value {
         },
     })
 }
-
 
 /// Versão de um binário irmão (`schematize-gui`, `schematize-updater`), ou por que não deu.
 ///
@@ -266,7 +235,8 @@ mod tests {
 
     #[test]
     pub(crate) fn scrub_redige_jwt() {
-        let jwt = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0In0.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c";
+        let jwt =
+            "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0In0.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c";
         assert_eq!(scrub(jwt), RED);
         // JWT embutido numa frase: some, o resto fica.
         let out = scrub(&format!("token: {jwt} fim"));
@@ -373,15 +343,26 @@ mod tests_ambiente {
             assert!(e.get(bloco).is_some_and(|b| b.is_object()), "falta o bloco `{bloco}`");
         }
         for (bloco, campo) in [
-            ("os", "name"), ("os", "version"), ("os", "kernel"), ("os", "arch"),
-            ("hardware", "cpu"), ("hardware", "cores"), ("hardware", "ram_mb"), ("hardware", "gpu"),
-            ("display", "SLINT_BACKEND"), ("display", "WAYLAND_DISPLAY"), ("display", "DISPLAY"),
+            ("os", "name"),
+            ("os", "version"),
+            ("os", "kernel"),
+            ("os", "arch"),
+            ("hardware", "cpu"),
+            ("hardware", "cores"),
+            ("hardware", "ram_mb"),
+            ("hardware", "gpu"),
+            ("display", "SLINT_BACKEND"),
+            ("display", "WAYLAND_DISPLAY"),
+            ("display", "DISPLAY"),
         ] {
             assert!(e[bloco].get(campo).is_some(), "falta `{bloco}.{campo}`");
         }
         assert!(e["hardware"]["cores"].is_number(), "cores tem que ser número");
         let ram = &e["hardware"]["ram_mb"];
-        assert!(ram.is_number() || ram.is_null(), "ram_mb tem que ser NÚMERO (ou null), veio {ram}");
+        assert!(
+            ram.is_number() || ram.is_null(),
+            "ram_mb tem que ser NÚMERO (ou null), veio {ram}"
+        );
 
         // Nada de campo plano legado — se voltar, as duas formas convivem e a query erra.
         for antigo in ["os_name", "os_version", "cpu", "cores", "ram_mb", "gpu"] {

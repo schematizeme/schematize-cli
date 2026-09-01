@@ -151,7 +151,9 @@ pub fn decidir(s: &Sondagem) -> (Fronteira, Vec<String>) {
         }
     }
     if s.instalada == s.possivel && s.instalada != Fronteira::Sem {
-        notas.push("já estava no melhor nível possível — o bootstrap só re-sincroniza o catálogo.".into());
+        notas.push(
+            "já estava no melhor nível possível — o bootstrap só re-sincroniza o catálogo.".into(),
+        );
     }
     (s.possivel, notas)
 }
@@ -160,10 +162,7 @@ pub fn decidir(s: &Sondagem) -> (Fronteira, Vec<String>) {
 ///
 /// **Onde:** `vps bootstrap`. **Efeitos:** escreve no host (shim, catálogo, `authorized_keys`)
 /// e atualiza `fronteira`/`sondado_em` no registro local.
-pub fn instalar(
-    conn: &rusqlite::Connection,
-    p: &mut VpsProfile,
-) -> Result<Relatorio, String> {
+pub fn instalar(conn: &rusqlite::Connection, p: &mut VpsProfile) -> Result<Relatorio, String> {
     let sond = super::capacidade::sondar(conn, p)?;
     let (nivel, mut notas) = decidir(&sond);
     let catalogo = super::verbos::listar(conn, &p.alias)?;
@@ -266,7 +265,12 @@ mod tests {
     #[test]
     fn o_script_preserva_o_break_glass() {
         // R2 do plano: a chave humana não pode sumir num bootstrap.
-        let s = script_de_instalacao(Fronteira::OpsShellUsuario, &cat(), "ssh-ed25519 NOSSA x@y", "/home/d");
+        let s = script_de_instalacao(
+            Fronteira::OpsShellUsuario,
+            &cat(),
+            "ssh-ed25519 NOSSA x@y",
+            "/home/d",
+        );
         assert!(s.contains("grep -v -F \"$PUB\""), "remove só a linha da PRÓPRIA chave");
         assert!(!s.contains("> \"$AK\"\n"), "nunca trunca o authorized_keys inteiro");
         assert!(s.contains(">> \"$TMP\""), "acrescenta num temporário, não sobrescreve");
@@ -284,7 +288,12 @@ mod tests {
 
     #[test]
     fn o_script_grava_restrict_e_o_caminho_do_shim() {
-        let s = script_de_instalacao(Fronteira::OpsShellRoot, &cat(), "ssh-ed25519 AAAA x@y", "/home/d");
+        let s = script_de_instalacao(
+            Fronteira::OpsShellRoot,
+            &cat(),
+            "ssh-ed25519 AAAA x@y",
+            "/home/d",
+        );
         assert!(s.contains("restrict,command="));
         assert!(s.contains("/usr/local/lib/schematize/ops-shell"));
         assert!(s.contains("SCHEMATIZE_BOOTSTRAP_OK"), "precisa confirmar que terminou");
@@ -314,9 +323,19 @@ mod tests {
 
     #[test]
     fn relatorio_sabe_dizer_se_melhorou() {
-        let r = Relatorio { antes: Fronteira::Sem, depois: Fronteira::OpsShellUsuario, verbos: 1, notas: vec![] };
+        let r = Relatorio {
+            antes: Fronteira::Sem,
+            depois: Fronteira::OpsShellUsuario,
+            verbos: 1,
+            notas: vec![],
+        };
         assert!(r.melhorou());
-        let r = Relatorio { antes: Fronteira::OpsShellRoot, depois: Fronteira::OpsShellRoot, verbos: 1, notas: vec![] };
+        let r = Relatorio {
+            antes: Fronteira::OpsShellRoot,
+            depois: Fronteira::OpsShellRoot,
+            verbos: 1,
+            notas: vec![],
+        };
         assert!(!r.melhorou());
     }
 }

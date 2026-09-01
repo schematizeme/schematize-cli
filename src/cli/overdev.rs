@@ -1,12 +1,10 @@
 //! Subcomandos do OVERDEV: rodar, dividir em K agentes, snapshot/histórico/restore
 //! do DB local e o log de conclusões.
 
-use schematize::{
-    overdev, overdevdb,
-};
+use crate::cli::ssh::confirm;
 use schematize::agentrun;
 use schematize::agentrun::AgentRunner;
-use crate::cli::ssh::confirm;
+use schematize::{overdev, overdevdb};
 
 /// `schematize overdev run [--max N] [--yes]` — dispara o `claude` acoplado no
 /// diretório atual e monitora (auto-continue). Guardrail: mostra o comando do
@@ -19,8 +17,14 @@ pub(crate) fn overdev_split(k: usize, dispatch: bool, force: bool) -> Result<(),
     let plan = b.split_plan(k);
 
     println!("Governador de concorrência (máquina inteira):");
-    println!("  teto seguro: {} · rodando agora: {} · disponível: {}", b.total_cap, b.snap.running_claudes, b.available);
-    println!("  split em {} claude(s): {} subagents cada (total {}/{} do teto)", plan.mains, plan.subagents_each, plan.total_used, plan.cap);
+    println!(
+        "  teto seguro: {} · rodando agora: {} · disponível: {}",
+        b.total_cap, b.snap.running_claudes, b.available
+    );
+    println!(
+        "  split em {} claude(s): {} subagents cada (total {}/{} do teto)",
+        plan.mains, plan.subagents_each, plan.total_used, plan.cap
+    );
 
     if k > b.total_cap && !force {
         return Err(format!(

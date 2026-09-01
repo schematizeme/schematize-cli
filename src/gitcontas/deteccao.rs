@@ -138,10 +138,7 @@ pub fn rotulo_livre(usuario: &str, tomados: &[String]) -> String {
     if !tomados.iter().any(|t| t == &base) {
         return base;
     }
-    (2..)
-        .map(|n| format!("{base}-{n}"))
-        .find(|c| !tomados.iter().any(|t| t == c))
-        .unwrap_or(base)
+    (2..).map(|n| format!("{base}-{n}")).find(|c| !tomados.iter().any(|t| t == c)).unwrap_or(base)
 }
 
 /// `git config --global <chave>`, ou `None` se ausente/ilegível.
@@ -212,12 +209,12 @@ pub fn detectar(repos: &[PathBuf]) -> Vec<Sugestao> {
     let mut rotulos: Vec<String> = existentes.iter().map(|c| c.rotulo.clone()).collect();
 
     let push = |achadas: &mut BTreeMap<String, Sugestao>,
-                    rotulos: &mut Vec<String>,
-                    usuario: String,
-                    email: String,
-                    servico: String,
-                    auth: Auth,
-                    origem: Origem| {
+                rotulos: &mut Vec<String>,
+                usuario: String,
+                email: String,
+                servico: String,
+                auth: Auth,
+                origem: Origem| {
         let k = format!("{usuario}@{servico}");
         if achadas.contains_key(&k) {
             return; // a fonte mais específica já ganhou
@@ -225,24 +222,47 @@ pub fn detectar(repos: &[PathBuf]) -> Vec<Sugestao> {
         let rotulo = rotulo_livre(&usuario, rotulos);
         rotulos.push(rotulo.clone());
         let ja_cadastrada = ja(&usuario, &servico);
-        achadas.insert(k, Sugestao { conta: Conta { rotulo, usuario, email, servico, auth }, origem, ja_cadastrada });
+        achadas.insert(
+            k,
+            Sugestao {
+                conta: Conta { rotulo, usuario, email, servico, auth },
+                origem,
+                ja_cadastrada,
+            },
+        );
     };
 
     // 1) `gh` — a fonte mais confiável: é uma sessão que existe de verdade.
     let saida = crate::util::run("gh", &["auth", "status"]).unwrap_or_default();
     for (host, user) in parse_gh_status(&saida) {
-        push(&mut achadas, &mut rotulos, user, email_global.clone().unwrap_or_default(), host, Auth::Gh, Origem::Gh);
+        push(
+            &mut achadas,
+            &mut rotulos,
+            user,
+            email_global.clone().unwrap_or_default(),
+            host,
+            Auth::Gh,
+            Origem::Gh,
+        );
     }
 
     // 2) `~/.ssh/config` — cada bloco com IdentityFile vira candidata SSH. O `Host` costuma
     //    ser o alias por conta (`github.com-pessoal`), de onde sai o usuário provável.
     for (host, chave) in blocos {
         let servico = host.split('-').next().unwrap_or(&host).to_string();
-        let usuario = host.split_once('-').map(|(_, u)| u.to_string()).unwrap_or_else(|| {
-            nome_global.clone().unwrap_or_else(|| "desconhecido".into())
-        });
-        push(&mut achadas, &mut rotulos, usuario, email_global.clone().unwrap_or_default(),
-             servico, Auth::Ssh { chave }, Origem::SshConfig);
+        let usuario = host
+            .split_once('-')
+            .map(|(_, u)| u.to_string())
+            .unwrap_or_else(|| nome_global.clone().unwrap_or_else(|| "desconhecido".into()));
+        push(
+            &mut achadas,
+            &mut rotulos,
+            usuario,
+            email_global.clone().unwrap_or_default(),
+            servico,
+            Auth::Ssh { chave },
+            Origem::SshConfig,
+        );
     }
 
     // 3) `git config --global` — só entra se ainda não achamos ninguém: é a identidade
@@ -253,7 +273,15 @@ pub fn detectar(repos: &[PathBuf]) -> Vec<Sugestao> {
                 Some(k) => Auth::Ssh { chave: k.clone() },
                 None => Auth::Gh,
             };
-            push(&mut achadas, &mut rotulos, nome, email, "github.com".into(), auth, Origem::GitGlobal);
+            push(
+                &mut achadas,
+                &mut rotulos,
+                nome,
+                email,
+                "github.com".into(),
+                auth,
+                Origem::GitGlobal,
+            );
         }
     }
 
@@ -264,7 +292,15 @@ pub fn detectar(repos: &[PathBuf]) -> Vec<Sugestao> {
             continue; // igual ao global: não é identidade separada, é herança
         }
         let usuario = email.split('@').next().unwrap_or(&email).to_string();
-        push(&mut achadas, &mut rotulos, usuario, email, "github.com".into(), Auth::Gh, Origem::Repo(r.clone()));
+        push(
+            &mut achadas,
+            &mut rotulos,
+            usuario,
+            email,
+            "github.com".into(),
+            Auth::Gh,
+            Origem::Repo(r.clone()),
+        );
     }
 
     achadas.into_values().collect()

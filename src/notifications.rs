@@ -89,7 +89,9 @@ struct NotifPage {
 /// Faz o parse PURO da página de notificações do servidor em `Notif` (escopo Pessoal).
 /// Testável sem rede. JSON inválido → lista vazia (best-effort, nunca panica).
 fn parse_notifs(json: &str) -> Vec<Notif> {
-    use crate::notificacoes::formato::{acao_valida, texto_limpo, Kind, Origem, MAX_CORPO, MAX_ITENS, MAX_TITULO};
+    use crate::notificacoes::formato::{
+        acao_valida, texto_limpo, Kind, Origem, MAX_CORPO, MAX_ITENS, MAX_TITULO,
+    };
     let page: NotifPage = match serde_json::from_str(json) {
         Ok(p) => p,
         Err(_) => return Vec::new(),
@@ -161,7 +163,8 @@ pub fn collect() -> Vec<Notif> {
     {
         use crate::notificacoes::formato::{texto_limpo, url_segura, MAX_TITULO};
         for post in news::latest(5) {
-            let (Some(t), Some(u)) = (texto_limpo(&post.title, MAX_TITULO), url_segura(&post.link)) else {
+            let (Some(t), Some(u)) = (texto_limpo(&post.title, MAX_TITULO), url_segura(&post.link))
+            else {
                 continue;
             };
             out.push(notif_post(&t, &u));
@@ -243,7 +246,9 @@ pub fn count() -> usize {
 /// permanece — "não chega nada novo" em vez de "some tudo".
 pub fn sincronizar() -> usize {
     use crate::notificacoes::cache;
-    use crate::notificacoes::formato::{acao_valida, texto_limpo, Kind, Origem, MAX_CORPO, MAX_TITULO};
+    use crate::notificacoes::formato::{
+        acao_valida, texto_limpo, Kind, Origem, MAX_CORPO, MAX_TITULO,
+    };
     let colhidas = collect();
     let novas: Vec<cache::Registro> = colhidas
         .into_iter()
@@ -421,7 +426,11 @@ mod tests {
         let forjada = ns.iter().find(|n| n.title.contains("FALSO")).unwrap();
         assert!(!forjada.title.contains('\u{1b}'), "escape sobreviveu: {:?}", forjada.title);
         assert!(forjada.body.chars().count() <= crate::notificacoes::formato::MAX_CORPO);
-        assert_eq!(forjada.action.as_deref(), Some("https://blog.schematize.org/p"), "https legítimo passa");
+        assert_eq!(
+            forjada.action.as_deref(),
+            Some("https://blog.schematize.org/p"),
+            "https legítimo passa"
+        );
 
         // (d) o tipo legítimo do servidor continua funcionando — sanitizar não é quebrar.
         let r = ns.iter().find(|n| n.kind == "review_reply").expect("tipo legítimo preservado");

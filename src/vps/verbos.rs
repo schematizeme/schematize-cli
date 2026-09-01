@@ -231,8 +231,18 @@ mod tests {
         for ok in ["deploy", "roll-back", "v2", "a"] {
             assert!(valid_verbo(ok).is_ok(), "{ok:?}");
         }
-        for bad in ["", "Deploy", "de ploy", "de\tploy", "de\nploy", "-x", "deploy!", "açao",
-                    "schematize-probe", &"x".repeat(33)] {
+        for bad in [
+            "",
+            "Deploy",
+            "de ploy",
+            "de\tploy",
+            "de\nploy",
+            "-x",
+            "deploy!",
+            "açao",
+            "schematize-probe",
+            &"x".repeat(33),
+        ] {
             assert!(valid_verbo(bad).is_err(), "{bad:?} deveria ser recusado");
         }
     }

@@ -10,12 +10,7 @@ pub fn load_overdev(root: &Path) -> Overdev {
         .ok()
         .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok());
     let get = |k: &str, d: &str| {
-        state
-            .as_ref()
-            .and_then(|v| v.get(k))
-            .and_then(|v| v.as_str())
-            .unwrap_or(d)
-            .to_string()
+        state.as_ref().and_then(|v| v.get(k)).and_then(|v| v.as_str()).unwrap_or(d).to_string()
     };
     let mut items = Vec::new();
     // Checklist pode ser 1 arquivo (CHECKLIST.md) OU a pasta checklist/ com vários .md (granularidade

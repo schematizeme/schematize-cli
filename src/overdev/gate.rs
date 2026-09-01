@@ -107,7 +107,8 @@ pub fn check() {
     // Archive obrigatório em dia: re-espelha os artefatos (o agente vai escrevendo PLAN/DECISOES/etc).
     ensure_archive_mirror(Path::new("."));
     // budget
-    let mut it: u64 = fs::read_to_string(iters_file()).ok().and_then(|s| s.trim().parse().ok()).unwrap_or(0);
+    let mut it: u64 =
+        fs::read_to_string(iters_file()).ok().and_then(|s| s.trim().parse().ok()).unwrap_or(0);
     it += 1;
     let _ = fs::write(iters_file(), it.to_string());
     if it > st.max_iters {

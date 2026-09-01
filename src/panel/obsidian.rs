@@ -23,9 +23,9 @@ pub fn export_obsidian_at(root: &Path, out: Option<String>) -> Result<PathBuf, S
     if nodes.is_empty() {
         return Err("grafo vazio: nenhum nó parseado do index".to_string());
     }
-    let outdir = out.map(PathBuf::from).unwrap_or_else(|| {
-        idx.parent().unwrap_or_else(|| Path::new(".")).join("obsidian")
-    });
+    let outdir = out
+        .map(PathBuf::from)
+        .unwrap_or_else(|| idx.parent().unwrap_or_else(|| Path::new(".")).join("obsidian"));
     fs::create_dir_all(&outdir).map_err(|e| e.to_string())?;
 
     let locs: BTreeMap<&str, &str> =

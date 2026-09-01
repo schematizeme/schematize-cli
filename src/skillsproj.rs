@@ -150,12 +150,12 @@ pub fn desatualizadas(root: &Path) -> Vec<(String, String, String)> {
 pub fn prompt_rerun(bin: &str, alvos: &[(String, String, String)]) -> String {
     let lista: Vec<String> = alvos
         .iter()
-        .map(|(s, de, para)| format!("  - {s}: este projeto seguiu a v{de}; a instalada agora é a v{para}"))
+        .map(|(s, de, para)| {
+            format!("  - {s}: este projeto seguiu a v{de}; a instalada agora é a v{para}")
+        })
         .collect();
-    let marcas: Vec<String> = alvos
-        .iter()
-        .map(|(s, _, _)| format!("  {bin} skills applied --mark {s}"))
-        .collect();
+    let marcas: Vec<String> =
+        alvos.iter().map(|(s, _, _)| format!("  {bin} skills applied --mark {s}")).collect();
     format!(
         "Este projeto foi moldado por versões ANTIGAS de skills que desde então evoluíram.\n\
          Sua tarefa é ATUALIZAR os preceitos do projeto para a versão atual de cada uma.\n\
@@ -177,7 +177,6 @@ pub fn prompt_rerun(bin: &str, alvos: &[(String, String, String)]) -> String {
         marcas.join("\n"),
     )
 }
-
 
 #[cfg(test)]
 mod tests {

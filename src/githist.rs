@@ -70,7 +70,10 @@ pub fn parse_commit_line(line: &str) -> Option<Commit> {
 /// não for um repositório git. Marca `pushed=true` nos que já estão no upstream.
 pub fn commits(root: &Path, limit: usize) -> Vec<Commit> {
     let n = format!("-n{limit}");
-    let raw = match git(root, &["log", &n, &format!("--pretty=format:%H{FS}%h{FS}%an{FS}%ad{FS}%s"), "--date=short"]) {
+    let raw = match git(
+        root,
+        &["log", &n, &format!("--pretty=format:%H{FS}%h{FS}%an{FS}%ad{FS}%s"), "--date=short"],
+    ) {
         Some(s) => s,
         None => return Vec::new(),
     };

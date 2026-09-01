@@ -80,9 +80,13 @@ pub fn classificar_erro(stderr: &str) -> ErroSsh {
     let s = stderr.to_ascii_lowercase();
     if s.contains("permission denied") || s.contains("too many authentication failures") {
         ErroSsh::PermissaoNegada
-    } else if s.contains("host key verification failed") || s.contains("remote host identification has changed") {
+    } else if s.contains("host key verification failed")
+        || s.contains("remote host identification has changed")
+    {
         ErroSsh::HostKeyMudou
-    } else if s.contains("no matching host key") || s.contains("not known") && s.contains("host key") {
+    } else if s.contains("no matching host key")
+        || s.contains("not known") && s.contains("host key")
+    {
         ErroSsh::HostKeyNaoConfiada
     } else if s.contains("connection refused") {
         ErroSsh::ConexaoRecusada
@@ -245,7 +249,8 @@ pub fn descobrir_host_key(p: &VpsProfile) -> Result<HostKeyCandidata, String> {
 /// **Onde:** [`descobrir_host_key`], e nos testes com um bloco fixo.
 fn fingerprint_de(linhas: &str) -> Result<String, String> {
     let out = sshkeys::run_with_stdin("ssh-keygen", &["-lf", "-"], linhas)?;
-    let fps: Vec<String> = out.lines().map(|l| l.trim().to_string()).filter(|l| !l.is_empty()).collect();
+    let fps: Vec<String> =
+        out.lines().map(|l| l.trim().to_string()).filter(|l| !l.is_empty()).collect();
     if fps.is_empty() {
         return Err("ssh-keygen não devolveu fingerprint".into());
     }
@@ -264,10 +269,14 @@ pub fn confiar(
 ) -> Result<(), String> {
     let path = known_hosts_path(&p.alias)?;
     if let Some(d) = path.parent() {
-        std::fs::create_dir_all(d).map_err(|e| format!("não consegui criar {}: {e}", d.display()))?;
+        std::fs::create_dir_all(d)
+            .map_err(|e| format!("não consegui criar {}: {e}", d.display()))?;
         crate::vps::db::restringir_dir(d);
     }
-    crate::vps::db::escrever_sem_seguir_link(&path, format!("{}\n", c.linhas.trim_end()).as_bytes())?;
+    crate::vps::db::escrever_sem_seguir_link(
+        &path,
+        format!("{}\n", c.linhas.trim_end()).as_bytes(),
+    )?;
     p.fingerprint = Some(c.fingerprint.clone());
     super::registro::salvar(conn, p)
 }
@@ -298,7 +307,11 @@ mod tests {
         // O achado do spike U0c: sem `-F none`, um IdentityFile no ~/.ssh/config do usuário
         // ACUMULA com o nosso e o log de auditoria passa a poder mentir.
         let a = args_de(&perfil(), &[]);
-        assert_eq!(valor_de(&a, "-F").as_deref(), Some("none"), "o config do usuário não pode entrar");
+        assert_eq!(
+            valor_de(&a, "-F").as_deref(),
+            Some("none"),
+            "o config do usuário não pode entrar"
+        );
     }
 
     #[test]
@@ -311,7 +324,11 @@ mod tests {
         );
         assert!(a.contains(&"UserKnownHostsFile=/kh/srv-01".to_string()), "known_hosts POR PERFIL");
         assert!(a.contains(&"IdentitiesOnly=yes".to_string()));
-        assert_eq!(valor_de(&a, "-i").as_deref(), Some("/k/priv"), "a chave entra por CAMINHO, nunca por conteúdo");
+        assert_eq!(
+            valor_de(&a, "-i").as_deref(),
+            Some("/k/priv"),
+            "a chave entra por CAMINHO, nunca por conteúdo"
+        );
     }
 
     #[test]
@@ -406,9 +423,18 @@ mod tests {
             classificar_erro("WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED!"),
             ErroSsh::HostKeyMudou
         );
-        assert_eq!(classificar_erro("ssh: connect to host x port 22: Connection refused"), ErroSsh::ConexaoRecusada);
-        assert_eq!(classificar_erro("ssh: Could not resolve hostname x"), ErroSsh::HostDesconhecido);
-        assert_eq!(classificar_erro("ssh: connect to host x port 22: Connection timed out"), ErroSsh::Timeout);
+        assert_eq!(
+            classificar_erro("ssh: connect to host x port 22: Connection refused"),
+            ErroSsh::ConexaoRecusada
+        );
+        assert_eq!(
+            classificar_erro("ssh: Could not resolve hostname x"),
+            ErroSsh::HostDesconhecido
+        );
+        assert_eq!(
+            classificar_erro("ssh: connect to host x port 22: Connection timed out"),
+            ErroSsh::Timeout
+        );
         // O que não casa é PRESERVADO na íntegra — nada de "erro desconhecido".
         let estranho = "kex_exchange_identification: read: Connection reset by peer";
         assert_eq!(classificar_erro(estranho), ErroSsh::Outro(estranho.to_string()));

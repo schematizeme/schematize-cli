@@ -7,12 +7,12 @@
 // `main` guarda só o arranque e o despacho.
 mod cli;
 use cli::args::*;
-use cli::conta::*;
 use cli::caixa::*;
+use cli::conta::*;
 use cli::db::*;
 use cli::disco::*;
-use cli::git::*;
 use cli::diversos::*;
+use cli::git::*;
 use cli::overdev::*;
 use cli::skills::*;
 use cli::ssh::*;
@@ -22,52 +22,6 @@ use schematize::i18n::tf;
 use schematize::{
     agent, autostart, doctor, environments, links, news, overdev, panel, status, upgrade, util,
 };
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 /// Um alvo de item humano digitado na linha de comando.
 ///

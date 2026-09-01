@@ -4,16 +4,15 @@
 //! Onde: chamado por `schematize overdev enable|disable`.
 
 use crate::util::settings_path;
-use std::path::{Path, PathBuf};
 use serde_json::{json, Value};
 use std::fs;
+use std::path::{Path, PathBuf};
 
 /// Um grupo de hooks contém um comando com este trecho?
 fn group_has(group: &Value, needle: &str) -> bool {
     group.get("hooks").and_then(|h| h.as_array()).is_some_and(|arr| {
-        arr.iter().any(|h| {
-            h.get("command").and_then(|c| c.as_str()).is_some_and(|c| c.contains(needle))
-        })
+        arr.iter()
+            .any(|h| h.get("command").and_then(|c| c.as_str()).is_some_and(|c| c.contains(needle)))
     })
 }
 
@@ -114,10 +113,18 @@ pub fn enable(exe: &str) -> Result<(), String> {
     }
     let stop_cmd = hook_cmd(exe, "overdev check");
     let guard_cmd = hook_cmd(exe, "overdev guard");
-    ensure_group(&mut root, "Stop", "overdev check",
-        json!({ "hooks": [ { "type": "command", "command": stop_cmd } ] }));
-    ensure_group(&mut root, "PreToolUse", "overdev guard",
-        json!({ "matcher": "AskUserQuestion", "hooks": [ { "type": "command", "command": guard_cmd } ] }));
+    ensure_group(
+        &mut root,
+        "Stop",
+        "overdev check",
+        json!({ "hooks": [ { "type": "command", "command": stop_cmd } ] }),
+    );
+    ensure_group(
+        &mut root,
+        "PreToolUse",
+        "overdev guard",
+        json!({ "matcher": "AskUserQuestion", "hooks": [ { "type": "command", "command": guard_cmd } ] }),
+    );
     save(&root)
 }
 
@@ -136,8 +143,12 @@ pub fn enable_vps(exe: &str) -> Result<(), String> {
         root = json!({});
     }
     let cmd = hook_cmd(exe, "vps guard");
-    ensure_group(&mut root, "PreToolUse", "vps guard",
-        json!({ "matcher": "*", "hooks": [ { "type": "command", "command": cmd } ] }));
+    ensure_group(
+        &mut root,
+        "PreToolUse",
+        "vps guard",
+        json!({ "matcher": "*", "hooks": [ { "type": "command", "command": cmd } ] }),
+    );
     save(&root)
 }
 
@@ -146,7 +157,9 @@ pub fn enable_vps(exe: &str) -> Result<(), String> {
 /// **Onde:** `schematize vps hooks --off`.
 pub fn disable_vps() -> Result<(), String> {
     let mut root = load();
-    if let Some(arr) = root.get_mut("hooks").and_then(|h| h.get_mut("PreToolUse")).and_then(|a| a.as_array_mut()) {
+    if let Some(arr) =
+        root.get_mut("hooks").and_then(|h| h.get_mut("PreToolUse")).and_then(|a| a.as_array_mut())
+    {
         arr.retain(|g| !group_has(g, "vps guard"));
     }
     save(&root)
@@ -187,10 +200,8 @@ pub fn permitir_tools(nomes: &[String]) -> Result<usize, String> {
 /// Remove nomes de tool do `permissions.allow`. Devolve quantos saíram.
 pub fn remover_tools(nomes: &[String]) -> Result<usize, String> {
     let mut root = load();
-    let Some(arr) = root
-        .get_mut("permissions")
-        .and_then(|p| p.get_mut("allow"))
-        .and_then(|a| a.as_array_mut())
+    let Some(arr) =
+        root.get_mut("permissions").and_then(|p| p.get_mut("allow")).and_then(|a| a.as_array_mut())
     else {
         return Ok(0);
     };
@@ -234,16 +245,14 @@ pub fn hooks_atualizados(exe: &str) -> bool {
     let esperado = [("Stop", "overdev check"), ("PreToolUse", "overdev guard")];
     esperado.iter().all(|(event, sub)| {
         let alvo = hook_cmd(exe, sub);
-        root.get("hooks")
-            .and_then(|h| h.get(event))
-            .and_then(|a| a.as_array())
-            .is_some_and(|arr| {
-                arr.iter().any(|g| {
-                    g.get("hooks").and_then(|h| h.as_array()).is_some_and(|hs| {
-                        hs.iter().any(|h| h.get("command").and_then(|c| c.as_str()) == Some(alvo.as_str()))
-                    })
+        root.get("hooks").and_then(|h| h.get(event)).and_then(|a| a.as_array()).is_some_and(|arr| {
+            arr.iter().any(|g| {
+                g.get("hooks").and_then(|h| h.as_array()).is_some_and(|hs| {
+                    hs.iter()
+                        .any(|h| h.get("command").and_then(|c| c.as_str()) == Some(alvo.as_str()))
                 })
             })
+        })
     })
 }
 
@@ -336,7 +345,8 @@ pub fn repara_hooks_em(arquivo: &Path, exe: &str) -> Result<bool, String> {
     let mut mexeu = false;
     for (event, sub) in [("Stop", "overdev check"), ("PreToolUse", "overdev guard")] {
         let alvo = hook_cmd(exe, sub);
-        let Some(arr) = root.get_mut("hooks").and_then(|h| h.get_mut(event)).and_then(|a| a.as_array_mut())
+        let Some(arr) =
+            root.get_mut("hooks").and_then(|h| h.get_mut(event)).and_then(|a| a.as_array_mut())
         else {
             continue;
         };
@@ -411,7 +421,10 @@ mod tests {
         });
         // Continua "ligado" (é por isso que ninguém percebia): o needle casa.
         assert!(
-            antigo.get("hooks").and_then(|h| h.get("Stop")).and_then(|a| a.as_array())
+            antigo
+                .get("hooks")
+                .and_then(|h| h.get("Stop"))
+                .and_then(|a| a.as_array())
                 .is_some_and(|arr| arr.iter().any(|g| group_has(g, "overdev check"))),
             "o hook velho ainda casa como 'ligado' — por isso o enable pulava"
         );
@@ -469,11 +482,16 @@ mod tests {
         let _ = std::fs::remove_dir_all(&base);
         std::fs::create_dir_all(base.join(".claude")).unwrap();
         let arq = base.join(".claude").join("settings.json");
-        std::fs::write(&arq, serde_json::to_string_pretty(&json!({
-            "hooks": { "Stop": [ { "hooks": [
-                { "type": "command", "command": "bash .claude/hooks/overdev-stop.sh" }
-            ] } ] }
-        })).unwrap()).unwrap();
+        std::fs::write(
+            &arq,
+            serde_json::to_string_pretty(&json!({
+                "hooks": { "Stop": [ { "hooks": [
+                    { "type": "command", "command": "bash .claude/hooks/overdev-stop.sh" }
+                ] } ] }
+            }))
+            .unwrap(),
+        )
+        .unwrap();
 
         let mexeu = repara_hooks_em(&arq, "/home/x/.cargo/bin/schematize").unwrap();
         assert!(mexeu, "hook quebrado no projeto tinha de ser regravado");
@@ -495,9 +513,14 @@ mod tests {
         std::fs::create_dir_all(&base).unwrap();
         let arq = base.join("settings.json");
         let alheio = "bash /caminho/que/nao/existe/formatador.sh";
-        std::fs::write(&arq, serde_json::to_string_pretty(&json!({
-            "hooks": { "Stop": [ { "hooks": [ { "type": "command", "command": alheio } ] } ] }
-        })).unwrap()).unwrap();
+        std::fs::write(
+            &arq,
+            serde_json::to_string_pretty(&json!({
+                "hooks": { "Stop": [ { "hooks": [ { "type": "command", "command": alheio } ] } ] }
+            }))
+            .unwrap(),
+        )
+        .unwrap();
 
         assert!(!repara_hooks_em(&arq, "/bin/schematize").unwrap(), "não é hook do overdev");
         let depois: Value = serde_json::from_str(&std::fs::read_to_string(&arq).unwrap()).unwrap();
@@ -511,7 +534,12 @@ mod tests {
     #[test]
     fn comando_do_hook_tenta_todos_os_caminhos_e_nunca_falha() {
         let c = hook_cmd("/opt/schematize", "overdev check");
-        for esperado in ["$HOME/.cargo/bin/schematize", "$HOME/.local/bin/schematize", "/usr/local/bin/schematize", "/usr/bin/schematize"] {
+        for esperado in [
+            "$HOME/.cargo/bin/schematize",
+            "$HOME/.local/bin/schematize",
+            "/usr/local/bin/schematize",
+            "/usr/bin/schematize",
+        ] {
             assert!(c.contains(esperado), "faltou {esperado} em: {c}");
         }
         assert!(c.ends_with("exit 0"), "sem binário nenhum, o hook sai limpo: {c}");
@@ -556,5 +584,4 @@ mod tests {
         ensure_group(&mut v, "Stop", "overdev check", json!({"hooks": []}));
         assert!(v.is_array(), "sem objeto pra mexer, sai sem tocar em nada");
     }
-
 }

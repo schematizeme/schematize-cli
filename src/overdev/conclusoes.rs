@@ -42,14 +42,18 @@ pub(crate) fn done_item_text(line: &str) -> Option<String> {
 
 /// Ordena e materializa o mapa text->ts em `Vec<Completion>` (ts asc, nome desempata).
 pub(crate) fn sorted_completions(map: std::collections::BTreeMap<String, i64>) -> Vec<Completion> {
-    let mut out: Vec<Completion> = map.into_iter().map(|(text, ts)| Completion { text, ts }).collect();
+    let mut out: Vec<Completion> =
+        map.into_iter().map(|(text, ts)| Completion { text, ts }).collect();
     out.sort_by(|a, b| a.ts.cmp(&b.ts).then_with(|| a.text.cmp(&b.text)));
     out
 }
 
 /// Lê o registro `.overdev/completions.json` (mapa text->ts). Vazio se ausente/ilegível.
 pub(crate) fn read_completions_map(root: &Path) -> std::collections::BTreeMap<String, i64> {
-    fs::read_to_string(completions_file(root)).ok().and_then(|s| serde_json::from_str(&s).ok()).unwrap_or_default()
+    fs::read_to_string(completions_file(root))
+        .ok()
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or_default()
 }
 
 /// Detecta e REGISTRA (por DIFF) as conclusões de máquina do CHECKLIST de `<root>`.
@@ -73,7 +77,8 @@ pub fn record_completions(root: &Path) -> Vec<Completion> {
     let mut map = read_completions_map(root);
 
     // 1ª vez (sem registro): os `- [x]` já presentes recebem o mtime do CHECKLIST.
-    let seed_ts = if existed { 0 } else { mtime_secs(&checklist_path).unwrap_or_else(now_secs_i64) };
+    let seed_ts =
+        if existed { 0 } else { mtime_secs(&checklist_path).unwrap_or_else(now_secs_i64) };
     let now = now_secs_i64();
 
     let mut changed = false;

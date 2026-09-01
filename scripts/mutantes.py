@@ -40,7 +40,7 @@ MUTANTES = [
   "defesa contra homoglifo/bidi (ataque ao gate humano)"),
  ("src/mcp/tools.rs", 'vps::Confirmacao::Ausente', 'vps::Confirmacao::HumanoConfirmou',
   "impossibilidade do agente se autoconfirmar"),
- ("src/vps/politica.rs", 'if let Some(m) = catastrofico_por_estrutura(&analisar(cmd)) {',
+ ("src/vps/catastrofico.rs", 'if let Some(m) = catastrofico_por_estrutura(&analisar(cmd)) {',
   'if let Some(m) = None::<&str> {', "a camada ESTRUTURAL da denylist (D1)"),
  ("src/vps/registro.rs", 'pub fn resumir(v: &str) -> String {\n    const TETO: usize = 120;',
   'pub fn resumir(v: &str) -> String {\n    const TETO: usize = usize::MAX;',
@@ -115,7 +115,7 @@ if not rodar_suite():
     print("baseline VERMELHO — abortando"); sys.exit(1)
 print("baseline verde\n")
 
-pegos, escaparam = 0, []
+pegos, escaparam, perdidos = 0, [], []
 for arq, orig, mut, alvo in MUTANTES:
     caminho = os.path.join(R, arq)
     backup = caminho + ".mutbak"
@@ -127,7 +127,15 @@ for arq, orig, mut, alvo in MUTANTES:
     _PENDENTES[caminho] = backup
     src = open(caminho).read()
     if orig not in src:
+        # ALVO PERDIDO E FALHA, nao aviso.
+        #
+        # Aconteceu na extracao do `catastrofico.rs`: o trecho do mutante D1 mudou de
+        # arquivo, o script imprimiu `??`, seguiu em frente e saiu com codigo 0 — "27
+        # pegos, 0 escaparam". Um mutante que nao roda nao e um mutante que passou: e uma
+        # DEFESA SEM VERIFICACAO, e o placar verde escondia isso. Refatorar o codigo nao
+        # pode silenciar o teste que vigia o codigo.
         print(f"  ?? ALVO NAO ENCONTRADO  {alvo}  ({arq})")
+        perdidos.append(f"{alvo} ({arq})")
         os.remove(backup); _PENDENTES.pop(caminho, None); continue
     open(caminho, "w").write(src.replace(orig, mut, 1))
     try:
@@ -144,6 +152,10 @@ for arq, orig, mut, alvo in MUTANTES:
         print(f"  ok pego     {alvo}")
         pegos += 1
 
-print(f"\n=== {pegos} pegos, {len(escaparam)} escaparam ===")
-for e in escaparam: print(f"  NAO TESTADO: {e}")
-sys.exit(1 if escaparam else 0)
+print(f"\n=== {pegos} pegos, {len(escaparam)} escaparam, {len(perdidos)} sem alvo ===")
+for e in escaparam: print(f"  NAO TESTADO (a suite nao pegou): {e}")
+for e in perdidos:  print(f"  NAO RODADO (alvo sumiu do fonte): {e}")
+if perdidos:
+    print("\nAlvo que sumiu quase sempre e refatoracao que MOVEU o trecho. Reaponte o")
+    print("mutante pro novo lugar — nao apague. Defesa sem mutante e defesa sem verificacao.")
+sys.exit(1 if (escaparam or perdidos) else 0)

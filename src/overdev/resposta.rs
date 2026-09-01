@@ -218,7 +218,9 @@ mod tests {
     /// vira "feito" — porque ninguém fez nada, só decidiu.
     #[test]
     fn responder_libera_a_maquina_sem_mentir_que_foi_feito() {
-        let r = resolver_str(FIX, &Alvo::Indice(1), Acao::Responder, "pode dar o deploy você mesmo").unwrap();
+        let r =
+            resolver_str(FIX, &Alvo::Indice(1), Acao::Responder, "pode dar o deploy você mesmo")
+                .unwrap();
         assert!(r.texto.contains("- [H r] preciso que você faça o deploy"), "{}", r.texto);
         assert!(!r.texto.contains("- [H x]"), "responder não é fazer");
         assert!(
@@ -234,7 +236,8 @@ mod tests {
     /// exatamente a tarefa que a pessoa acabou de rejeitar.
     #[test]
     fn recusar_cancela_a_maquina_em_vez_de_liberar() {
-        let r = resolver_str(FIX, &Alvo::Indice(1), Acao::Recusar, "não temos produção ainda").unwrap();
+        let r =
+            resolver_str(FIX, &Alvo::Indice(1), Acao::Recusar, "não temos produção ainda").unwrap();
         assert!(r.texto.contains("- [H -] preciso que você faça o deploy"));
         assert!(r.texto.contains("- [-] implantar em produção"), "cancelado:\n{}", r.texto);
         assert!(!r.texto.contains("- [ ] implantar"), "não podia ter liberado");
@@ -244,7 +247,13 @@ mod tests {
     /// Item humano SEM vínculo se resolve sozinho, sem mexer em item de máquina nenhum.
     #[test]
     fn item_humano_solto_nao_afeta_maquina() {
-        let r = resolver_str(FIX, &Alvo::Indice(2), Acao::Recusar, "a landing vai mudar de qualquer jeito").unwrap();
+        let r = resolver_str(
+            FIX,
+            &Alvo::Indice(2),
+            Acao::Recusar,
+            "a landing vai mudar de qualquer jeito",
+        )
+        .unwrap();
         assert!(r.texto.contains("- [H -] revisar o texto da landing"));
         assert_eq!(r.vinculado, None);
         assert!(r.texto.contains("- [~] implantar"), "o item travado ficou como estava");
@@ -258,7 +267,10 @@ mod tests {
         assert!(r1.item.contains("deploy"));
         let r2 = resolver_str(FIX, &Alvo::Indice(2), Acao::Responder, "x").unwrap();
         assert!(r2.item.contains("landing"));
-        assert!(resolver_str(FIX, &Alvo::Indice(3), Acao::Responder, "x").is_err(), "fora de faixa");
+        assert!(
+            resolver_str(FIX, &Alvo::Indice(3), Acao::Responder, "x").is_err(),
+            "fora de faixa"
+        );
     }
 
     /// Casar por texto também funciona, e só pega item ABERTO.
@@ -267,7 +279,9 @@ mod tests {
         let r = resolver_str(FIX, &Alvo::Texto("landing".into()), Acao::Responder, "ok").unwrap();
         assert!(r.texto.contains("- [H r] revisar o texto da landing"));
         // Resolvido uma vez, não casa de novo.
-        assert!(resolver_str(&r.texto, &Alvo::Texto("landing".into()), Acao::Responder, "ok").is_err());
+        assert!(
+            resolver_str(&r.texto, &Alvo::Texto("landing".into()), Acao::Responder, "ok").is_err()
+        );
     }
 
     /// Resposta vazia é recusada: responder É registrar a decisão; sem texto não há
@@ -287,7 +301,11 @@ mod tests {
         let linhas: Vec<&str> = out.lines().collect();
         assert!(linhas[0].starts_with("- [~] subir o banco"));
         assert!(linhas[0].contains("ovf:q:zz9"));
-        assert!(linhas[1].starts_with("  - [H ] qual região da AWS?"), "indentado: {:?}", linhas[1]);
+        assert!(
+            linhas[1].starts_with("  - [H ] qual região da AWS?"),
+            "indentado: {:?}",
+            linhas[1]
+        );
         assert!(linhas[1].contains("ovf:q:zz9"));
         assert!(linhas[2].starts_with("- [ ] outro item"), "não mexeu no resto");
 

@@ -238,7 +238,9 @@ pub fn interpretar_sondagem(saida: &str) -> Sondagem {
     }
     // Sem HOME resolvido não dá pra montar um forced command literal — cai pro mais restritivo.
     let possivel = if home.is_empty() && possivel == Fronteira::OpsShellUsuario {
-        notas.push("o host não informou o $HOME — não dá pra montar um forced command literal".into());
+        notas.push(
+            "o host não informou o $HOME — não dá pra montar um forced command literal".into(),
+        );
         Fronteira::Sem
     } else {
         possivel
@@ -250,10 +252,7 @@ pub fn interpretar_sondagem(saida: &str) -> Sondagem {
 ///
 /// **Onde:** `vps probe` (CLI), `vps bootstrap` (antes de agir) e o refresh da GUI.
 /// **Erros:** os mesmos de qualquer execução remota (host não confiado, sem acesso).
-pub fn sondar(
-    conn: &rusqlite::Connection,
-    p: &VpsProfile,
-) -> Result<Sondagem, String> {
+pub fn sondar(conn: &rusqlite::Connection, p: &VpsProfile) -> Result<Sondagem, String> {
     // 1) Host COM fronteira instalada responde ao pedido embutido do shim — e recusa qualquer
     //    outra coisa. Tenta este primeiro quando já se sabe que há shim.
     if p.fronteira.e_server_side() {
@@ -345,12 +344,15 @@ mod tests {
     use super::*;
 
     fn saida(sudo: &str, ak: &str, shim: &str, forced: &str) -> String {
-        format!("sudo={sudo}\nauthkeys={ak}\nshim={shim}\nforced={forced}\nshell=sim\nhome=/home/d\n")
+        format!(
+            "sudo={sudo}\nauthkeys={ak}\nshim={shim}\nforced={forced}\nshell=sim\nhome=/home/d\n"
+        )
     }
 
     #[test]
     fn sem_home_resolvido_nao_da_pra_montar_forced_command() {
-        let s = interpretar_sondagem("sudo=nao\nauthkeys=sim\nshim=nenhum\nforced=nao\nshell=sim\n");
+        let s =
+            interpretar_sondagem("sudo=nao\nauthkeys=sim\nshim=nenhum\nforced=nao\nshell=sim\n");
         assert_eq!(s.possivel, Fronteira::Sem, "sem $HOME o command= apontaria pra lugar nenhum");
     }
 
@@ -374,7 +376,10 @@ mod tests {
         let s = interpretar_sondagem(&saida("nao", "sim", "nenhum", "nao"));
         assert_eq!(s.possivel, Fronteira::OpsShellUsuario);
         assert!(s.possivel.e_server_side(), "o sshd continua recusando antes de existir shell");
-        assert!(s.notas.iter().any(|n| n.contains("home do usuário")), "a nota tem que explicar o trade-off");
+        assert!(
+            s.notas.iter().any(|n| n.contains("home do usuário")),
+            "a nota tem que explicar o trade-off"
+        );
     }
 
     #[test]
@@ -382,7 +387,10 @@ mod tests {
         // Nem com sudo: sem forced command não há fronteira, por mais root que se tenha.
         let s = interpretar_sondagem(&saida("sim", "nao", "nenhum", "nao"));
         assert_eq!(s.possivel, Fronteira::Sem);
-        assert!(!s.pode_melhorar(), "não há o que instalar — e o app tem que dizer isso, não tentar");
+        assert!(
+            !s.pode_melhorar(),
+            "não há o que instalar — e o app tem que dizer isso, não tentar"
+        );
         assert!(s.notas.iter().any(|n| n.contains("gerenciado")), "a nota tem que explicar o caso");
     }
 
@@ -399,8 +407,14 @@ mod tests {
 
     #[test]
     fn instalacao_completa_e_reconhecida_nos_dois_niveis() {
-        assert_eq!(interpretar_sondagem(&saida("sim", "sim", "root", "sim")).instalada, Fronteira::OpsShellRoot);
-        assert_eq!(interpretar_sondagem(&saida("nao", "sim", "usuario", "sim")).instalada, Fronteira::OpsShellUsuario);
+        assert_eq!(
+            interpretar_sondagem(&saida("sim", "sim", "root", "sim")).instalada,
+            Fronteira::OpsShellRoot
+        );
+        assert_eq!(
+            interpretar_sondagem(&saida("nao", "sim", "usuario", "sim")).instalada,
+            Fronteira::OpsShellUsuario
+        );
     }
 
     #[test]
@@ -431,14 +445,16 @@ mod tests {
         // E é HONESTO sobre o que não dá pra ver daqui.
         assert!(
             s.notas.iter().any(|n| n.contains("break-glass")),
-            "tem que explicar por que não dá pra reavaliar: {:?}", s.notas
+            "tem que explicar por que não dá pra reavaliar: {:?}",
+            s.notas
         );
         assert!(!s.sudo_sem_senha, "atrás do shim não dá pra saber — não pode chutar `sim`");
     }
 
     #[test]
     fn sondagem_pelo_shim_reconhece_o_nivel_de_usuario() {
-        let s = interpretar_sondagem("via=shim\nshim=usuario\nforced=sim\nhome=/home/d\ncatalogo=3\n");
+        let s =
+            interpretar_sondagem("via=shim\nshim=usuario\nforced=sim\nhome=/home/d\ncatalogo=3\n");
         assert_eq!(s.instalada, Fronteira::OpsShellUsuario);
         assert_eq!(s.home, "/home/d");
     }

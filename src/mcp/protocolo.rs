@@ -90,7 +90,11 @@ where
             // Argumento que não é objeto é entrada hostil como qualquer outra: recusa clara,
             // nunca panic (o `unwrap_or` acima já cobre o ausente).
             if !args.is_object() {
-                return Some(erro_de(id, erro::PARAMS_INVALIDOS, "`arguments` precisa ser um objeto"));
+                return Some(erro_de(
+                    id,
+                    erro::PARAMS_INVALIDOS,
+                    "`arguments` precisa ser um objeto",
+                ));
             }
             match executar_tool(nome, &args) {
                 Ok(texto) => Some(ok(id, resultado_de_tool(&texto, false))),
@@ -118,7 +122,11 @@ mod tests {
 
     fn resp(msg: Value) -> Option<Value> {
         responder(&msg, &tools_falsas(), |n, _| {
-            if n == "t" { Ok("feito".into()) } else { Err(format!("tool desconhecida: {n}")) }
+            if n == "t" {
+                Ok("feito".into())
+            } else {
+                Err(format!("tool desconhecida: {n}"))
+            }
         })
     }
 
@@ -146,9 +154,13 @@ mod tests {
 
     #[test]
     fn recusa_da_tool_vira_resultado_lido_pelo_agente_nao_erro_de_transporte() {
-        let r = responder(&json!({"jsonrpc":"2.0","id":3,"method":"tools/call",
-            "params":{"name":"t","arguments":{}}}), &tools_falsas(),
-            |_, _| Err("recusado pela política: comando catastrófico".into())).unwrap();
+        let r = responder(
+            &json!({"jsonrpc":"2.0","id":3,"method":"tools/call",
+            "params":{"name":"t","arguments":{}}}),
+            &tools_falsas(),
+            |_, _| Err("recusado pela política: comando catastrófico".into()),
+        )
+        .unwrap();
         assert!(r.get("error").is_none(), "não pode ser erro de JSON-RPC");
         assert_eq!(r["result"]["isError"], true);
         let texto = r["result"]["content"][0]["text"].as_str().unwrap();

@@ -10,6 +10,6 @@
 //! `githist` que já existia (não duplicamos leitura de git log).
 
 pub mod aplicar;
-pub mod deteccao;
 pub mod contas;
+pub mod deteccao;
 pub mod repos;

@@ -40,7 +40,9 @@ impl Ambiente {
     pub fn from_raw(s: &str) -> Ambiente {
         match s.trim().to_ascii_lowercase().as_str() {
             "dev" | "local" | "desenvolvimento" => Ambiente::Dev,
-            "hml" | "homolog" | "homologacao" | "homologação" | "staging" | "stg" => Ambiente::Hml,
+            "hml" | "homolog" | "homologacao" | "homologação" | "staging" | "stg" => {
+                Ambiente::Hml
+            }
             // "prd", "prod", "production" e QUALQUER outra coisa: o mais restritivo.
             _ => Ambiente::Prd,
         }
@@ -145,9 +147,8 @@ impl VpsProfile {
 /// o público-alvo do app é majoritariamente Windows/macOS — um alias criado no Linux não pode
 /// quebrar quando o mesmo perfil abrir no Windows. Achado no pentest (P1).
 const RESERVADOS_WINDOWS: &[&str] = &[
-    "con", "prn", "aux", "nul",
-    "com1", "com2", "com3", "com4", "com5", "com6", "com7", "com8", "com9",
-    "lpt1", "lpt2", "lpt3", "lpt4", "lpt5", "lpt6", "lpt7", "lpt8", "lpt9",
+    "con", "prn", "aux", "nul", "com1", "com2", "com3", "com4", "com5", "com6", "com7", "com8",
+    "com9", "lpt1", "lpt2", "lpt3", "lpt4", "lpt5", "lpt6", "lpt7", "lpt8", "lpt9",
 ];
 
 /// Opções `-o` do ssh que este app aceita em `extra_opts` — **allowlist, deny-by-default**.
@@ -161,10 +162,24 @@ const RESERVADOS_WINDOWS: &[&str] = &[
 /// caminho de arquivo ou mexa em autenticação. Se faltar alguma, acrescentar é uma linha —
 /// e uma decisão consciente, que é o ponto.
 const OPCOES_PERMITIDAS: &[&str] = &[
-    "serveraliveinterval", "serveralivecountmax", "connecttimeout", "connectionattempts",
-    "compression", "tcpkeepalive", "ipqos", "addressfamily", "bindinterface",
-    "ciphers", "macs", "kexalgorithms", "hostkeyalgorithms", "pubkeyacceptedalgorithms",
-    "loglevel", "requesttty", "sessiontype", "streamlocalbindmask",
+    "serveraliveinterval",
+    "serveralivecountmax",
+    "connecttimeout",
+    "connectionattempts",
+    "compression",
+    "tcpkeepalive",
+    "ipqos",
+    "addressfamily",
+    "bindinterface",
+    "ciphers",
+    "macs",
+    "kexalgorithms",
+    "hostkeyalgorithms",
+    "pubkeyacceptedalgorithms",
+    "loglevel",
+    "requesttty",
+    "sessiontype",
+    "streamlocalbindmask",
 ];
 
 /// Valida uma opção `-o` de `extra_opts`. Forma `Chave=valor`, chave na allowlist, sem espaço.
@@ -262,7 +277,10 @@ pub fn valid_host(host: &str) -> Result<(), String> {
         ));
     }
     if host.is_empty() || host.starts_with('-') {
-        return Err(format!("endereço de host inválido: {:?} (vazio, ou começa por '-' e o ssh o leria como opção)", resumir(host)));
+        return Err(format!(
+            "endereço de host inválido: {:?} (vazio, ou começa por '-' e o ssh o leria como opção)",
+            resumir(host)
+        ));
     }
     if host.chars().any(|c| c.is_whitespace()) {
         return Err(format!(
@@ -288,9 +306,13 @@ pub fn salvar(conn: &Connection, p: &VpsProfile) -> Result<(), String> {
     // O usuário remoto segue a mesma disciplina do host (sem espaço, sem flag, ASCII, com
     // teto) — é outro campo que vai direto pro argv do `ssh`.
     if p.usuario.len() > 64 {
-        return Err(format!("usuário remoto inválido: tem {} caracteres, o máximo é 64", p.usuario.len()));
+        return Err(format!(
+            "usuário remoto inválido: tem {} caracteres, o máximo é 64",
+            p.usuario.len()
+        ));
     }
-    valid_host(&p.usuario).map_err(|_| format!("usuário remoto inválido: {:?}", resumir(&p.usuario)))?;
+    valid_host(&p.usuario)
+        .map_err(|_| format!("usuário remoto inválido: {:?}", resumir(&p.usuario)))?;
     crate::sshkeys::valid_name(&p.key_name)?;
     // Porta 0 não existe como destino: o `ssh` falharia com uma mensagem que não ajuda em nada.
     if p.port == 0 {
@@ -358,9 +380,8 @@ pub fn listar(conn: &Connection) -> Result<Vec<VpsProfile>, String> {
                FROM hosts ORDER BY alias",
         )
         .map_err(|e| format!("falha ao preparar a listagem: {e}"))?;
-    let it = stmt
-        .query_map([], linha_para_perfil)
-        .map_err(|e| format!("falha ao listar hosts: {e}"))?;
+    let it =
+        stmt.query_map([], linha_para_perfil).map_err(|e| format!("falha ao listar hosts: {e}"))?;
     let mut out = Vec::new();
     for r in it {
         // Linha corrompida não pode derrubar a listagem inteira (piso 10): reporta e segue.
@@ -457,10 +478,31 @@ mod tests {
         }
         // Inválidos — nada que escape, vire flag ou vire caminho.
         for bad in [
-            "", "../evil", "a/b", "a\\b", ".oculto", "-flag", "foo..bar", "com espaco",
-            "CON", "con", "nul", "AUX", "com1", "LPT9", "con.txt",
-            "com\ttab", "com\nnl", "acentuação", "emoji🙂", "a;b", "a|b", "a$b", "a`b",
-            "-o ProxyCommand=x", "a\0b",
+            "",
+            "../evil",
+            "a/b",
+            "a\\b",
+            ".oculto",
+            "-flag",
+            "foo..bar",
+            "com espaco",
+            "CON",
+            "con",
+            "nul",
+            "AUX",
+            "com1",
+            "LPT9",
+            "con.txt",
+            "com\ttab",
+            "com\nnl",
+            "acentuação",
+            "emoji🙂",
+            "a;b",
+            "a|b",
+            "a$b",
+            "a`b",
+            "-o ProxyCommand=x",
+            "a\0b",
         ] {
             assert!(valid_alias(bad).is_err(), "{bad:?} deveria ser recusado");
         }
@@ -476,7 +518,14 @@ mod tests {
         assert!(valid_host("srv.example.com").is_ok());
         assert!(valid_host("xn--80ak6aa92e.com").is_ok(), "IDN em punycode é ASCII e passa");
         // Achados no fuzzing: validar o trim e gravar o original é bypass de validação.
-        for bad in ["10.0.0.1\n", "\t10.0.0.1", " 10.0.0.1 ", "10.0.0.1\r", "goog\u{0435}le.com", "srv\u{200b}.com"] {
+        for bad in [
+            "10.0.0.1\n",
+            "\t10.0.0.1",
+            " 10.0.0.1 ",
+            "10.0.0.1\r",
+            "goog\u{0435}le.com",
+            "srv\u{200b}.com",
+        ] {
             assert!(valid_host(bad).is_err(), "{bad:?} tinha que ser recusado");
         }
         // Teto de tamanho (D9): sem ele, um "host" de megabytes ia pro banco e só falhava no

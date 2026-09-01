@@ -1,7 +1,7 @@
 //! Subcomandos do DATABASE builder: origem do schema, resumo e o dispatch.
 
-use schematize::database;
 use crate::cli::args::*;
+use schematize::database;
 
 /// Resolve a fonte do schema pro `db sql|graph`: --from <json> | --sqlite | --postgres.
 pub(crate) fn db_source(
@@ -19,7 +19,8 @@ pub(crate) fn db_source(
     if let Some(c) = postgres {
         return database::introspect_postgres(&c);
     }
-    Err("informe a fonte do schema: --from <schema.json> | --sqlite <arquivo> | --postgres <conn>".into())
+    Err("informe a fonte do schema: --from <schema.json> | --sqlite <arquivo> | --postgres <conn>"
+        .into())
 }
 
 /// Imprime o resumo humano de um schema (tabelas, nº de colunas/FKs/índices + totais).

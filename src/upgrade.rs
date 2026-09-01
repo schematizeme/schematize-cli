@@ -8,7 +8,8 @@
 use crate::i18n::{t, tf};
 use std::process::Command;
 
-const INSTALL_SH: &str = "https://raw.githubusercontent.com/schematizeme/schematize-cli/main/install.sh";
+const INSTALL_SH: &str =
+    "https://raw.githubusercontent.com/schematizeme/schematize-cli/main/install.sh";
 
 /// Repo GitHub do PRÓPRIO app (a CLI/GUI) — usado pra resolver a versão mais nova do app.
 const APP_REPO: &str = "schematize-cli";

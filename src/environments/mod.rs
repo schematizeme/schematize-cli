@@ -17,25 +17,20 @@ use detect::Family;
 use std::io::{self, BufRead, Write};
 
 // Submódulos (piso da casa: <=750 linhas, uma unidade lógica por arquivo).
-mod maquina;
-mod estado;
-mod plano;
 mod acoes;
+mod estado;
+mod maquina;
 mod path;
-use maquina::*;
-pub use estado::*;
-pub use plano::*;
+mod plano;
 pub use acoes::*;
+pub use estado::*;
+use maquina::*;
 pub use path::*;
-
+pub use plano::*;
 
 // Re-exporta `Method` no nível do módulo (traz pra escopo interno E expõe como
 // `environments::Method` pra consumidores externos, ex.: a GUI).
 pub use defs::Method;
-
-
-
-
 
 // ---------------------------------------------------------------------------
 // API de DADOS pública (aditiva): o status estruturado de cada environment nesta
@@ -43,30 +38,11 @@ pub use defs::Method;
 // consumir isto (fonte única; nada de duplicar a detecção). O egui não usa.
 // ---------------------------------------------------------------------------
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 // ---------------------------------------------------------------------------
 // FERRAMENTAS: instalação/remoção. Reusa o MESMO guardrail (mostra o comando,
 // pede consentimento, respeita dry-run) e o mesmo runner das linguagens. Sem
 // seletor de método: se vier `--method`, avisa e ignora.
 // ---------------------------------------------------------------------------
-
-
-
 
 // ---------------------------------------------------------------------------
 // PRONTIDÃO PÓS-INSTALAÇÃO. Muitos instaladores oficiais (Claude Code, e qualquer
@@ -76,11 +52,6 @@ pub use defs::Method;
 // faltar, garante ~/.local/bin no PATH (~/.bashrc + ~/.profile, idempotente) e
 // orienta como recarregar. Best-effort: NUNCA quebra a instalação já concluída.
 // ---------------------------------------------------------------------------
-
-
-
-
-
 
 #[cfg(test)]
 mod tests {
@@ -95,7 +66,9 @@ mod tests {
                 for fam in [Family::Debian, Family::Rpm, Family::Unknown] {
                     let r = defs::install_recipe(env, method, fam, true);
                     match r {
-                        Recipe::Steps(s) => assert!(!s.is_empty(), "{} {:?}: passos vazios", env.lang, method),
+                        Recipe::Steps(s) => {
+                            assert!(!s.is_empty(), "{} {:?}: passos vazios", env.lang, method)
+                        }
                         Recipe::Todo(n) | Recipe::Na(n) => {
                             assert!(!n.trim().is_empty(), "{} {:?}: motivo vazio", env.lang, method)
                         }
@@ -139,7 +112,8 @@ mod tests {
     /// dry-run NUNCA chama o runner (não executa nada).
     #[test]
     fn dry_run_nao_executa() {
-        let steps = vec![Step { cmd: "echo x".into(), source: "t".into(), sudo: false, pipe_sh: false }];
+        let steps =
+            vec![Step { cmd: "echo x".into(), source: "t".into(), sudo: false, pipe_sh: false }];
         let mut calls = 0;
         let action = run_steps(&steps, true, true, |_| {
             calls += 1;
@@ -153,7 +127,8 @@ mod tests {
     /// Sem consentimento também não executa.
     #[test]
     fn sem_consentimento_aborta() {
-        let steps = vec![Step { cmd: "echo x".into(), source: "t".into(), sudo: false, pipe_sh: false }];
+        let steps =
+            vec![Step { cmd: "echo x".into(), source: "t".into(), sudo: false, pipe_sh: false }];
         let mut calls = 0;
         let action = run_steps(&steps, false, false, |_| {
             calls += 1;
@@ -225,7 +200,9 @@ mod tests {
             _ => panic!("esperava Steps pra VS Code em Rpm"),
         };
         assert_eq!(steps.len(), 3);
-        assert!(steps[0].cmd.contains("rpm --import https://packages.microsoft.com/keys/microsoft.asc"));
+        assert!(steps[0]
+            .cmd
+            .contains("rpm --import https://packages.microsoft.com/keys/microsoft.asc"));
         assert!(steps[2].cmd.contains("dnf install -y code") && steps[2].cmd.contains("zypper"));
     }
 
@@ -318,7 +295,10 @@ mod tests {
         assert!(needs_path_fix(false, true), "fora do PATH mas em ~/.local/bin → fixa");
         assert!(!needs_path_fix(true, true), "já no PATH → nada a fazer");
         assert!(!needs_path_fix(true, false), "já no PATH → nada a fazer");
-        assert!(!needs_path_fix(false, false), "nem no PATH nem local → instalação falhou, não é PATH");
+        assert!(
+            !needs_path_fix(false, false),
+            "nem no PATH nem local → instalação falhou, não é PATH"
+        );
     }
 
     /// Idempotência PURA: reconhece um rc que já garante ~/.local/bin no PATH (não duplica),

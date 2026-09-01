@@ -34,10 +34,14 @@ pub(crate) fn applied_cmd(mark: Option<String>) -> Result<(), String> {
         match e {
             Estado::Desatualizada { aplicada, instalada } => {
                 atrasadas += 1;
-                println!("  \x1b[33m↑\x1b[0m {slug:<16} aplicada v{aplicada} · instalada v{instalada}");
+                println!(
+                    "  \x1b[33m↑\x1b[0m {slug:<16} aplicada v{aplicada} · instalada v{instalada}"
+                );
             }
             Estado::NuncaAplicada { instalada } => {
-                println!("  \x1b[2m○\x1b[0m {slug:<16} nunca aplicada aqui · instalada v{instalada}");
+                println!(
+                    "  \x1b[2m○\x1b[0m {slug:<16} nunca aplicada aqui · instalada v{instalada}"
+                );
             }
             Estado::Atual => println!("  \x1b[32m✓\x1b[0m {slug:<16} em dia"),
         }
@@ -89,17 +93,12 @@ pub(crate) fn rerun_cmd(slug: Option<String>) -> Result<(), String> {
 
 /// Caminho do próprio binário, pro prompt mandar o agente chamar ESTE app.
 fn bin_atual() -> String {
-    std::env::current_exe()
-        .map(|p| p.display().to_string())
-        .unwrap_or_else(|_| "schematize".into())
+    std::env::current_exe().map(|p| p.display().to_string()).unwrap_or_else(|_| "schematize".into())
 }
 
 /// Versão instalada de uma skill pelo slug (`None` se não está na máquina).
 fn versao_instalada(slug: &str) -> Option<String> {
-    registry::catalog()
-        .iter()
-        .find(|i| i.slug == slug)
-        .and_then(skills::installed_version)
+    registry::catalog().iter().find(|i| i.slug == slug).and_then(skills::installed_version)
 }
 
 /// Registra a aplicação de uma skill num `root` explícito (usado pela GUI).

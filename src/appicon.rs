@@ -41,7 +41,9 @@ pub fn rgba(n: u32) -> (Vec<u8>, u32, u32) {
                 for sx in 0..SS {
                     let px = x as f32 + (sx as f32 + 0.5) / SS as f32;
                     let py = y as f32 + (sy as f32 + 0.5) / SS as f32;
-                    if let Some(c) = sample(px, py, nf, radius, &nodes, &edges, node_r, ring_w, edge_w) {
+                    if let Some(c) =
+                        sample(px, py, nf, radius, &nodes, &edges, node_r, ring_w, edge_w)
+                    {
                         r += c[0];
                         g += c[1];
                         b += c[2];

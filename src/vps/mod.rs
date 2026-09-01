@@ -28,6 +28,8 @@ pub mod analise;
 pub mod auditoria;
 pub mod bootstrap;
 pub mod capacidade;
+/// O catálogo do que nunca pode rodar — extraído do [`politica`], que é quem o consulta.
+pub mod catastrofico;
 pub mod conexao;
 pub mod db;
 pub mod exec;
@@ -36,14 +38,12 @@ pub mod politica;
 pub mod registro;
 pub mod verbos;
 
-
 pub use analise::*;
 pub use auditoria::*;
 pub use capacidade::*;
 pub use conexao::*;
 pub use exec::*;
 pub use politica::*;
-
 
 pub use registro::*;
 
@@ -57,10 +57,8 @@ pub(crate) fn db_de_teste(nome: &str) -> std::path::PathBuf {
     use std::sync::atomic::{AtomicU32, Ordering};
     static N: AtomicU32 = AtomicU32::new(0);
     let n = N.fetch_add(1, Ordering::Relaxed);
-    let p = std::env::temp_dir().join(format!(
-        "schematize-vps-t-{nome}-{}-{n}.db",
-        std::process::id()
-    ));
+    let p =
+        std::env::temp_dir().join(format!("schematize-vps-t-{nome}-{}-{n}.db", std::process::id()));
     let _ = std::fs::remove_file(&p);
     p
 }

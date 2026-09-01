@@ -1,10 +1,10 @@
 //! Subcomandos de CHAVES SSH, mais a confirmação interativa que eles usam.
 
+use crate::cli::args::*;
 use schematize::i18n::{t, tf};
 use schematize::sshkeys;
-use crate::cli::args::*;
-use std::io::{self, BufRead};
 use std::io::Write;
+use std::io::{self, BufRead};
 
 /// Confirmação interativa (y/N). Falha fechada: erro/EOF/qualquer coisa ≠ sim = não.
 pub(crate) fn confirm(prompt: &str) -> bool {

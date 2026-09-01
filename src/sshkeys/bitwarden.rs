@@ -17,7 +17,13 @@ pub(crate) fn bw_unlocked() -> bool {
 
 /// Monta o corpo (notas) legível do item — inclui a privada. NUNCA é impresso em stdout;
 /// só entra no item do cofre / arquivo de import.
-pub(crate) fn bw_notes(name: &str, kind: &str, fingerprint: &str, pubkey: &str, privkey: &str) -> String {
+pub(crate) fn bw_notes(
+    name: &str,
+    kind: &str,
+    fingerprint: &str,
+    pubkey: &str,
+    privkey: &str,
+) -> String {
     format!(
         "Chave SSH gerenciada pelo schematize\n\
          nome: {name}\n\
@@ -30,7 +36,13 @@ pub(crate) fn bw_notes(name: &str, kind: &str, fingerprint: &str, pubkey: &str, 
 
 /// JSON de UM item de cofre (secure note, type 2) pro `bw encode | bw create item`.
 /// Campos: public_key + fingerprint (visíveis) e private_key (oculto, type 1).
-pub(crate) fn bw_item_json(name: &str, notes: &str, pubkey: &str, fingerprint: &str, privkey: &str) -> String {
+pub(crate) fn bw_item_json(
+    name: &str,
+    notes: &str,
+    pubkey: &str,
+    fingerprint: &str,
+    privkey: &str,
+) -> String {
     let item = serde_json::json!({
         "type": 2,
         "name": format!("SSH schematize:{name}"),
@@ -47,7 +59,13 @@ pub(crate) fn bw_item_json(name: &str, notes: &str, pubkey: &str, fingerprint: &
 
 /// JSON no formato de IMPORT do Bitwarden (`{items:[...]}`) — o fallback quando o `bw` não está
 /// destravado. Mesma modelagem do item (secure note com os campos), envelopado em `items`.
-pub(crate) fn bw_import_json(name: &str, notes: &str, pubkey: &str, fingerprint: &str, privkey: &str) -> String {
+pub(crate) fn bw_import_json(
+    name: &str,
+    notes: &str,
+    pubkey: &str,
+    fingerprint: &str,
+    privkey: &str,
+) -> String {
     let doc = serde_json::json!({
         "items": [ serde_json::from_str::<serde_json::Value>(
             &bw_item_json(name, notes, pubkey, fingerprint, privkey)

@@ -10,26 +10,26 @@ use std::sync::RwLock;
 /// Idiomas suportados: (código, nome nativo, JSON embutido).
 /// Adicionar idioma = um `.json` + uma linha aqui.
 pub const LANGS: &[(&str, &str, &str)] = &[
-    ("en", "English",       include_str!("i18n/en.json")),
-    ("es", "Español",       include_str!("i18n/es.json")),
-    ("it", "Italiano",      include_str!("i18n/it.json")),
-    ("fr", "Français",      include_str!("i18n/fr.json")),
-    ("de", "Deutsch",       include_str!("i18n/de.json")),
-    ("pt", "Português",     include_str!("i18n/pt.json")),
-    ("ja", "日本語",         include_str!("i18n/ja.json")),
-    ("zh", "中文",           include_str!("i18n/zh.json")),
-    ("ru", "Русский",       include_str!("i18n/ru.json")),
-    ("ar", "العربية",       include_str!("i18n/ar.json")),
-    ("hi", "हिन्दी",          include_str!("i18n/hi.json")),
-    ("ko", "한국어",         include_str!("i18n/ko.json")),
-    ("tr", "Türkçe",        include_str!("i18n/tr.json")),
-    ("vi", "Tiếng Việt",    include_str!("i18n/vi.json")),
+    ("en", "English", include_str!("i18n/en.json")),
+    ("es", "Español", include_str!("i18n/es.json")),
+    ("it", "Italiano", include_str!("i18n/it.json")),
+    ("fr", "Français", include_str!("i18n/fr.json")),
+    ("de", "Deutsch", include_str!("i18n/de.json")),
+    ("pt", "Português", include_str!("i18n/pt.json")),
+    ("ja", "日本語", include_str!("i18n/ja.json")),
+    ("zh", "中文", include_str!("i18n/zh.json")),
+    ("ru", "Русский", include_str!("i18n/ru.json")),
+    ("ar", "العربية", include_str!("i18n/ar.json")),
+    ("hi", "हिन्दी", include_str!("i18n/hi.json")),
+    ("ko", "한국어", include_str!("i18n/ko.json")),
+    ("tr", "Türkçe", include_str!("i18n/tr.json")),
+    ("vi", "Tiếng Việt", include_str!("i18n/vi.json")),
     ("id", "Bahasa Indonesia", include_str!("i18n/id.json")),
-    ("pl", "Polski",        include_str!("i18n/pl.json")),
-    ("nl", "Nederlands",    include_str!("i18n/nl.json")),
-    ("th", "ไทย",           include_str!("i18n/th.json")),
-    ("fa", "فارسی",         include_str!("i18n/fa.json")),
-    ("bn", "বাংলা",          include_str!("i18n/bn.json")),
+    ("pl", "Polski", include_str!("i18n/pl.json")),
+    ("nl", "Nederlands", include_str!("i18n/nl.json")),
+    ("th", "ไทย", include_str!("i18n/th.json")),
+    ("fa", "فارسی", include_str!("i18n/fa.json")),
+    ("bn", "বাংলা", include_str!("i18n/bn.json")),
 ];
 
 /// Idiomas escritos da direita para a esquerda (RTL). A direção é da UI, não do JSON.
@@ -58,8 +58,7 @@ pub fn name_of(code: &str) -> Option<&'static str> {
 
 /// JSON embutido de um código (ou en como fallback).
 fn json_of(code: &str) -> &'static str {
-    LANGS.iter().find(|(c, _, _)| *c == code).map(|(_, _, j)| *j)
-        .unwrap_or(LANGS[0].2)
+    LANGS.iter().find(|(c, _, _)| *c == code).map(|(_, _, j)| *j).unwrap_or(LANGS[0].2)
 }
 
 fn parse(code: &str) -> HashMap<String, String> {

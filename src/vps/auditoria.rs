@@ -221,7 +221,9 @@ pub fn contar_comandos(conn: &Connection, alias: &str) -> Result<i64, String> {
         conn.query_row("SELECT COUNT(*) FROM comandos", [], |r| r.get(0))
     } else {
         super::registro::valid_alias(alias)?;
-        conn.query_row("SELECT COUNT(*) FROM comandos WHERE alias = ?1", params![alias], |r| r.get(0))
+        conn.query_row("SELECT COUNT(*) FROM comandos WHERE alias = ?1", params![alias], |r| {
+            r.get(0)
+        })
     };
     n.map_err(|e| format!("falha ao contar comandos: {e}"))
 }
@@ -256,17 +258,32 @@ mod tests {
         assert!(!t.contains("eyJhbGciOiJIUzI1NiJ9"), "JWT vazou: {t}");
         assert!(!t.contains("b3BlbnNzaC1rZXktdjEAAAAA"), "corpo de chave privada vazou: {t}");
         assert!(!t.contains("BEGIN OPENSSH PRIVATE KEY"), "bloco de chave privada vazou: {t}");
-        assert!(t.contains("deploy ok") && t.contains("fim"), "a redação não pode comer o log útil");
+        assert!(
+            t.contains("deploy ok") && t.contains("fim"),
+            "a redação não pode comer o log útil"
+        );
     }
 
     #[test]
     fn segredo_no_proprio_comando_tambem_e_redigido() {
         let c = conn("cmdscrub");
         let s = abrir_sessao(&c, "srv", "teste").unwrap();
-        registrar_comando(&c, &s, "mysql -u root --password=sk-abc123def456ghi789", &Veredito::Allow, Some(0), 1, "")
-            .unwrap();
+        registrar_comando(
+            &c,
+            &s,
+            "mysql -u root --password=sk-abc123def456ghi789",
+            &Veredito::Allow,
+            Some(0),
+            1,
+            "",
+        )
+        .unwrap();
         let linha = &listar_comandos(&c, "srv", 1).unwrap()[0];
-        assert!(!linha.comando.contains("sk-abc123def456ghi789"), "senha no comando vazou: {}", linha.comando);
+        assert!(
+            !linha.comando.contains("sk-abc123def456ghi789"),
+            "senha no comando vazou: {}",
+            linha.comando
+        );
     }
 
     #[test]
@@ -290,7 +307,8 @@ mod tests {
         let c = conn("contagem");
         let s = abrir_sessao(&c, "srv", "teste").unwrap();
         for i in 0..7 {
-            registrar_comando(&c, &s, &format!("cmd-{i}"), &Veredito::Allow, Some(0), 1, "ok").unwrap();
+            registrar_comando(&c, &s, &format!("cmd-{i}"), &Veredito::Allow, Some(0), 1, "ok")
+                .unwrap();
         }
         assert_eq!(contar_comandos(&c, "srv").unwrap(), 7);
         assert_eq!(contar_comandos(&c, "").unwrap(), 7);
@@ -302,7 +320,8 @@ mod tests {
         // O que foi NEGADO é justamente o que mais importa auditar.
         let c = conn("negado");
         let s = abrir_sessao(&c, "srv", "teste").unwrap();
-        registrar_comando(&c, &s, "rm -rf /", &Veredito::Deny("catastrófico".into()), None, 0, "").unwrap();
+        registrar_comando(&c, &s, "rm -rf /", &Veredito::Deny("catastrófico".into()), None, 0, "")
+            .unwrap();
         let l = &listar_comandos(&c, "srv", 1).unwrap()[0];
         assert_eq!(l.veredito, "deny");
         assert_eq!(l.exit_code, None, "nada rodou, então não há exit code");

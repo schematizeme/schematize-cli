@@ -15,66 +15,28 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 // Submódulos (piso da casa: <=750 linhas, uma unidade lógica por arquivo).
+mod bitwarden;
 mod chaves;
 mod entropia;
 mod uso;
-mod bitwarden;
+pub use bitwarden::*;
 pub use chaves::*;
 pub use entropia::*;
 pub use uso::*;
-pub use bitwarden::*;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 // ------------------------------------------------------------------------------------------------
 // ENTROPIA — piso de segurança na geração.
 // ------------------------------------------------------------------------------------------------
-
-
-
-
 
 // ------------------------------------------------------------------------------------------------
 // DEPLOY sem chave inline — usar a chave gerenciada pra logar/rodar comando remoto, e instalar a
 // PÚBLICA no host. A privada NUNCA vai pra stdout/log: só é referenciada pelo caminho (`ssh -i`).
 // ------------------------------------------------------------------------------------------------
 
-
-
-
-
-
 // ------------------------------------------------------------------------------------------------
 // EXPORT pro Bitwarden — via CLI `bw` (se destravado) OU arquivo de IMPORT (fallback).
 // A chave PRIVADA só vai pro cofre/arquivo (mode 600) — NUNCA pro stdout/log.
 // ------------------------------------------------------------------------------------------------
-
-
-
-
-
-
-
 
 #[cfg(test)]
 mod tests {

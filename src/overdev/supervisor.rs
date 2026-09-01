@@ -167,8 +167,12 @@ pub fn supervise(projeto: &Path, max: u32) -> u32 {
                 sem_agente = 0;
                 let p = prompt_retomada(relancamentos);
                 match agentrun::launch_prompt_in_terminal(&projeto, &p) {
-                    Ok(term) => registrar(&projeto, &format!("relançamento {relancamentos} em {term}")),
-                    Err(e) => registrar(&projeto, &format!("relançamento {relancamentos} FALHOU: {e}")),
+                    Ok(term) => {
+                        registrar(&projeto, &format!("relançamento {relancamentos} em {term}"))
+                    }
+                    Err(e) => {
+                        registrar(&projeto, &format!("relançamento {relancamentos} FALHOU: {e}"))
+                    }
                 }
             }
         }

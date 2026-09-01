@@ -4,7 +4,11 @@
 use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
-#[command(name = "schematize", version, about = "Ecosystem manager for Claude — skills, overdev, and more (Linux-first).")]
+#[command(
+    name = "schematize",
+    version,
+    about = "Ecosystem manager for Claude — skills, overdev, and more (Linux-first)."
+)]
 pub(crate) struct Cli {
     #[command(subcommand)]
     pub(crate) cmd: Cmd,
@@ -718,9 +722,7 @@ pub(crate) enum Over {
         texto: Vec<String>,
     },
     /// Add a demand to the inbox WITHOUT touching the checklist (safe while an agent runs).
-    Add {
-        texto: Vec<String>,
-    },
+    Add { texto: Vec<String> },
     /// Inbox: list, organize a demand into items, or merge them into the checklist.
     Caixa {
         #[command(subcommand)]

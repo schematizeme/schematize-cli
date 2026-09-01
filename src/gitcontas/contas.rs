@@ -158,7 +158,10 @@ mod tests {
         assert!(bloco.contains("Host github.com-pessoal"));
         assert!(bloco.contains("HostName github.com"), "o alias resolve pro host real");
         assert!(bloco.contains("IdentityFile ~/.ssh/id_pessoal"));
-        assert!(bloco.contains("IdentitiesOnly yes"), "sem isto o agente ainda pode oferecer outra chave");
+        assert!(
+            bloco.contains("IdentitiesOnly yes"),
+            "sem isto o agente ainda pode oferecer outra chave"
+        );
     }
 
     /// Conta via `gh` usa HTTPS e o host real — quem guarda o token é o `gh`.

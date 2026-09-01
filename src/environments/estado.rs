@@ -76,12 +76,7 @@ pub(crate) fn status_text(le: &LangEnv) -> String {
 pub fn list() {
     let envs = status();
     println!("{}", t("env.header"));
-    println!(
-        "  {:<14} {:<34} {}",
-        t("env.col_lang"),
-        t("env.col_methods"),
-        t("env.col_status")
-    );
+    println!("  {:<14} {:<34} {}", t("env.col_lang"), t("env.col_methods"), t("env.col_status"));
     let mut printed_tools_header = false;
     for le in &envs {
         // Um cabeçalho de seção quando começam as ferramentas.

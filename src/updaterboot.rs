@@ -35,10 +35,7 @@ fn stamp_path() -> PathBuf {
 
 /// Epoch da última tentativa (0 se nunca tentou / carimbo ilegível).
 fn last_try() -> u64 {
-    fs::read_to_string(stamp_path())
-        .ok()
-        .and_then(|s| s.trim().parse::<u64>().ok())
-        .unwrap_or(0)
+    fs::read_to_string(stamp_path()).ok().and_then(|s| s.trim().parse::<u64>().ok()).unwrap_or(0)
 }
 
 /// Regrava o carimbo com o instante atual. Best-effort (falhar aqui só faz

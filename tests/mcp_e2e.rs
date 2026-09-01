@@ -45,7 +45,9 @@ fn conversar(db: &PathBuf, linhas: &[&str]) -> Vec<serde_json::Value> {
     String::from_utf8_lossy(&out.stdout)
         .lines()
         .filter(|l| !l.trim().is_empty())
-        .map(|l| serde_json::from_str(l).unwrap_or_else(|e| panic!("resposta não é JSON: {l} ({e})")))
+        .map(|l| {
+            serde_json::from_str(l).unwrap_or_else(|e| panic!("resposta não é JSON: {l} ({e})"))
+        })
         .collect()
 }
 
@@ -53,19 +55,26 @@ fn conversar(db: &PathBuf, linhas: &[&str]) -> Vec<serde_json::Value> {
 fn handshake_completo_como_o_claude_code_faz() {
     let db = db("handshake");
     let _ = std::fs::remove_file(&db);
-    let r = conversar(&db, &[
-        r#"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"t","version":"1"}}}"#,
-        r#"{"jsonrpc":"2.0","method":"notifications/initialized"}"#,
-        r#"{"jsonrpc":"2.0","id":2,"method":"tools/list"}"#,
-    ]);
+    let r = conversar(
+        &db,
+        &[
+            r#"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"t","version":"1"}}}"#,
+            r#"{"jsonrpc":"2.0","method":"notifications/initialized"}"#,
+            r#"{"jsonrpc":"2.0","id":2,"method":"tools/list"}"#,
+        ],
+    );
 
     // A notificação NÃO pode gerar resposta — se gerasse, o canal desalinharia.
     assert_eq!(r.len(), 2, "esperava 2 respostas (a notificação não responde): {r:?}");
     assert_eq!(r[0]["id"], 1);
     assert_eq!(r[0]["result"]["serverInfo"]["name"], "schematize-vps");
     assert_eq!(r[1]["id"], 2);
-    let nomes: Vec<&str> = r[1]["result"]["tools"].as_array().unwrap().iter()
-        .map(|t| t["name"].as_str().unwrap()).collect();
+    let nomes: Vec<&str> = r[1]["result"]["tools"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|t| t["name"].as_str().unwrap())
+        .collect();
     assert_eq!(nomes, ["vps_list", "vps_open", "vps_exec", "vps_tail", "vps_close"]);
     let _ = std::fs::remove_file(&db);
 }
@@ -74,12 +83,15 @@ fn handshake_completo_como_o_claude_code_faz() {
 fn linha_malformada_nao_derruba_o_servidor() {
     // Um servidor MCP que morre na primeira linha estranha derruba a sessão do usuário.
     let db = db("malformada");
-    let r = conversar(&db, &[
-        "isto não é json",
-        "{\"incompleto\": ",
-        "[]",
-        r#"{"jsonrpc":"2.0","id":9,"method":"initialize"}"#,
-    ]);
+    let r = conversar(
+        &db,
+        &[
+            "isto não é json",
+            "{\"incompleto\": ",
+            "[]",
+            r#"{"jsonrpc":"2.0","id":9,"method":"initialize"}"#,
+        ],
+    );
     // As três primeiras viram erro; a quarta ainda é atendida — o laço sobreviveu.
     let ultima = r.last().expect("o servidor tem que ter respondido à linha válida");
     assert_eq!(ultima["id"], 9);
@@ -94,25 +106,46 @@ fn a_politica_vale_pelo_mcp_igual_ao_cli() {
     let _ = std::fs::remove_file(&db);
     // Registra um host livre em hml pelo próprio binário.
     let add = Command::new(binario())
-        .args(["vps", "add", "srv", "--host", "10.0.0.5", "--user", "d", "--key", "id_ed25519", "--env", "hml"])
+        .args([
+            "vps",
+            "add",
+            "srv",
+            "--host",
+            "10.0.0.5",
+            "--user",
+            "d",
+            "--key",
+            "id_ed25519",
+            "--env",
+            "hml",
+        ])
         .env("SCHEMATIZE_VPS_DB", &db)
-        .output().expect("add");
+        .output()
+        .expect("add");
     assert!(add.status.success());
     let pol = Command::new(binario())
         .args(["vps", "policy", "srv", "--modo", "livre"])
-        .env("SCHEMATIZE_VPS_DB", &db).output().expect("policy");
+        .env("SCHEMATIZE_VPS_DB", &db)
+        .output()
+        .expect("policy");
     assert!(pol.status.success());
 
-    let r = conversar(&db, &[
-        r#"{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"vps_list","arguments":{}}}"#,
-        r#"{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"vps_exec","arguments":{"alias":"srv","comando":"rm -rf /"}}}"#,
-        r#"{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"vps_open","arguments":{"alias":"nao-existe"}}}"#,
-    ]);
+    let r = conversar(
+        &db,
+        &[
+            r#"{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"vps_list","arguments":{}}}"#,
+            r#"{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"vps_exec","arguments":{"alias":"srv","comando":"rm -rf /"}}}"#,
+            r#"{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"vps_open","arguments":{"alias":"nao-existe"}}}"#,
+        ],
+    );
 
     // vps_list responde e já avisa que a host key não está pinada.
     let texto = r[0]["result"]["content"][0]["text"].as_str().unwrap();
     assert!(texto.contains("srv"), "{texto}");
-    assert!(texto.contains("NÃO CONFIADA"), "o agente precisa saber por que nada vai funcionar: {texto}");
+    assert!(
+        texto.contains("NÃO CONFIADA"),
+        "o agente precisa saber por que nada vai funcionar: {texto}"
+    );
 
     // O comando catastrófico é RECUSADO — e chega como resultado legível, não erro opaco.
     assert_eq!(r[1]["result"]["isError"], true);
@@ -133,10 +166,26 @@ fn o_agente_nao_consegue_se_autoconfirmar_em_producao() {
     let db = db("autoconfirma");
     let _ = std::fs::remove_file(&db);
     for args in [
-        &["vps", "add", "prod", "--host", "10.0.0.9", "--user", "d", "--key", "id_ed25519", "--env", "prd"][..],
+        &[
+            "vps",
+            "add",
+            "prod",
+            "--host",
+            "10.0.0.9",
+            "--user",
+            "d",
+            "--key",
+            "id_ed25519",
+            "--env",
+            "prd",
+        ][..],
         &["vps", "policy", "prod", "--modo", "livre"][..],
     ] {
-        let o = Command::new(binario()).args(args).env("SCHEMATIZE_VPS_DB", &db).output().expect("setup");
+        let o = Command::new(binario())
+            .args(args)
+            .env("SCHEMATIZE_VPS_DB", &db)
+            .output()
+            .expect("setup");
         assert!(o.status.success(), "setup falhou: {args:?}");
     }
 

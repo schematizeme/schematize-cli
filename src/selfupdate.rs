@@ -20,33 +20,56 @@ const REPO: &str = "schematize-cli";
 /// install.sh do main — usado pelo fallback de recompilação do fonte (source-first) quando
 /// não há binário pré-compilado compatível pra plataforma (ex.: openSUSE, glibc diferente).
 #[cfg(unix)]
-const INSTALL_SH: &str = "https://raw.githubusercontent.com/schematizeme/schematize-cli/main/install.sh";
+const INSTALL_SH: &str =
+    "https://raw.githubusercontent.com/schematizeme/schematize-cli/main/install.sh";
 
 /// Nomes dos assets por plataforma (batem com o que o CI publica).
 #[cfg(unix)]
 fn asset_names() -> (&'static str, &'static str) {
     #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
-    { ("schematize-linux-x86_64", "schematize-gui-linux-x86_64") }
+    {
+        ("schematize-linux-x86_64", "schematize-gui-linux-x86_64")
+    }
     #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
-    { ("schematize-macos-arm64", "schematize-gui-macos-arm64") }
+    {
+        ("schematize-macos-arm64", "schematize-gui-macos-arm64")
+    }
     #[cfg(all(target_os = "macos", target_arch = "x86_64"))]
-    { ("schematize-macos-x86_64", "schematize-gui-macos-x86_64") }
+    {
+        ("schematize-macos-x86_64", "schematize-gui-macos-x86_64")
+    }
     #[cfg(target_os = "windows")]
-    { ("schematize-windows-x86_64.exe", "schematize-gui-windows-x86_64.exe") }
+    {
+        ("schematize-windows-x86_64.exe", "schematize-gui-windows-x86_64.exe")
+    }
     #[cfg(not(any(
         all(target_os = "linux", target_arch = "x86_64"),
         target_os = "macos",
         target_os = "windows"
     )))]
-    { ("schematize-linux-x86_64", "schematize-gui-linux-x86_64") }
+    {
+        ("schematize-linux-x86_64", "schematize-gui-linux-x86_64")
+    }
 }
 
 #[cfg(unix)]
 fn bin_filename(gui: bool) -> &'static str {
     #[cfg(target_os = "windows")]
-    { if gui { "schematize-gui.exe" } else { "schematize.exe" } }
+    {
+        if gui {
+            "schematize-gui.exe"
+        } else {
+            "schematize.exe"
+        }
+    }
     #[cfg(not(target_os = "windows"))]
-    { if gui { "schematize-gui" } else { "schematize" } }
+    {
+        if gui {
+            "schematize-gui"
+        } else {
+            "schematize"
+        }
+    }
 }
 
 /// ~/.claude/schematize/update.log — trilha de auditoria de cada tentativa.
@@ -63,7 +86,8 @@ fn log(msg: &str) {
         let _ = fs::create_dir_all(d);
     }
     let line = format!("[{}] {}\n", util::now_unix(), msg);
-    if let Ok(mut prev) = fs::read_to_string(&p).or_else(|_| Ok::<_, std::io::Error>(String::new())) {
+    if let Ok(mut prev) = fs::read_to_string(&p).or_else(|_| Ok::<_, std::io::Error>(String::new()))
+    {
         prev.push_str(&line);
         let _ = fs::write(&p, prev);
     }
@@ -110,8 +134,13 @@ fn upgrade_from_source_in_terminal() -> Result<String, String> {
     fs::write(&tmp, &script).map_err(|e| format!("gravar script de update: {e}"))?;
     let _ = util::run("chmod", &["+x", tmp.to_str().unwrap_or_default()]);
     let terms = [
-        "konsole", "gnome-terminal", "xfce4-terminal", "x-terminal-emulator",
-        "alacritty", "kitty", "xterm",
+        "konsole",
+        "gnome-terminal",
+        "xfce4-terminal",
+        "x-terminal-emulator",
+        "alacritty",
+        "kitty",
+        "xterm",
     ];
     let term = terms.iter().find(|t| which(t)).ok_or_else(|| {
         format!(
@@ -223,10 +252,18 @@ fn run_updater(up: &Path) -> Result<String, String> {
         fs::write(&tmp, &script).map_err(|e| e.to_string())?;
         let _ = util::run("chmod", &["+x", tmp.to_str().unwrap_or_default()]);
         let terms = [
-            "konsole", "gnome-terminal", "xfce4-terminal", "x-terminal-emulator",
-            "alacritty", "kitty", "xterm",
+            "konsole",
+            "gnome-terminal",
+            "xfce4-terminal",
+            "x-terminal-emulator",
+            "alacritty",
+            "kitty",
+            "xterm",
         ];
-        let term = terms.iter().find(|t| which(t)).ok_or_else(|| "nenhum terminal encontrado".to_string())?;
+        let term = terms
+            .iter()
+            .find(|t| which(t))
+            .ok_or_else(|| "nenhum terminal encontrado".to_string())?;
         let mut cmd = std::process::Command::new(term);
         match *term {
             "gnome-terminal" | "xfce4-terminal" => {
@@ -237,7 +274,8 @@ fn run_updater(up: &Path) -> Result<String, String> {
             }
         }
         cmd.spawn().map_err(|e| format!("abrir terminal: {e}"))?;
-        Ok("Abri o schematize-updater num terminal — ele atualiza o app (build incremental).".into())
+        Ok("Abri o schematize-updater num terminal — ele atualiza o app (build incremental)."
+            .into())
     }
     #[cfg(windows)]
     {
@@ -278,7 +316,9 @@ pub fn run() -> Result<String, String> {
         // Detecção pelo FONTE (raw main), não pela API 60/h — o que quebrava o versionamento.
         let tag = crate::skills::latest_version_raw(REPO)
             .or_else(|| latest_release_tag(REPO))
-            .ok_or_else(|| "não consegui resolver a versão mais recente (rede/GitHub?)".to_string())?;
+            .ok_or_else(|| {
+                "não consegui resolver a versão mais recente (rede/GitHub?)".to_string()
+            })?;
         if tag == cur {
             log("já está na versão mais recente");
             return Ok(format!("Já está atualizado (v{cur})."));
@@ -331,11 +371,7 @@ pub fn run() -> Result<String, String> {
         // 2) Linux com pkexec → prompt gráfico de senha pra instalar no local do pacote.
         #[cfg(target_os = "linux")]
         if which("pkexec") {
-            let mut sh = format!(
-                "install -m755 '{}' '{}'",
-                cli_tmp.display(),
-                cli_dst.display()
-            );
+            let mut sh = format!("install -m755 '{}' '{}'", cli_tmp.display(), cli_dst.display());
             if has_gui {
                 sh.push_str(&format!(
                     " && install -m755 '{}' '{}'",

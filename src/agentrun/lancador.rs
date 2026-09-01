@@ -133,9 +133,7 @@ pub(crate) fn pre_trust_project(project: &Path) {
         .unwrap_or_else(|_| project.to_path_buf())
         .to_string_lossy()
         .to_string();
-    let projects = obj
-        .entry("projects")
-        .or_insert_with(|| serde_json::json!({}));
+    let projects = obj.entry("projects").or_insert_with(|| serde_json::json!({}));
     let Some(pobj) = projects.as_object_mut() else { return };
     let entry = pobj.entry(key).or_insert_with(|| serde_json::json!({}));
     if let Some(eo) = entry.as_object_mut() {
@@ -236,7 +234,6 @@ pub(crate) fn purga_lancamentos_velhos(od: &Path) {
     }
 }
 
-
 /// Terminais aceitos, em ordem de preferência. Um só lugar: a lista estava duplicada aqui e
 /// no `selfupdate`, e listas duplicadas divergem.
 const TERMINAIS: [&str; 7] = [
@@ -264,7 +261,8 @@ const TERMINAIS: [&str; 7] = [
 /// script normaliza a diferença.
 pub fn abrir_comando_no_terminal(comando: &str) -> Result<String, String> {
     let dir = crate::util::home_app_dir().join("run");
-    std::fs::create_dir_all(&dir).map_err(|e| format!("não consegui criar {}: {e}", dir.display()))?;
+    std::fs::create_dir_all(&dir)
+        .map_err(|e| format!("não consegui criar {}: {e}", dir.display()))?;
     let script = dir.join(format!("term-{}.sh", std::process::id()));
     // `exec` no fim: o shell do wrapper some e o terminal fica com o processo de verdade,
     // então fechar a janela encerra a sessão em vez de deixar um ssh órfão.
@@ -279,10 +277,9 @@ pub fn abrir_comando_no_terminal(comando: &str) -> Result<String, String> {
 }
 
 pub(crate) fn spawn_no_terminal(script: &Path) -> Result<String, String> {
-    let term = TERMINAIS
-        .iter()
-        .find(|t| binary_in_path(t))
-        .ok_or_else(|| "nenhum terminal encontrado (konsole/gnome-terminal/xterm/…).".to_string())?;
+    let term = TERMINAIS.iter().find(|t| binary_in_path(t)).ok_or_else(|| {
+        "nenhum terminal encontrado (konsole/gnome-terminal/xterm/…).".to_string()
+    })?;
     let mut cmd = std::process::Command::new(term);
     match *term {
         // esses usam `--` pra separar o comando a executar
@@ -394,4 +391,3 @@ pub fn launch_prompt_in_terminal(project: &Path, prompt: &str) -> Result<String,
 // ---------------------------------------------------------------------------
 // Trait plugável + implementação default (Claude Code CLI em PTY).
 // ---------------------------------------------------------------------------
-

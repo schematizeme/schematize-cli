@@ -1,14 +1,12 @@
 //! Subcomandos avulsos: governador de agentes, idioma, relatório de debug,
 //! projetos e o log do git.
 
-use schematize::i18n::{t, tf};
-use schematize::{
-    config, debugreport, githist, projects,
-};
-use schematize::i18n;
-use schematize::debug;
 use crate::cli::args::*;
 use crate::cli::ssh::canon_or;
+use schematize::debug;
+use schematize::i18n;
+use schematize::i18n::{t, tf};
+use schematize::{config, debugreport, githist, projects};
 
 /// `schematize lang [code] [--list]`.
 /// `schematize agents` — imprime o orçamento de concorrência e persiste ~/.schematize/agents.json.
@@ -38,12 +36,24 @@ pub(crate) fn agents_cmd(json: bool, split: Option<usize>) -> Result<(), String>
     println!("\x1b[1mOrçamento de concorrência do Claude (máquina inteira)\x1b[0m");
     println!("  threads lógicos      : {}", b.snap.threads);
     println!("  reserva (respiro)    : {}", b.params.reserve);
-    println!("  RAM disponível       : {}  (≈{} por agent, −{:.0}% de margem)", gb(b.snap.mem_available_mb), gb(b.params.mb_per_agent), b.params.ram_margin * 100.0);
+    println!(
+        "  RAM disponível       : {}  (≈{} por agent, −{:.0}% de margem)",
+        gb(b.snap.mem_available_mb),
+        gb(b.params.mb_per_agent),
+        b.params.ram_margin * 100.0
+    );
     println!("  load atual (1min)    : {:.2}", b.snap.load1);
-    println!("  claudes rodando AGORA: {}  (esta janela + outras + subagents)", b.snap.running_claudes);
+    println!(
+        "  claudes rodando AGORA: {}  (esta janela + outras + subagents)",
+        b.snap.running_claudes
+    );
     println!("  ─────────────────────");
     println!("  teto por CPU         : {}", b.cpu_cap);
-    println!("  teto por RAM         : {}{}", b.ram_cap, if b.ram_tight { "  \x1b[33m(RAM apertada — cuidado com swap)\x1b[0m" } else { "" });
+    println!(
+        "  teto por RAM         : {}{}",
+        b.ram_cap,
+        if b.ram_tight { "  \x1b[33m(RAM apertada — cuidado com swap)\x1b[0m" } else { "" }
+    );
     println!("  teto por load        : {}", b.load_cap);
     println!("  \x1b[1mTETO TOTAL seguro    : {}\x1b[0m  (o menor dos três)", b.total_cap);
     println!("  \x1b[1;32mDISPONÍVEL p/ lançar : {}\x1b[0m  (teto − já rodando)", b.available);
@@ -85,7 +95,12 @@ pub(crate) fn lang_cmd(code: Option<String>, list: bool) -> Result<(), String> {
 /// `schematize debug [--collect] [--out <path>] [--stdout]`.
 /// Sem `--collect`: o debug do updater (comportamento atual). Com `--collect`: monta o
 /// relatório completo (secret-safe) e grava um arquivo modo 600 (ou imprime com `--stdout`).
-pub(crate) fn debug_cmd(collect: bool, out: Option<String>, stdout: bool, online: bool) -> Result<(), String> {
+pub(crate) fn debug_cmd(
+    collect: bool,
+    out: Option<String>,
+    stdout: bool,
+    online: bool,
+) -> Result<(), String> {
     if !collect {
         debug::run();
         return Ok(());
@@ -139,7 +154,9 @@ pub(crate) fn projects_cmd(sub: ProjectsCmd) -> Result<(), String> {
             let pinned = config::projects();
             let projs = projects::scan_with_pins(&dev_dirs, &pinned);
             if projs.is_empty() {
-                println!("Nenhum projeto encontrado (cadastre dev_dirs ou fixe com `projects add`).");
+                println!(
+                    "Nenhum projeto encontrado (cadastre dev_dirs ou fixe com `projects add`)."
+                );
                 return Ok(());
             }
             println!("Projetos ({}):", projs.len());
@@ -180,7 +197,8 @@ pub(crate) fn projects_cmd(sub: ProjectsCmd) -> Result<(), String> {
                 .find(|p| p.exists())
                 .unwrap_or_else(|| base.join(".schematize"));
             if marker.exists() {
-                std::fs::remove_file(&marker).map_err(|e| format!("falha ao remover marcador: {e}"))?;
+                std::fs::remove_file(&marker)
+                    .map_err(|e| format!("falha ao remover marcador: {e}"))?;
                 println!("Marcador removido: {}", marker.display());
             } else {
                 println!("Sem marcador em {}", marker.display());

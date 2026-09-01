@@ -1,9 +1,6 @@
 //! Subcomandos de CONTA e notificações: login por device flow, logout, whoami.
 
-use schematize::{
-    account,
-    notifications, util,
-};
+use schematize::{account, notifications, util};
 use std::time::Duration;
 
 /// `schematize notifications` — mostra o CACHE local (inclusive o histórico).
@@ -18,10 +15,8 @@ pub(crate) fn notifications_cmd(sync: bool, historico: bool) {
         notifications::sincronizar();
     }
     let all = notifications::listar();
-    let visiveis: Vec<_> = all
-        .iter()
-        .filter(|r| historico || r.estado != Estado::Concluida)
-        .collect();
+    let visiveis: Vec<_> =
+        all.iter().filter(|r| historico || r.estado != Estado::Concluida).collect();
     if visiveis.is_empty() {
         if all.is_empty() {
             println!("sem notificações no cache — rode `schematize notifications --sync`.");
@@ -59,7 +54,9 @@ pub(crate) fn notifications_cmd(sync: bool, historico: bool) {
 
     let novas = all.iter().filter(|r| r.estado == Estado::Nova).count();
     if novas > 0 {
-        println!("\n{novas} não lida(s). `schematize notifications --lidas` marca todas como vistas.");
+        println!(
+            "\n{novas} não lida(s). `schematize notifications --lidas` marca todas como vistas."
+        );
     }
     println!("concluir uma:  schematize notifications --concluir <id>");
 }

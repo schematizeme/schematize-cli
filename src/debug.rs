@@ -26,7 +26,14 @@ fn dir_writable(dir: &Path) -> bool {
 fn api_rate() -> Option<(i64, i64, i64)> {
     let body = util::run(
         "curl",
-        &["-sfL", "-m", "8", "-H", "User-Agent: schematize-cli", "https://api.github.com/rate_limit"],
+        &[
+            "-sfL",
+            "-m",
+            "8",
+            "-H",
+            "User-Agent: schematize-cli",
+            "https://api.github.com/rate_limit",
+        ],
     )
     .ok()?;
     let v: serde_json::Value = serde_json::from_str(&body).ok()?;
@@ -50,7 +57,8 @@ pub fn report_text() -> String {
             let _ = writeln!(o, "veredito: atualizado");
         }
         Some(s) => {
-            let _ = writeln!(o, "veredito: DESATUALIZADO — fonte tem v{s} (rode: schematize upgrade)");
+            let _ =
+                writeln!(o, "veredito: DESATUALIZADO — fonte tem v{s} (rode: schematize upgrade)");
         }
         None => {
             let _ = writeln!(o, "veredito: não deu pra comparar (raw indisponível — rede?)");
@@ -59,7 +67,9 @@ pub fn report_text() -> String {
     let _ = writeln!(
         o,
         "API releases/latest: {}",
-        skills::latest_release_tag("schematize-cli").as_deref().unwrap_or("? (rate limit? ver abaixo)")
+        skills::latest_release_tag("schematize-cli")
+            .as_deref()
+            .unwrap_or("? (rate limit? ver abaixo)")
     );
 
     match api_rate() {
@@ -69,7 +79,11 @@ pub fn report_text() -> String {
                 o,
                 "rate limit GitHub core: {rem}/{lim} (reseta em ~{} min){}",
                 ((reset - now).max(0)) / 60,
-                if rem == 0 { " — QUOTA ZERADA (a CLI usa raw, não a API, então não te trava)" } else { "" }
+                if rem == 0 {
+                    " — QUOTA ZERADA (a CLI usa raw, não a API, então não te trava)"
+                } else {
+                    ""
+                }
             );
         }
         None => {
@@ -84,7 +98,11 @@ pub fn report_text() -> String {
                 let _ = writeln!(
                     o,
                     "dir do exe gravável?: {}",
-                    if dir_writable(d) { "sim (self-update troca no lugar)" } else { "não (usa pkexec ou ~/.local/bin)" }
+                    if dir_writable(d) {
+                        "sim (self-update troca no lugar)"
+                    } else {
+                        "não (usa pkexec ou ~/.local/bin)"
+                    }
                 );
             }
         }
@@ -105,10 +123,17 @@ pub fn run() {
     kv("fonte (raw main)", src.as_deref().unwrap_or("? (raw indisponível)"));
     match &src {
         Some(s) if s == cur => kv("veredito", "atualizado ✓"),
-        Some(s) => kv("veredito", &format!("DESATUALIZADO — fonte tem v{s}  →  rode: schematize upgrade")),
+        Some(s) => {
+            kv("veredito", &format!("DESATUALIZADO — fonte tem v{s}  →  rode: schematize upgrade"))
+        }
         None => kv("veredito", "não deu pra comparar (raw indisponível — rede?)"),
     }
-    kv("API releases/latest", skills::latest_release_tag("schematize-cli").as_deref().unwrap_or("? (rate limit? ver abaixo)"));
+    kv(
+        "API releases/latest",
+        skills::latest_release_tag("schematize-cli")
+            .as_deref()
+            .unwrap_or("? (rate limit? ver abaixo)"),
+    );
 
     hdr("rate limit da API do GitHub (causa clássica do 'para de versionar')");
     match api_rate() {
@@ -128,7 +153,14 @@ pub fn run() {
         Ok(p) => {
             kv("current_exe", &p.display().to_string());
             if let Some(d) = p.parent() {
-                kv("dir gravável?", if dir_writable(d) { "sim (self-update troca no lugar)" } else { "não (usa pkexec ou ~/.local/bin)" });
+                kv(
+                    "dir gravável?",
+                    if dir_writable(d) {
+                        "sim (self-update troca no lugar)"
+                    } else {
+                        "não (usa pkexec ou ~/.local/bin)"
+                    },
+                );
             }
         }
         Err(_) => kv("current_exe", "?"),

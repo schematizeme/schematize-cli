@@ -46,7 +46,10 @@ pub fn split(root: &Path, k: usize) -> Result<SplitResult, String> {
         for e in std::fs::read_dir(&cldir).into_iter().flatten().flatten() {
             let p = e.path();
             if p.extension().and_then(|x| x.to_str()) == Some("md")
-                && p.file_name().and_then(|n| n.to_str()).map(|n| n.starts_with("part-")).unwrap_or(false)
+                && p.file_name()
+                    .and_then(|n| n.to_str())
+                    .map(|n| n.starts_with("part-"))
+                    .unwrap_or(false)
             {
                 let _ = std::fs::remove_file(p);
             }

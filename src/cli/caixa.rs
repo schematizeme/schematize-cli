@@ -5,8 +5,8 @@
 //! concorrência) mora em `overdev::caixa`; aqui é só a face de linha de comando.
 
 use crate::cli::args::CaixaCmd;
-use schematize::overdev::caixa;
 use schematize::agentrun;
+use schematize::overdev::caixa;
 use std::path::PathBuf;
 
 fn raiz() -> Result<PathBuf, String> {
@@ -34,7 +34,10 @@ pub(crate) fn caixa_cmd(sub: CaixaCmd) -> Result<(), String> {
                 return Ok(());
             }
             if !p.is_empty() {
-                println!("\x1b[1mA ORGANIZAR\x1b[0m ({} demanda(s)) — texto cru, como você escreveu:", p.len());
+                println!(
+                    "\x1b[1mA ORGANIZAR\x1b[0m ({} demanda(s)) — texto cru, como você escreveu:",
+                    p.len()
+                );
                 for e in &p {
                     println!("  {}\n    {}", e.id, elide(&e.texto, 100));
                 }

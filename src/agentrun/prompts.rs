@@ -44,11 +44,7 @@ pub fn nudge_message(open_items: &[String]) -> String {
 /// overdev direto e conta com o Stop hook pra impor o "não pare". PURA.
 pub fn overdev_prompt(objetivo: &str) -> String {
     let o = objetivo.trim();
-    let alvo = if o.is_empty() {
-        String::new()
-    } else {
-        format!(" O objetivo é: {o}.")
-    };
+    let alvo = if o.is_empty() { String::new() } else { format!(" O objetivo é: {o}.") };
     format!(
         "Modo OVERDEV neste projeto.{alvo}\n\n\
          PASSO 0 — COMPLETUDE DO CHECKLIST, ANTES DE TICAR QUALQUER COISA. Leia \
@@ -113,4 +109,3 @@ pub fn reindex_prompt() -> String {
      grafo global e os por-serviço estarem completos e consistentes."
         .to_string()
 }
-

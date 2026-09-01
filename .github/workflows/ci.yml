@@ -10,10 +10,9 @@ name: ci
 # pudesse estar verde: a frase era verdadeira por vacuidade, que é a pior maneira de uma
 # regra ser cumprida.
 #
-# `fmt` fica de fora de propósito: o crate carrega ~1000 divergências de rustfmt
-# anteriores a qualquer disciplina de formatação aqui, e um gate que reprova todo mundo
-# desde o primeiro dia é um gate que alguém desliga na primeira semana. Quando o débito
-# for pago numa passada só, ele entra.
+# O débito de formatação foi pago em 2026-08-31, numa passada dedicada, com um
+# `rustfmt.toml` que faz o rustfmt concordar com o estilo da casa em vez do contrário.
+# Dívida paga, o gate entra — formatação vira binária e ninguém discute vírgula em review.
 
 on:
   push:
@@ -48,6 +47,26 @@ jobs:
 
       # Warning vira erro: `unwrap()` pra calar o compilador e erro engolido são pisos
       # da casa, e o clippy pega uma boa parte deles antes de virar review humano.
+      # O shim roda como forced command no `authorized_keys` de servidor ALHEIO, sob o
+      # `sh` que aquele host tiver — BusyBox ash, dash, mksh, o `sh` do FreeBSD. Nao da
+      # pra executar todos; da pra exigir que o script seja POSIX de verdade, e isso um
+      # analisador afirma melhor que qualquer quantidade de shells testados a mao.
+      - name: fmt
+        run: cargo fmt --check
+
+      - name: shim e POSIX sh (shellcheck)
+        run: shellcheck -s sh packaging/ops-shell/schematize-ops-shell
+
+      # O analisador afirma que o script E POSIX; esta bateria afirma que ele SE COMPORTA
+      # igual — recusa e aceita as mesmas coisas — em nove shells, incluindo o `posh`
+      # (POSIX estrito, sem extensao nenhuma) e o `bash --posix`, que e o que o macOS
+      # chama de /bin/sh.
+      - name: shim se comporta igual em 9 shells
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq dash mksh ksh zsh busybox posh
+          scripts/shim-portabilidade.sh sh dash bash mksh ksh zsh posh busybox_sh bash_posix
+
       - name: clippy
         run: cargo clippy --all-targets -- -D warnings
 

@@ -75,7 +75,12 @@ pub struct Achado {
 }
 
 /// Mede um diretório e devolve o [`Achado`], ou `None` se não existe / é pequeno demais.
-pub(crate) fn medir(caminho: &Path, tipo: Tipo, refaz: &'static str, so_acima_de: u64) -> Option<Achado> {
+pub(crate) fn medir(
+    caminho: &Path,
+    tipo: Tipo,
+    refaz: &'static str,
+    so_acima_de: u64,
+) -> Option<Achado> {
     if !caminho.is_dir() {
         return None;
     }
@@ -229,8 +234,16 @@ mod tests {
     /// sugerir o que limpar primeiro.
     #[test]
     fn todo_tipo_se_explica() {
-        for t in [Tipo::RustTarget, Tipo::NodeModules, Tipo::NodeBuild, Tipo::NodeCache,
-                  Tipo::GoCache, Tipo::PythonCache, Tipo::PythonVenv, Tipo::CargoCache] {
+        for t in [
+            Tipo::RustTarget,
+            Tipo::NodeModules,
+            Tipo::NodeBuild,
+            Tipo::NodeCache,
+            Tipo::GoCache,
+            Tipo::PythonCache,
+            Tipo::PythonVenv,
+            Tipo::CargoCache,
+        ] {
             assert!(!t.rotulo().is_empty());
         }
         assert!(!Tipo::RustTarget.custa_rede(), "target se refaz compilando");

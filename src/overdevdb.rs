@@ -86,7 +86,8 @@ fn collect_files(root: &Path) -> Vec<PathBuf> {
     let od_rel = od_rel.as_path();
 
     // Arquivos fixos de controle.
-    for name in ["CHECKLIST.md", "PLAN.md", "DECISOES.md", "OBJETIVO.md", "NOTAS.md", "state.json"] {
+    for name in ["CHECKLIST.md", "PLAN.md", "DECISOES.md", "OBJETIVO.md", "NOTAS.md", "state.json"]
+    {
         let rel = od_rel.join(name);
         if root.join(&rel).is_file() {
             rels.push(rel);
@@ -233,7 +234,8 @@ mod tests {
     /// Aponta o DB pra um arquivo temporário único e devolve um dir de projeto novo.
     fn fresh() -> PathBuf {
         let n = SEQ.fetch_add(1, Ordering::SeqCst);
-        let base = std::env::temp_dir().join(format!("schematize-odb-{}-{}", std::process::id(), n));
+        let base =
+            std::env::temp_dir().join(format!("schematize-odb-{}-{}", std::process::id(), n));
         let _ = fs::remove_dir_all(&base);
         fs::create_dir_all(base.join(".overdev")).unwrap();
         std::env::set_var("SCHEMATIZE_OVERDEV_DB", base.join("overdev.db"));

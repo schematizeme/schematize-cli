@@ -38,11 +38,7 @@ pub fn render_html(root: &Path) -> (String, usize, usize, Option<PathBuf>) {
 pub fn open_in_browser(root: &Path) -> Result<String, String> {
     let (html, _n, _e, _idx) = render_html(root);
     let od = crate::paths::overdev_dir_at(root);
-    let out = if od.is_dir() {
-        od.join("panel.html")
-    } else {
-        root.join("schematize-panel.html")
-    };
+    let out = if od.is_dir() { od.join("panel.html") } else { root.join("schematize-panel.html") };
     fs::write(&out, html).map_err(|e| e.to_string())?;
     let abs = fs::canonicalize(&out)
         .map(|p| p.to_string_lossy().into_owned())

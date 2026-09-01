@@ -190,10 +190,8 @@ pub fn scan(dev_dirs: &[String]) -> Vec<Project> {
 /// label "pinned" tem prioridade. Saída determinística.
 pub fn scan_with_pins(dev_dirs: &[String], pinned: &[String]) -> Vec<Project> {
     // Conjunto de pins canônicos (dir precisa existir pra virar projeto listado).
-    let pins: HashSet<PathBuf> = pinned
-        .iter()
-        .filter_map(|p| std::fs::canonicalize(p).ok())
-        .collect();
+    let pins: HashSet<PathBuf> =
+        pinned.iter().filter_map(|p| std::fs::canonicalize(p).ok()).collect();
 
     let mut out = Vec::new();
     let mut seen = HashSet::new();
@@ -246,7 +244,8 @@ mod tests {
         use std::sync::atomic::{AtomicU64, Ordering};
         static N: AtomicU64 = AtomicU64::new(0);
         let id = N.fetch_add(1, Ordering::Relaxed);
-        let p = std::env::temp_dir().join(format!("schematize_projtest_{}_{id}", std::process::id()));
+        let p =
+            std::env::temp_dir().join(format!("schematize_projtest_{}_{id}", std::process::id()));
         fs::create_dir_all(&p).unwrap();
         p
     }
@@ -273,7 +272,8 @@ mod tests {
         fs::create_dir_all(root.join("vazia")).unwrap();
 
         let projs = scan(&[root.to_string_lossy().into_owned()]);
-        let names: std::collections::HashSet<&str> = projs.iter().map(|p| p.name.as_str()).collect();
+        let names: std::collections::HashSet<&str> =
+            projs.iter().map(|p| p.name.as_str()).collect();
         // Os 4 sub-repos aparecem, cada um com seu marcador...
         for n in ["alpha", "beta", "delta", "gama"] {
             assert!(names.contains(n), "faltou o sub-repo {n}: {projs:?}");

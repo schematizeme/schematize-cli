@@ -218,8 +218,8 @@ mod tests {
     #[test]
     fn o_schema_declara_exatamente_as_cinco_tools() {
         let s = schema();
-        let nomes: Vec<&str> = s.as_array().unwrap().iter()
-            .map(|t| t["name"].as_str().unwrap()).collect();
+        let nomes: Vec<&str> =
+            s.as_array().unwrap().iter().map(|t| t["name"].as_str().unwrap()).collect();
         assert_eq!(nomes, ["vps_list", "vps_open", "vps_exec", "vps_tail", "vps_close"]);
     }
 
@@ -249,7 +249,10 @@ mod tests {
         let exec = s.as_array().unwrap().iter().find(|t| t["name"] == "vps_exec").unwrap();
         let props = exec["inputSchema"]["properties"].as_object().unwrap();
         for proibido in ["confirmar", "confirm", "force", "yes", "skip_policy"] {
-            assert!(!props.contains_key(proibido), "o agente não pode se autoconfirmar: {proibido}");
+            assert!(
+                !props.contains_key(proibido),
+                "o agente não pode se autoconfirmar: {proibido}"
+            );
         }
         assert_eq!(exec["inputSchema"]["additionalProperties"], false, "nada além do declarado");
     }

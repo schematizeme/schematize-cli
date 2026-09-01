@@ -13,7 +13,9 @@ use std::process::Command;
 fn binario() -> PathBuf {
     let mut p = std::env::current_exe().expect("current_exe");
     p.pop();
-    if p.ends_with("deps") { p.pop(); }
+    if p.ends_with("deps") {
+        p.pop();
+    }
     p.join("schematize")
 }
 
@@ -25,8 +27,12 @@ fn db(nome: &str) -> PathBuf {
 
 /// Roda `schematize vps <args>` contra `db`.
 fn vps(db: &PathBuf, args: &[&str]) -> (String, bool) {
-    let out = Command::new(binario()).arg("vps").args(args)
-        .env("SCHEMATIZE_VPS_DB", db).output().expect("binário compilado");
+    let out = Command::new(binario())
+        .arg("vps")
+        .args(args)
+        .env("SCHEMATIZE_VPS_DB", db)
+        .output()
+        .expect("binário compilado");
     let mut s = String::from_utf8_lossy(&out.stdout).into_owned();
     s.push_str(&String::from_utf8_lossy(&out.stderr));
     (s, out.status.success())
@@ -36,7 +42,10 @@ fn vps(db: &PathBuf, args: &[&str]) -> (String, bool) {
 #[test]
 fn escrita_concorrente_de_varios_processos_nao_perde_linha() {
     let db = db("escrita");
-    let (_, ok) = vps(&db, &["add", "srv", "--host", "10.0.0.1", "--user", "d", "--key", "id_ed25519", "--env", "hml"]);
+    let (_, ok) = vps(
+        &db,
+        &["add", "srv", "--host", "10.0.0.1", "--user", "d", "--key", "id_ed25519", "--env", "hml"],
+    );
     assert!(ok, "setup");
     vps(&db, &["policy", "srv", "--modo", "livre"]);
 
@@ -44,15 +53,19 @@ fn escrita_concorrente_de_varios_processos_nao_perde_linha() {
     // que é exatamente o caminho que precisa sobreviver à concorrência.
     const PROCS: usize = 8;
     const CADA: usize = 6;
-    let filhos: Vec<_> = (0..PROCS).map(|i| {
-        let db = db.clone();
-        std::thread::spawn(move || {
-            for j in 0..CADA {
-                let _ = vps(&db, &["exec", "srv", "--", &format!("comando-{i}-{j}")]);
-            }
+    let filhos: Vec<_> = (0..PROCS)
+        .map(|i| {
+            let db = db.clone();
+            std::thread::spawn(move || {
+                for j in 0..CADA {
+                    let _ = vps(&db, &["exec", "srv", "--", &format!("comando-{i}-{j}")]);
+                }
+            })
         })
-    }).collect();
-    for f in filhos { f.join().expect("thread"); }
+        .collect();
+    for f in filhos {
+        f.join().expect("thread");
+    }
 
     // Toda linha tem que estar lá: perder auditoria por contenção é o pior desfecho possível.
     let (saida, ok) = vps(&db, &["logs", "srv", "--n", "500"]);
@@ -75,19 +88,26 @@ fn escrita_concorrente_de_varios_processos_nao_perde_linha() {
 #[test]
 fn leitura_concorrente_nao_bloqueia_a_escrita() {
     let db = db("leitura");
-    vps(&db, &["add", "srv", "--host", "10.0.0.1", "--user", "d", "--key", "id_ed25519", "--env", "hml"]);
+    vps(
+        &db,
+        &["add", "srv", "--host", "10.0.0.1", "--user", "d", "--key", "id_ed25519", "--env", "hml"],
+    );
     vps(&db, &["policy", "srv", "--modo", "livre"]);
 
     let db_w = db.clone();
     let escritor = std::thread::spawn(move || {
-        for i in 0..25 { let _ = vps(&db_w, &["exec", "srv", "--", &format!("w{i}")]); }
+        for i in 0..25 {
+            let _ = vps(&db_w, &["exec", "srv", "--", &format!("w{i}")]);
+        }
     });
     let db_r = db.clone();
     let leitor = std::thread::spawn(move || {
         let mut falhas = 0;
         for _ in 0..40 {
             let (_, ok) = vps(&db_r, &["logs", "srv"]);
-            if !ok { falhas += 1; }
+            if !ok {
+                falhas += 1;
+            }
         }
         falhas
     });
@@ -101,19 +121,40 @@ fn leitura_concorrente_nao_bloqueia_a_escrita() {
 #[test]
 fn registro_concorrente_do_mesmo_alias_nao_duplica() {
     let db = db("upsert");
-    let filhos: Vec<_> = (0..10).map(|i| {
-        let db = db.clone();
-        std::thread::spawn(move || {
-            let host = format!("10.0.0.{}", i + 1);
-            vps(&db, &["add", "mesmo", "--host", &host, "--user", "d", "--key", "id_ed25519", "--env", "hml"]);
+    let filhos: Vec<_> = (0..10)
+        .map(|i| {
+            let db = db.clone();
+            std::thread::spawn(move || {
+                let host = format!("10.0.0.{}", i + 1);
+                vps(
+                    &db,
+                    &[
+                        "add",
+                        "mesmo",
+                        "--host",
+                        &host,
+                        "--user",
+                        "d",
+                        "--key",
+                        "id_ed25519",
+                        "--env",
+                        "hml",
+                    ],
+                );
+            })
         })
-    }).collect();
-    for f in filhos { f.join().expect("thread"); }
+        .collect();
+    for f in filhos {
+        f.join().expect("thread");
+    }
 
     let (saida, ok) = vps(&db, &["list"]);
     assert!(ok, "{saida}");
-    assert_eq!(saida.lines().filter(|l| l.contains("mesmo")).count(), 1,
-               "o alias duplicou sob concorrência:\n{saida}");
+    assert_eq!(
+        saida.lines().filter(|l| l.contains("mesmo")).count(),
+        1,
+        "o alias duplicou sob concorrência:\n{saida}"
+    );
     let _ = std::fs::remove_file(&db);
 }
 
@@ -121,7 +162,10 @@ fn registro_concorrente_do_mesmo_alias_nao_duplica() {
 #[test]
 fn banco_sobrevive_a_processo_morto_no_meio() {
     let db = db("morto");
-    vps(&db, &["add", "srv", "--host", "10.0.0.1", "--user", "d", "--key", "id_ed25519", "--env", "hml"]);
+    vps(
+        &db,
+        &["add", "srv", "--host", "10.0.0.1", "--user", "d", "--key", "id_ed25519", "--env", "hml"],
+    );
     vps(&db, &["policy", "srv", "--modo", "livre"]);
     vps(&db, &["exec", "srv", "--", "antes"]);
 
@@ -129,7 +173,8 @@ fn banco_sobrevive_a_processo_morto_no_meio() {
     let mut filho = Command::new(binario())
         .args(["vps", "exec", "srv", "--", "durante"])
         .env("SCHEMATIZE_VPS_DB", &db)
-        .spawn().expect("spawn");
+        .spawn()
+        .expect("spawn");
     let _ = filho.kill();
     let _ = filho.wait();
 

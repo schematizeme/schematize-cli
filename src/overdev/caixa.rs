@@ -174,7 +174,8 @@ pub fn processadas(root: &Path) -> Vec<Entrada> {
 /// nos dois lugares, e a próxima rodada só refaz um passo idempotente. A ordem
 /// inversa perderia a demanda.
 pub fn organizar(root: &Path, id: &str, itens: Vec<String>) -> Result<(), String> {
-    let itens: Vec<String> = itens.into_iter().map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect();
+    let itens: Vec<String> =
+        itens.into_iter().map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect();
     if itens.is_empty() {
         return Err("nenhum item — nada a registrar".into());
     }
@@ -282,7 +283,8 @@ mod tests {
 
         let id = adicionar(&p, "precisa exportar em CSV também").unwrap();
         assert_eq!(pendentes(&p).len(), 1);
-        organizar(&p, &id, vec!["adicionar exportação CSV".into(), "testar CSV com acento".into()]).unwrap();
+        organizar(&p, &id, vec!["adicionar exportação CSV".into(), "testar CSV com acento".into()])
+            .unwrap();
         assert!(pendentes(&p).is_empty(), "saiu de pendente");
         assert_eq!(processadas(&p).len(), 1);
 

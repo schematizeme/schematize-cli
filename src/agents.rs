@@ -53,8 +53,10 @@ pub struct Params {
 
 impl Default for Params {
     fn default() -> Self {
-        let env_usize = |k: &str, d: usize| std::env::var(k).ok().and_then(|v| v.parse().ok()).unwrap_or(d);
-        let env_f64 = |k: &str, d: f64| std::env::var(k).ok().and_then(|v| v.parse().ok()).unwrap_or(d);
+        let env_usize =
+            |k: &str, d: usize| std::env::var(k).ok().and_then(|v| v.parse().ok()).unwrap_or(d);
+        let env_f64 =
+            |k: &str, d: f64| std::env::var(k).ok().and_then(|v| v.parse().ok()).unwrap_or(d);
         let gb = env_f64("SCHEMATIZE_AGENT_GB", MB_PER_AGENT as f64 / 1024.0);
         Params {
             reserve: env_usize("SCHEMATIZE_AGENT_RESERVE", RESERVE),
@@ -180,8 +182,11 @@ pub fn count_claude_processes() -> usize {
             continue;
         }
         // cmdline é separado por NUL; argv0 = 1º token.
-        let args: Vec<String> =
-            raw.split(|b| *b == 0).filter(|s| !s.is_empty()).map(|s| String::from_utf8_lossy(s).into_owned()).collect();
+        let args: Vec<String> = raw
+            .split(|b| *b == 0)
+            .filter(|s| !s.is_empty())
+            .map(|s| String::from_utf8_lossy(s).into_owned())
+            .collect();
         if args.is_empty() {
             continue;
         }
@@ -258,7 +263,12 @@ mod tests {
         Snapshot { threads, mem_available_mb: mem_mb, load1, running_claudes: claudes }
     }
     fn p() -> Params {
-        Params { reserve: RESERVE, floor: FLOOR, mb_per_agent: MB_PER_AGENT, ram_margin: RAM_MARGIN }
+        Params {
+            reserve: RESERVE,
+            floor: FLOOR,
+            mb_per_agent: MB_PER_AGENT,
+            ram_margin: RAM_MARGIN,
+        }
     }
 
     /// A tabela do dono: 4c→2, 6c→2, 8c→4, 16t→12 (RAM/load folgados).
@@ -268,7 +278,10 @@ mod tests {
         for (threads, want) in [(4, 2), (6, 2), (8, 4), (16, 12), (2, 2), (1, 2)] {
             let b = compute(snap(threads, far_mem, 0.0, 0), p());
             assert_eq!(b.cpu_cap, want, "threads={threads}");
-            assert_eq!(b.total_cap, want, "total com RAM/load folgados = cpu_cap (threads={threads})");
+            assert_eq!(
+                b.total_cap, want,
+                "total com RAM/load folgados = cpu_cap (threads={threads})"
+            );
         }
     }
 

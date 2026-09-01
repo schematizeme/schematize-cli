@@ -13,17 +13,16 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 // Submódulos (piso da casa: <=750 linhas, uma unidade lógica por arquivo).
-mod parse;
-mod grafo;
 mod estado;
+mod grafo;
 mod html;
 mod obsidian;
-pub use parse::*;
-pub use grafo::*;
+mod parse;
 pub use estado::*;
+pub use grafo::*;
 pub use html::*;
 pub use obsidian::*;
-
+pub use parse::*;
 
 /// Nó do grafo: id (função/serviço) e, se conhecido, `arquivo:linha`.
 #[derive(Clone)]
@@ -66,44 +65,17 @@ impl Overdev {
 // Descoberta do index e parsing do grafo (best-effort, tolerante a formato).
 // ---------------------------------------------------------------------------
 
-
-
-
-
-
-
-
-
-
-
-
 // ---------------------------------------------------------------------------
 // Estado do overdev (lido direto dos arquivos do control-plane).
 // ---------------------------------------------------------------------------
-
-
-
-
-
-
-
-
-
 
 // ---------------------------------------------------------------------------
 // `schematize panel` — gera o HTML e abre no browser.
 // ---------------------------------------------------------------------------
 
-
-
-
-
 // ---------------------------------------------------------------------------
 // `schematize graph obsidian` — exporta o index como vault Obsidian.
 // ---------------------------------------------------------------------------
-
-
-
 
 #[cfg(test)]
 mod tests {
@@ -124,11 +96,13 @@ mod tests {
     /// Microfunção em BULLET vira nó com localização (`- \`nome\` — desc · arquivo:linha`).
     #[test]
     pub(crate) fn parse_func_bullet_extrai_no_e_loc() {
-        let (n, loc) = parse_func_bullet("- `login` — autentica o usuário · auth.rs:42").expect("bullet");
+        let (n, loc) =
+            parse_func_bullet("- `login` — autentica o usuário · auth.rs:42").expect("bullet");
         assert_eq!(n, "login");
         assert_eq!(loc.as_deref(), Some("auth.rs:42"));
         // Sem loc: nó sem localização.
-        let (n2, loc2) = parse_func_bullet("- `logout` — encerra a sessão").expect("bullet sem loc");
+        let (n2, loc2) =
+            parse_func_bullet("- `logout` — encerra a sessão").expect("bullet sem loc");
         assert_eq!(n2, "logout");
         assert!(loc2.is_none());
         // Aresta não é função.
@@ -145,7 +119,8 @@ mod tests {
         let grafos = root.join(".schematize/grafos");
         fs::create_dir_all(&grafos).unwrap();
         // Global: só a fronteira entre serviços.
-        fs::write(grafos.join("GRAFO_GLOBAL.md"), "front -> api (login)\napi -> auth (token)\n").unwrap();
+        fs::write(grafos.join("GRAFO_GLOBAL.md"), "front -> api (login)\napi -> auth (token)\n")
+            .unwrap();
         // Detalhe por serviço: NÃO deve entrar na visão global.
         fs::write(grafos.join("api.md"), "handler -> repo\nrepo -> pg\n").unwrap();
 
@@ -153,7 +128,10 @@ mod tests {
         assert!(dir.is_some());
         let ids: std::collections::HashSet<&str> = nodes.iter().map(|n| n.id.as_str()).collect();
         assert!(ids.contains("front") && ids.contains("api") && ids.contains("auth"));
-        assert!(!ids.contains("repo") && !ids.contains("pg"), "não pode fundir o grafo por-serviço no global");
+        assert!(
+            !ids.contains("repo") && !ids.contains("pg"),
+            "não pode fundir o grafo por-serviço no global"
+        );
         assert_eq!(edges.len(), 2);
 
         // Drill-down: o grafo detalhado do serviço é acessível à parte.
@@ -202,8 +180,14 @@ mod tests {
         assert!(aggregated, "global autorado com >60 nós tem de agregar");
         assert!(nodes.len() <= GLOBAL_NODE_CAP, "{} nós passaram do cap", nodes.len());
         let ids: Vec<&str> = nodes.iter().map(|n| n.id.as_str()).collect();
-        assert!(ids.iter().any(|i| i.starts_with("svc_a ·")), "faltou o nó agregado de svc_a: {ids:?}");
-        assert!(ids.iter().any(|i| i.starts_with("svc_b ·")), "faltou o nó agregado de svc_b: {ids:?}");
+        assert!(
+            ids.iter().any(|i| i.starts_with("svc_a ·")),
+            "faltou o nó agregado de svc_a: {ids:?}"
+        );
+        assert!(
+            ids.iter().any(|i| i.starts_with("svc_b ·")),
+            "faltou o nó agregado de svc_b: {ids:?}"
+        );
 
         let _ = fs::remove_dir_all(&root);
     }
@@ -230,7 +214,10 @@ mod tests {
         assert!(aggregated, "flat com 61 nós tem que agregar");
         assert_eq!(nodes.len(), 2, "1 nó por serviço");
         let ids: std::collections::HashSet<&str> = nodes.iter().map(|n| n.id.as_str()).collect();
-        assert!(ids.contains("svc_a · 40") && ids.contains("svc_b · 21"), "rótulo com contagem: {ids:?}");
+        assert!(
+            ids.contains("svc_a · 40") && ids.contains("svc_b · 21"),
+            "rótulo com contagem: {ids:?}"
+        );
         assert_eq!(edges.len(), 1, "1 aresta serviço→serviço");
 
         // Drill no serviço agregado (fallback pelo flat, sem `svc_a.md` autorado).
@@ -302,8 +289,14 @@ mod tests {
     #[test]
     fn tabela_de_codigo_http_nao_vira_funcao() {
         // Linhas REAIS do formato que produziu o lixo: 1ª coluna é o status, e há loc.
-        assert_eq!(parse::parse_func_row("| 201 created | recurso criado | src/http.rs:88 |"), None);
-        assert_eq!(parse::parse_func_row("| 401 UNAUTHORIZED | sem sessão | src/auth.rs:12 |"), None);
+        assert_eq!(
+            parse::parse_func_row("| 201 created | recurso criado | src/http.rs:88 |"),
+            None
+        );
+        assert_eq!(
+            parse::parse_func_row("| 401 UNAUTHORIZED | sem sessão | src/auth.rs:12 |"),
+            None
+        );
         // E a linha de função LEGÍTIMA continua passando — o filtro não pode comer o sinal.
         assert_eq!(
             parse::parse_func_row("| `criar_usuario` | cria o usuário | src/users.rs:42 |"),

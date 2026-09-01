@@ -64,9 +64,8 @@ pub(crate) fn ensure_archive_mirror(root: &Path) {
     // O archive é um REPOSITÓRIO git PRÓPRIO (privado, obrigatório) que documenta a evolução do
     // projeto — irmão dos microserviços. Git-init se ainda não for repo + README. Best-effort.
     if !arch.join(".git").is_dir() {
-        let _ = std::process::Command::new("git")
-            .arg("-C").arg(&arch).arg("init").arg("-q")
-            .status();
+        let _ =
+            std::process::Command::new("git").arg("-C").arg(&arch).arg("init").arg("-q").status();
         let readme = arch.join("README.md");
         if !readme.exists() {
             let _ = fs::write(

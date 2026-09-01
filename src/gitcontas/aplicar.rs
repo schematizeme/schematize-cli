@@ -147,8 +147,11 @@ mod tests {
         let _ = std::fs::remove_dir_all(&base);
         std::fs::create_dir_all(&base).unwrap();
         let c = Conta {
-            rotulo: "x".into(), usuario: "u".into(), email: "e@x".into(),
-            servico: "github.com".into(), auth: Auth::Gh,
+            rotulo: "x".into(),
+            usuario: "u".into(),
+            email: "e@x".into(),
+            servico: "github.com".into(),
+            auth: Auth::Gh,
         };
         assert!(aplicar(&base, &c, "origin").is_err());
         let _ = std::fs::remove_dir_all(&base);

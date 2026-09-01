@@ -36,21 +36,17 @@ etapa() {
     fi
 }
 
-# `fmt` e INFORMATIVO, de proposito.
+# `fmt` agora REPROVA.
 #
-# O crate tem ~118 arquivos e ~1000 divergencias de rustfmt que ANTECEDEM qualquer coisa
-# aqui, e o CI nunca checou formatacao. Reprovar por isso faria este script gritar
-# VERMELHO todo dia por um estado que ninguem vai consertar hoje — e um alarme que sempre
-# toca e nao significa nada e a forma mais rapida de ensinar todo mundo a ignora-lo.
-# Ele informa; quem reprova sao clippy e testes.
-printf '== fmt (informativo) ... '
-if (cd "$R" && cargo fmt --check) > "$LOG/verificar-fmt.log" 2>&1; then
-    printf 'limpo\n'
-else
-    n=$(grep -c '^Diff in' "$LOG/verificar-fmt.log" || true)
-    printf '%s divergencias pre-existentes (nao reprova; log: %s)\n' "$n" "$LOG/verificar-fmt.log"
-fi
-
+# Ate 2026-08-31 esta etapa era informativa: o crate carregava ~1000 divergencias de
+# rustfmt anteriores a qualquer disciplina de formatacao aqui, e um gate que reprova todo
+# mundo desde o primeiro dia e um gate que alguem desliga na primeira semana.
+#
+# A divida foi paga numa passada dedicada, com um `rustfmt.toml` que faz o rustfmt
+# concordar com o estilo da casa em vez do contrario (ver o arquivo). Divida paga, o gate
+# entra: a partir daqui formatacao e binaria, e ninguem discute virgula em review.
+etapa fmt     cargo fmt --check
+etapa shim    sh scripts/shim-portabilidade.sh
 etapa clippy  cargo clippy --all-targets -- -D warnings
 etapa testes  cargo test --all-targets --quiet
 

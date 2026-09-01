@@ -112,14 +112,10 @@ pub fn pin_project(path: &str) {
 /// (assim funciona mesmo se o pin foi salvo canônico e o usuário passa o relativo,
 /// ou vice-versa). Persiste se removeu algo.
 pub fn unpin_project(path: &str) {
-    let canon = std::fs::canonicalize(path)
-        .ok()
-        .and_then(|p| p.to_str().map(String::from));
+    let canon = std::fs::canonicalize(path).ok().and_then(|p| p.to_str().map(String::from));
     let mut c = load();
     let before = c.projects.len();
-    c.projects.retain(|p| {
-        p != path && canon.as_deref() != Some(p.as_str())
-    });
+    c.projects.retain(|p| p != path && canon.as_deref() != Some(p.as_str()));
     if c.projects.len() != before {
         let _ = save(&c);
     }

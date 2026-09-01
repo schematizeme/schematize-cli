@@ -75,7 +75,9 @@ pub fn run(fix: bool) {
             line(&Lv::Ok, &t("doctor.check_overdev"), &t("common.on"));
         } else {
             match settings::refresh_hooks(&exe) {
-                Ok(_) => line(&Lv::Ok, &t("doctor.check_overdev"), "comando desatualizado — regravado"),
+                Ok(_) => {
+                    line(&Lv::Ok, &t("doctor.check_overdev"), "comando desatualizado — regravado")
+                }
                 Err(e) => {
                     issues += 1;
                     line(&Lv::Warn, &t("doctor.check_overdev"), &e);
@@ -89,7 +91,9 @@ pub fn run(fix: bool) {
         let projeto = std::env::current_dir().ok();
         for arquivo in settings::arquivos_de_settings(projeto.as_deref()) {
             match settings::repara_hooks_em(&arquivo, &exe) {
-                Ok(true) => line(&Lv::Ok, "hook quebrado", &format!("regravado em {}", arquivo.display())),
+                Ok(true) => {
+                    line(&Lv::Ok, "hook quebrado", &format!("regravado em {}", arquivo.display()))
+                }
                 Ok(false) => {}
                 Err(e) => {
                     issues += 1;
@@ -102,7 +106,8 @@ pub fn run(fix: bool) {
     }
 
     // agente (informativo)
-    let ag = if autostart::is_active() { t("status.agent_active") } else { t("status.agent_inactive") };
+    let ag =
+        if autostart::is_active() { t("status.agent_active") } else { t("status.agent_inactive") };
     line(&Lv::Ok, &t("doctor.check_agent"), &ag);
 
     // PATH shadow
@@ -144,7 +149,11 @@ pub fn run(fix: bool) {
     } else {
         match updaterboot::ensure_now_forcado() {
             updaterboot::Outcome::Instalado(p) => {
-                line(&Lv::Ok, "gestor de atualizações (schematize-updater)", &format!("instalado em {}", p.display()));
+                line(
+                    &Lv::Ok,
+                    "gestor de atualizações (schematize-updater)",
+                    &format!("instalado em {}", p.display()),
+                );
             }
             updaterboot::Outcome::JaTinha => {
                 line(&Lv::Ok, "gestor de atualizações (schematize-updater)", "");
@@ -217,9 +226,19 @@ pub fn report_text() -> String {
             Ok(bytes) => {
                 let has = |needle: &[u8]| bytes.windows(needle.len()).any(|w| w == needle);
                 if has(b"slint") {
-                    ln("OK", "GUI (schematize-gui)", &format!("Slint — {}", path.display()), &mut o);
+                    ln(
+                        "OK",
+                        "GUI (schematize-gui)",
+                        &format!("Slint — {}", path.display()),
+                        &mut o,
+                    );
                 } else if has(b"eframe") || has(b"egui") {
-                    ln("WARN", "GUI (schematize-gui)", "GUI antiga (egui) — rode `schematize upgrade`", &mut o);
+                    ln(
+                        "WARN",
+                        "GUI (schematize-gui)",
+                        "GUI antiga (egui) — rode `schematize upgrade`",
+                        &mut o,
+                    );
                 } else {
                     ln("WARN", "GUI (schematize-gui)", "não parece o Slint", &mut o);
                 }
@@ -233,11 +252,17 @@ pub fn report_text() -> String {
     let desktop = util::home().join(".local/share/applications/schematize-gui.desktop");
     if desktop.exists() {
         if let Ok(content) = fs::read_to_string(&desktop) {
-            let exec = content.lines().find_map(|l| l.strip_prefix("Exec=")).map(str::trim).unwrap_or("");
+            let exec =
+                content.lines().find_map(|l| l.strip_prefix("Exec=")).map(str::trim).unwrap_or("");
             if exec.starts_with('/') {
                 ln("OK", "Lançador .desktop", "Exec com caminho absoluto", &mut o);
             } else {
-                ln("WARN", "Lançador .desktop", "Exec não-absoluto — `schematize doctor --fix`", &mut o);
+                ln(
+                    "WARN",
+                    "Lançador .desktop",
+                    "Exec não-absoluto — `schematize doctor --fix`",
+                    &mut o,
+                );
             }
         }
     }
@@ -249,7 +274,8 @@ pub fn report_text() -> String {
 fn shadowed() -> Option<String> {
     let bin = util::run("bash", &["-lc", "command -v schematize"]).ok()?;
     let bin = bin.trim().to_string();
-    if !bin.is_empty() && bin != "/usr/bin/schematize" && Path::new("/usr/bin/schematize").exists() {
+    if !bin.is_empty() && bin != "/usr/bin/schematize" && Path::new("/usr/bin/schematize").exists()
+    {
         Some(bin)
     } else {
         None
@@ -273,9 +299,12 @@ fn find_gui_bin() -> Option<std::path::PathBuf> {
             }
         }
     }
-    [util::home().join(".cargo/bin/schematize-gui"), std::path::PathBuf::from("/usr/bin/schematize-gui")]
-        .into_iter()
-        .find(|c| c.exists())
+    [
+        util::home().join(".cargo/bin/schematize-gui"),
+        std::path::PathBuf::from("/usr/bin/schematize-gui"),
+    ]
+    .into_iter()
+    .find(|c| c.exists())
 }
 
 /// Checagens da GUI. Devolve quantos problemas (WARN/FAIL) contabilizou.
@@ -338,16 +367,28 @@ fn gui_checks(fix: bool) -> usize {
                                     "update-desktop-database",
                                     &[desktop.parent().and_then(|p| p.to_str()).unwrap_or("")],
                                 );
-                                line(&Lv::Ok, "Lançador .desktop", &format!("corrigido → Exec={}", bin.display()));
+                                line(
+                                    &Lv::Ok,
+                                    "Lançador .desktop",
+                                    &format!("corrigido → Exec={}", bin.display()),
+                                );
                             }
                             Err(e) => {
                                 issues += 1;
-                                line(&Lv::Warn, "Lançador .desktop", &format!("falha ao corrigir: {e}"));
+                                line(
+                                    &Lv::Warn,
+                                    "Lançador .desktop",
+                                    &format!("falha ao corrigir: {e}"),
+                                );
                             }
                         },
                         None => {
                             issues += 1;
-                            line(&Lv::Warn, "Lançador .desktop", "Exec não-absoluto e schematize-gui não encontrado para corrigir");
+                            line(
+                                &Lv::Warn,
+                                "Lançador .desktop",
+                                "Exec não-absoluto e schematize-gui não encontrado para corrigir",
+                            );
                         }
                     }
                 } else {

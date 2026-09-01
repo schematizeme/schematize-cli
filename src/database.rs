@@ -204,7 +204,8 @@ fn run_psql(conn: &str, query: &str) -> Result<Vec<Vec<String>>, String> {
         .output()
         .map_err(|e| {
             if e.kind() == std::io::ErrorKind::NotFound {
-                "`psql` não está no PATH — instale o cliente do PostgreSQL (postgresql-client).".to_string()
+                "`psql` não está no PATH — instale o cliente do PostgreSQL (postgresql-client)."
+                    .to_string()
             } else {
                 format!("falha ao rodar psql: {e}")
             }
@@ -338,13 +339,7 @@ fn parse_indexdef_columns(def: &str) -> Vec<String> {
     }
     def[op + 1..cl]
         .split(',')
-        .map(|c| {
-            c.split_whitespace()
-                .next()
-                .unwrap_or("")
-                .trim_matches('"')
-                .to_string()
-        })
+        .map(|c| c.split_whitespace().next().unwrap_or("").trim_matches('"').to_string())
         .filter(|c| !c.is_empty())
         .collect()
 }
@@ -438,13 +433,11 @@ pub fn to_migration(schema: &Schema) -> String {
 /// cada FK é uma ARESTA `tabela -> tabela_referenciada` (rótulo = coluna). Arestas
 /// duplicadas (mesma origem/destino/coluna) são deduplicadas.
 pub fn to_graph(schema: &Schema) -> (Vec<Node>, Vec<Edge>) {
-    let nodes: Vec<Node> = schema
-        .tables
-        .iter()
-        .map(|t| Node { id: t.name.clone(), loc: None })
-        .collect();
+    let nodes: Vec<Node> =
+        schema.tables.iter().map(|t| Node { id: t.name.clone(), loc: None }).collect();
     let mut edges: Vec<Edge> = Vec::new();
-    let mut seen: std::collections::BTreeSet<(String, String, String)> = std::collections::BTreeSet::new();
+    let mut seen: std::collections::BTreeSet<(String, String, String)> =
+        std::collections::BTreeSet::new();
     for t in &schema.tables {
         for fk in &t.fks {
             let key = (t.name.clone(), fk.ref_table.clone(), fk.column.clone());
@@ -544,8 +537,20 @@ mod tests {
                 Table {
                     name: "users".into(),
                     columns: vec![
-                        Column { name: "id".into(), ty: "BIGINT".into(), nullable: false, pk: true, unique: false },
-                        Column { name: "email".into(), ty: "TEXT".into(), nullable: false, pk: false, unique: true },
+                        Column {
+                            name: "id".into(),
+                            ty: "BIGINT".into(),
+                            nullable: false,
+                            pk: true,
+                            unique: false,
+                        },
+                        Column {
+                            name: "email".into(),
+                            ty: "TEXT".into(),
+                            nullable: false,
+                            pk: false,
+                            unique: true,
+                        },
                     ],
                     fks: vec![],
                     indexes: vec![],
@@ -553,11 +558,31 @@ mod tests {
                 Table {
                     name: "posts".into(),
                     columns: vec![
-                        Column { name: "id".into(), ty: "BIGINT".into(), nullable: false, pk: true, unique: false },
-                        Column { name: "author_id".into(), ty: "BIGINT".into(), nullable: false, pk: false, unique: false },
+                        Column {
+                            name: "id".into(),
+                            ty: "BIGINT".into(),
+                            nullable: false,
+                            pk: true,
+                            unique: false,
+                        },
+                        Column {
+                            name: "author_id".into(),
+                            ty: "BIGINT".into(),
+                            nullable: false,
+                            pk: false,
+                            unique: false,
+                        },
                     ],
-                    fks: vec![Fk { column: "author_id".into(), ref_table: "users".into(), ref_column: "id".into() }],
-                    indexes: vec![Index { name: "idx_posts_author".into(), columns: vec!["author_id".into()], unique: false }],
+                    fks: vec![Fk {
+                        column: "author_id".into(),
+                        ref_table: "users".into(),
+                        ref_column: "id".into(),
+                    }],
+                    indexes: vec![Index {
+                        name: "idx_posts_author".into(),
+                        columns: vec!["author_id".into()],
+                        unique: false,
+                    }],
                 },
             ],
         }
@@ -569,7 +594,9 @@ mod tests {
         assert!(sql.contains("CREATE TABLE \"users\""));
         assert!(sql.contains("\"id\" BIGINT NOT NULL PRIMARY KEY"));
         assert!(sql.contains("\"email\" TEXT NOT NULL UNIQUE"));
-        assert!(sql.contains("ALTER TABLE \"posts\" ADD FOREIGN KEY (\"author_id\") REFERENCES \"users\" (\"id\");"));
+        assert!(sql.contains(
+            "ALTER TABLE \"posts\" ADD FOREIGN KEY (\"author_id\") REFERENCES \"users\" (\"id\");"
+        ));
         assert!(sql.contains("CREATE INDEX \"idx_posts_author\" ON \"posts\" (\"author_id\");"));
     }
 
@@ -616,6 +643,9 @@ mod tests {
         let def = "CREATE UNIQUE INDEX idx ON public.users USING btree (email)";
         assert_eq!(parse_indexdef_columns(def), vec!["email".to_string()]);
         let def2 = "CREATE INDEX idx ON public.posts USING btree (author_id, created_at DESC)";
-        assert_eq!(parse_indexdef_columns(def2), vec!["author_id".to_string(), "created_at".to_string()]);
+        assert_eq!(
+            parse_indexdef_columns(def2),
+            vec!["author_id".to_string(), "created_at".to_string()]
+        );
     }
 }

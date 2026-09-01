@@ -20,7 +20,9 @@ use std::process::Command;
 ///
 /// **Onde:** todo caminho de dados do app (`dados_dir`, `home_app_dir`, `claude_dir`, …).
 pub fn home() -> PathBuf {
-    let ler = |k: &str| std::env::var_os(k).filter(|v| !v.is_empty()).map(|v| v.to_string_lossy().into_owned());
+    let ler = |k: &str| {
+        std::env::var_os(k).filter(|v| !v.is_empty()).map(|v| v.to_string_lossy().into_owned())
+    };
     resolver_home(ler("HOME"), ler("USERPROFILE"), ler("HOMEDRIVE"), ler("HOMEPATH"))
 }
 
@@ -286,7 +288,6 @@ pub fn ler_para_modificar(p: &std::path::Path) -> Result<String, String> {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::semver_lt;
@@ -297,7 +298,7 @@ mod tests {
         assert!(semver_lt("0.25.1", "0.26.0"));
         assert!(semver_lt("1.0.0", "1.0.1"));
         assert!(semver_lt("0.9.0", "0.10.0")); // numérico, não lexicográfico
-        // Iguais ou maiores → não é "<".
+                                               // Iguais ou maiores → não é "<".
         assert!(!semver_lt("0.25.1", "0.25.1"));
         assert!(!semver_lt("0.26.0", "0.25.9"));
         assert!(!semver_lt("2.0.0", "1.9.9"));

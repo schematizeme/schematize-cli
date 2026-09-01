@@ -1,14 +1,20 @@
 //! `schematize git` — contas, repositórios e o que ainda não saiu da máquina.
 
 use crate::cli::args::*;
-use schematize::gitcontas::{aplicar, contas::{self, Auth, Conta}, repos};
+use schematize::gitcontas::{
+    aplicar,
+    contas::{self, Auth, Conta},
+    repos,
+};
 use schematize::{config, githist, util};
 use std::path::PathBuf;
 
 pub(crate) fn git_cmd(sub: GitCmd) -> Result<(), String> {
     match sub {
         GitCmd::Accounts => listar_contas(),
-        GitCmd::Add { rotulo, usuario, email, chave, servico } => add_conta(rotulo, usuario, email, chave, servico),
+        GitCmd::Add { rotulo, usuario, email, chave, servico } => {
+            add_conta(rotulo, usuario, email, chave, servico)
+        }
         GitCmd::Detect { add } => {
             // Repos a inspecionar: os projetos que o app já conhece. E-mail LOCAL diferente
             // do global é o sinal de identidade separada por repositório.
@@ -29,13 +35,21 @@ pub(crate) fn git_cmd(sub: GitCmd) -> Result<(), String> {
                     schematize::gitcontas::contas::Auth::Gh => "gh".into(),
                 };
                 let marca = if s.ja_cadastrada { " [já cadastrada]" } else { "" };
-                println!("  {} · {}@{} · {} · auth {} · via {}{}",
-                    s.conta.rotulo, s.conta.usuario, s.conta.servico,
+                println!(
+                    "  {} · {}@{} · {} · auth {} · via {}{}",
+                    s.conta.rotulo,
+                    s.conta.usuario,
+                    s.conta.servico,
                     if s.conta.email.is_empty() { "(sem e-mail)" } else { &s.conta.email },
-                    auth, s.origem.descricao(), marca);
+                    auth,
+                    s.origem.descricao(),
+                    marca
+                );
             }
             if !add {
-                println!("\nNada foi gravado. Use `schematize git detect --add` pra cadastrar as novas.");
+                println!(
+                    "\nNada foi gravado. Use `schematize git detect --add` pra cadastrar as novas."
+                );
                 return Ok(());
             }
             let mut n = 0;
@@ -44,11 +58,17 @@ pub(crate) fn git_cmd(sub: GitCmd) -> Result<(), String> {
                     continue;
                 }
                 if s.conta.email.is_empty() {
-                    println!("  ! {} pulada: sem e-mail. Cadastre à mão com `git add --email`.", s.conta.rotulo);
+                    println!(
+                        "  ! {} pulada: sem e-mail. Cadastre à mão com `git add --email`.",
+                        s.conta.rotulo
+                    );
                     continue;
                 }
                 match schematize::gitcontas::contas::adicionar(s.conta.clone()) {
-                    Ok(()) => { println!("  + {} cadastrada.", s.conta.rotulo); n += 1; }
+                    Ok(()) => {
+                        println!("  + {} cadastrada.", s.conta.rotulo);
+                        n += 1;
+                    }
                     Err(e) => println!("  ! {} falhou: {e}", s.conta.rotulo),
                 }
             }
@@ -81,17 +101,30 @@ fn listar_contas() -> Result<(), String> {
     for c in v {
         let auth = match &c.auth {
             Auth::Ssh { chave } => {
-                let ok = if aplicar::alias_configurado(&c) { "alias ok" } else { "\x1b[33mFALTA alias\x1b[0m" };
+                let ok = if aplicar::alias_configurado(&c) {
+                    "alias ok"
+                } else {
+                    "\x1b[33mFALTA alias\x1b[0m"
+                };
                 format!("ssh:{chave} ({ok})")
             }
             Auth::Gh => "gh".to_string(),
         };
-        println!("  \x1b[1m{:<12}\x1b[0m {} <{}>  {}  {auth}", c.rotulo, c.usuario, c.email, c.servico);
+        println!(
+            "  \x1b[1m{:<12}\x1b[0m {} <{}>  {}  {auth}",
+            c.rotulo, c.usuario, c.email, c.servico
+        );
     }
     Ok(())
 }
 
-fn add_conta(rotulo: String, usuario: String, email: String, chave: Option<String>, servico: Option<String>) -> Result<(), String> {
+fn add_conta(
+    rotulo: String,
+    usuario: String,
+    email: String,
+    chave: Option<String>,
+    servico: Option<String>,
+) -> Result<(), String> {
     let c = Conta {
         rotulo: rotulo.clone(),
         usuario,
