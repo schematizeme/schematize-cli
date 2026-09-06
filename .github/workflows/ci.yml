@@ -54,8 +54,12 @@ jobs:
       - name: fmt
         run: cargo fmt --check
 
-      - name: shim e POSIX sh (shellcheck)
-        run: shellcheck -s sh packaging/ops-shell/schematize-ops-shell
+      # UM comando so, o mesmo que o gate local roda (`scripts/verificar.sh`). Antes o CI
+      # tinha a linha do shellcheck DUPLICADA aqui, e o script local cobria outro conjunto
+      # de arquivos — duas verificacoes com o mesmo nome e escopos diferentes. Agora ha uma
+      # fonte da verdade: a lista `ALVOS` dentro do script.
+      - name: shellcheck (shim POSIX + install.sh bash)
+        run: sh scripts/shellcheck-shim.sh
 
       # O analisador afirma que o script E POSIX; esta bateria afirma que ele SE COMPORTA
       # igual — recusa e aceita as mesmas coisas — em nove shells, incluindo o `posh`

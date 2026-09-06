@@ -25,6 +25,12 @@ esac; done
 log() { printf '\033[1;36m▶ %s\033[0m\n' "$*"; }
 ok()  { printf '\033[1;32m✓ %s\033[0m\n' "$*"; }
 die() { printf '\033[1;31m✗ %s\033[0m\n' "$*" >&2; exit 1; }
+# `warn` era USADA em quatro pontos (remoção do .deb/.rpm antigo, falha ao baixar o
+# updater) e NUNCA foi definida. Sob `set -euo pipefail` isso não é um aviso perdido: o
+# nome não resolve, o shell sai 127 e o `set -e` ABORTA a instalação — a mensagem que
+# deveria tranquilizar o usuário virava `install.sh: linha 285: warn: command not found`.
+# Avisar não pode ser mais perigoso que o problema que se está avisando.
+warn() { printf '\033[1;33m⚠ %s\033[0m\n' "$*" >&2; }
 
 # ---------------------------------------------------------------------------
 # AUTO-ATUALIZAÇÃO DESTE PRÓPRIO SCRIPT — antes de qualquer outra coisa.
@@ -88,6 +94,7 @@ as_user() {
   fi
 }
 
+# shellcheck disable=SC1091  # /etc/os-release e do sistema, nao esta neste repo pra seguir.
 . /etc/os-release 2>/dev/null || true
 FAMILY="unknown"
 case " ${ID:-} ${ID_LIKE:-} " in
@@ -366,6 +373,90 @@ install_updater() {
   warn "se quiser forçar agora: schematize doctor"
   return 0
 }
+# ---------------------------------------------------------------------------
+# PATH nos rc de shell.
+#
+# O QUE: garante que <dir> esteja no PATH dos terminais FUTUROS, acrescentando um
+# export aos rc do usuario. Idempotente, e SEMPRE em modo append.
+#
+# ONDE: `post_config` (dir = ~/.cargo/bin, o caminho do modo `source`, que e o
+# padrao) e `install_binary` (dir = /usr/local/bin ou ~/.local/bin).
+#
+# POR QUE EXISTE: ate 2026-09-06 este script NAO escrevia rc nenhum -- `grep -c
+# 'bashrc\|profile\|zshrc' install.sh` dava 0. Ele dependia de um EFEITO COLATERAL
+# do rustup, que o `ensure_rust` so executa quando `cargo` NAO existe. No openSUSE
+# `zypper install rust` poe o cargo em /usr/bin, entao o rustup nunca roda, ninguem
+# escreve o rc, e ~/.cargo/bin -- onde o build do fonte deixa o binario -- fica fora
+# do PATH. O terminal grafico abre shell NAO-login (le ~/.bashrc, nao le ~/.profile),
+# e o `schematize` "nao existe", enquanto o `post_config` imprime "pronto. Proximos
+# passos:" mandando digitar comandos que nao resolvem.
+#
+# O defeito de fundo nao era o openSUSE: era depender de efeito colateral de
+# ferramenta de terceiro, executado condicionalmente, sem nunca verificar o
+# resultado. Agora o instalador faz ele mesmo, e confere.
+#
+# POR QUE APPEND E NUNCA LER-MODIFICAR-ESCREVER: o mesmo motivo documentado em
+# `schematize_updater_rs::platform::acrescenta_path_no_rc`. Reescrever o arquivo
+# inteiro a partir de uma leitura que pode falhar ja apagou `.bashrc` de gente
+# (um acento em Latin-1 bastava). Em append o pior caso e uma linha duplicada.
+#
+# POR QUE NAO CHAMAR O BINARIO DO UPDATER PRA FAZER ISSO: o `ensure_path_setup` do
+# updater roda dentro do `install.rs` DELE. Neste ponto do script o updater pode nem
+# estar instalado (o `install_updater` roda depois, e e best-effort). O PATH nao pode
+# depender de um passo que tem permissao de falhar.
+# ---------------------------------------------------------------------------
+ensure_path_rc() {
+  local dir="$1" rc f escreveu=0 ja=0
+  # Dirs que todo PATH ja tem: escrever export pra eles e ruido, nao correcao.
+  case "$dir" in /usr/bin|/bin|/usr/local/bin|/usr/sbin|/sbin) return 0 ;; esac
+
+  for rc in .bashrc .profile .zshrc; do
+    f="$TARGET_HOME/$rc"
+    if [ ! -e "$f" ]; then
+      # .zshrc so se JA existir: criar config de zsh pra quem nao usa zsh e sujeira.
+      # .bashrc e .profile sao padrao e podem nascer aqui -- e no openSUSE o .bashrc
+      # SEMPRE existe, entao este ramo e a excecao, nao a regra.
+      [ "$rc" = ".zshrc" ] && continue
+    elif [ ! -r "$f" ]; then
+      # Existe e nao da pra ler: nao da pra saber se ja esta la. Nao escreve as cegas.
+      warn "$f existe mas nao consigo ler -- deixei intacto. Acrescente a mao:"
+      warn "  export PATH=\"$dir:\$PATH\""
+      continue
+    elif grep -qF -- "$dir" "$f" 2>/dev/null; then
+      ja=1; continue   # ja esta la (nosso ou posto a mao) -- idempotente
+    fi
+    # Args por posicional, NUNCA interpolados no texto do script: um HOME com aspa
+    # simples (`/home/o'brien`) quebraria a citacao e viraria execucao arbitraria.
+    # O `$PATH` TEM de chegar literal no rc: expandir aqui congelaria, dentro do
+    # arquivo do usuario, o PATH que existia no momento da instalacao. SC2016 esta
+    # certo sobre o fato e errado sobre a intencao -- por isso a excecao e deste
+    # comando, nao do arquivo (`-e SC2016` no CI apagaria a regra em silencio).
+    # shellcheck disable=SC2016
+    if as_user sh -c \
+      'printf "\n# schematize: dir de instalacao no PATH\nexport PATH=\"%s:\$PATH\"\n" "$1" >> "$2"' \
+      _ "$dir" "$f" 2>/dev/null; then
+      escreveu=1
+    else
+      warn "nao consegui escrever em $f. Acrescente a mao:"
+      warn "  export PATH=\"$dir:\$PATH\""
+    fi
+  done
+
+  # VERIFICA em vez de supor (o defeito de fundo era justamente nao verificar).
+  # Veredito por leitura do arquivo, nao por "o comando nao deu erro".
+  if [ "$escreveu" = 1 ]; then
+    if grep -qF -- "$dir" "$TARGET_HOME/.bashrc" 2>/dev/null \
+       || grep -qF -- "$dir" "$TARGET_HOME/.profile" 2>/dev/null; then
+      ok "$dir acrescentado ao PATH (.bashrc/.profile) -- vale no PROXIMO terminal."
+    else
+      warn "escrevi no rc mas nao consegui confirmar a linha. Verifique o PATH a mao."
+    fi
+  elif [ "$ja" = 1 ]; then
+    ok "$dir ja estava no PATH dos seus rc."
+  fi
+  return 0
+}
+
 post_config() {
   local BIN="$TARGET_HOME/.cargo/bin/schematize"
   # A remoção de pacote/binário antigo agora é da `purge_previous`, que roda ANTES de
@@ -386,9 +477,19 @@ post_config() {
   fi
   [ -x "$BIN" ] || { warn "o binário não apareceu em $BIN — rode o install de novo."; return; }
   ok "schematize $(as_user "$BIN" --version 2>/dev/null | awk '{print $2}') em $BIN (usuário ${REAL_USER:-$USER})"
+  # O PATH tem de ser garantido ANTES do "próximos passos" abaixo, senão o script
+  # imprime comandos que o terminal do usuário não resolve — o bug do openSUSE.
+  ensure_path_rc "$TARGET_HOME/.cargo/bin"
   as_user "$BIN" autostart enable || true
   install_updater || true
   echo; ok "pronto. Próximos passos:"
+  # HONESTIDADE: se o dir ainda não está no PATH DESTA sessão, os comandos abaixo só
+  # funcionam num terminal novo. Mandar digitá-los sem avisar é o que fez a pessoa
+  # concluir que a instalação falhou, quando o que faltava era reabrir o terminal.
+  case ":$PATH:" in
+    *":$TARGET_HOME/.cargo/bin:"*) : ;;
+    *) echo "    (abra um terminal NOVO — ou rode: export PATH=\"$TARGET_HOME/.cargo/bin:\$PATH\")" ;;
+  esac
   echo "    schematize skills install --all   # instala as skills"
   echo "    schematize overdev enable         # liga o modo overdev"
   echo "    schematize gui                    # abre a janela (ou use o menu de apps)"
@@ -408,7 +509,9 @@ install_binary() {
     curl -fSL -o "$t" "$DL/$src"; chmod 755 "$t"; $mv_ "$t" "$dst/$name"
   done
   install_gui_launcher
-  case ":$PATH:" in *":$dst:"*) : ;; *) echo "  ⚠ adicione ao PATH: export PATH=\"$dst:\$PATH\"" ;; esac
+  # Antes isto era só um aviso ("⚠ adicione ao PATH") — pedir pro usuário fazer o que
+  # o instalador pode fazer sozinho é o oposto do piso "prever macacos" (§37.48).
+  ensure_path_rc "$dst"
   post_config
 }
 install_deb() {
@@ -538,10 +641,27 @@ install_source() {
   post_config
 }
 
+# ---------------------------------------------------------------------------
+# SCHEMATIZE_INSTALL_LIB=1 -> define as funcoes e PARA, sem instalar nada.
+#
+# Existe pra que `tests/install_path_rc.rs` exercite a `ensure_path_rc` DE VERDADE,
+# em vez de reimplementar a logica no teste (teste que reimplementa nao prova o
+# original) ou de recortar a funcao por numero de linha (allowlist ancorada em linha
+# e armadilha -- o dia em que erra e o dia em que isenta a linha errada).
+#
+# Irmao do `SCHEMATIZE_INSTALL_NO_SELF`, que ja existia com o mesmo espirito.
+# ---------------------------------------------------------------------------
+[ -n "${SCHEMATIZE_INSTALL_LIB:-}" ] && return 0 2>/dev/null || true
+[ -n "${SCHEMATIZE_INSTALL_LIB:-}" ] && exit 0
+
 case "$MODE" in
   source) install_source ;;
   binary) install_binary ;;
   package)
+    # O `A && B || C` abaixo NAO e if-then-else, e nao quer ser: se o pacote da
+    # distro nao existe OU a instalacao dele falha, o fallback pro binario e o
+    # comportamento pretendido. SC2015 alerta sobre o fato, que aqui e a intencao.
+    # shellcheck disable=SC2015
     case "$FAMILY" in
       debian) command -v apt-get >/dev/null && install_deb || install_binary ;;
       rpm)    (command -v zypper >/dev/null || command -v dnf >/dev/null) && install_rpm || install_binary ;;
