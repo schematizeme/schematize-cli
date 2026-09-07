@@ -244,6 +244,8 @@ pub(crate) enum Cmd {
         #[command(subcommand)]
         sub: ProjectsCmd,
     },
+    /// Apps do ecossistema: quais existem, quais estão instalados e como instalar.
+    Apps,
     /// Deployer: o app de SSH/VPS, separado (ADR-0010). Instalar, ver estado e repassar comandos.
     Deployer {
         #[command(subcommand)]

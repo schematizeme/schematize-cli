@@ -6,6 +6,8 @@ CMD schematize agents
   SOBRE Orçamento de concorrência: quantos agents/subagents do Claude a máquina aguenta SEM travar (CPU/RAM/load, contando OUTRAS instâncias do claude na máquina). Persiste ~/.schematize/agents.json
   ARG json                 --json
   ARG split                --split
+CMD schematize apps
+  SOBRE Apps do ecossistema: quais existem, quais estão instalados e como instalar
 CMD schematize archive
   SOBRE Archive de evolução: materializa a estrutura do <projeto>_archive/, extrai o chat da sessão pro chats/ e gera o context_agent/#N.txt (contexto portável). Roda no dir do projeto
 CMD schematize autostart

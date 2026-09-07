@@ -23,6 +23,41 @@
 use crate::agentrun::resolve_bin;
 use std::path::PathBuf;
 
+/// Um app EXTERNO do ecossistema — instalável à parte, e que o schematize apenas conhece.
+///
+/// **Por que uma tabela e não um módulo por app:** a lógica de descobrir, versionar e
+/// instalar é idêntica; duplicá-la por app seria a divergência esperando acontecer. O que
+/// muda entre eles é só o nome do binário, a flag e a frase.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AppExterno {
+    /// Nome do binário no `$PATH`.
+    pub bin: &'static str,
+    /// Flag do `install.sh` que o instala.
+    pub flag: &'static str,
+    /// Uma linha sobre o que ele faz — vai no `status`.
+    pub sobre: &'static str,
+}
+
+/// Os apps externos que o schematize conhece.
+pub const EXTERNOS: &[AppExterno] = &[
+    AppExterno {
+        bin: "deployer",
+        flag: "--deployer",
+        sobre: "SSH, VPS e acesso remoto auditado, com a credencial no cofre",
+    },
+    AppExterno {
+        bin: "optimizer",
+        flag: "--optimizer",
+        sobre: "mede o ambiente de dev e põe cada software no seu teto de recurso",
+    },
+];
+
+/// **O quê:** acha um app externo pelo nome do binário.
+/// **Onde:** a CLI, ao despachar `schematize <app> …`.
+pub fn externo(bin: &str) -> Option<&'static AppExterno> {
+    EXTERNOS.iter().find(|a| a.bin == bin)
+}
+
 /// Nome do binário do Deployer.
 pub const BIN: &str = "deployer";
 /// Repositório, para a mensagem de instalação e para o `install.sh`.
@@ -64,8 +99,8 @@ impl Estado {
 /// Usa o mesmo `resolve_bin` do resto do app — que varre o `$PATH` **e** os diretórios de
 /// fallback. Sem isso, o app aberto pelo lançador do desktop (que dá PATH mínimo) diria
 /// "não instalado" sobre um Deployer que está em `~/.cargo/bin`.
-pub fn descobrir() -> Estado {
-    let Some(caminho) = resolve_bin(BIN) else {
+pub fn descobrir_app(bin: &str) -> Estado {
+    let Some(caminho) = resolve_bin(bin) else {
         return Estado::Ausente;
     };
     match crate::util::run(&caminho.to_string_lossy(), &["--version"]) {
@@ -77,6 +112,11 @@ pub fn descobrir() -> Estado {
     }
 }
 
+/// **O quê:** o estado do Deployer. **Onde:** compat com quem já chamava.
+pub fn descobrir() -> Estado {
+    descobrir_app(BIN)
+}
+
 /// **O quê:** a linha de comando que instala o Deployer nesta máquina.
 ///
 /// **Onde:** [`Estado::Ausente`] na CLI e na GUI. Função PURA — devolve o texto, não executa.
@@ -84,11 +124,16 @@ pub fn descobrir() -> Estado {
 /// **Por que não instala sozinho:** instalar compila um app inteiro, pede rede e leva
 /// minutos. Fazer isso como efeito colateral de um `status` seria surpresa cara. O comando
 /// fica visível para a pessoa rodar quando quiser.
-pub fn como_instalar() -> String {
+pub fn como_instalar_app(flag: &str) -> String {
     // O `install.sh` que tem a flag `--deployer` é o do SCHEMATIZE, não o do Deployer: é ele
     // que já sabe cuidar do Rust, das libs de build e do target compartilhado. O Deployer
     // entra como um quinto repo daquele mesmo fluxo.
-    format!("curl -fsSL {INSTALL_SH} | bash -s -- --deployer")
+    format!("curl -fsSL {INSTALL_SH} | bash -s -- {flag}")
+}
+
+/// **O quê:** como instalar o Deployer. **Onde:** compat.
+pub fn como_instalar() -> String {
+    como_instalar_app("--deployer")
 }
 
 #[cfg(test)]

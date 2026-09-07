@@ -10,7 +10,8 @@
 #   curl -fsSL .../install.sh | bash                 # compila CLI + GUI na máquina (PADRÃO)
 #   curl -fsSL .../install.sh | bash -s -- --binary  # atalho: binários pré-compilados do release (se houver)
 #   curl -fsSL .../install.sh | bash -s -- --package # atalho: pacote .deb/.rpm da distro (se houver)
-#   curl -fsSL .../install.sh | bash -s -- --deployer # instala TAMBÉM o schematize-deployer (SSH/VPS)
+#   curl -fsSL .../install.sh | bash -s -- --deployer  # instala TAMBÉM o deployer (SSH/VPS)
+#   curl -fsSL .../install.sh | bash -s -- --optimizer # instala TAMBÉM o optimizer (recursos)
 set -euo pipefail
 
 REPO="schematizeme/schematize-cli"
@@ -21,9 +22,11 @@ for a in "$@"; do case "$a" in
   --from-source|--source) MODE=source;; --binary) MODE=binary;;
   --package|--deb|--rpm) MODE=package;; --auto) MODE=package;;
   --gui) : ;;  # compat: no-op
-  --deployer) DEPLOYER=1;;   # instala TAMBEM o schematize-deployer (ver `install_deployer`)
+  --deployer) DEPLOYER=1;;   # instala TAMBEM o schematize-deployer (ver o bloco no install_source)
+  --optimizer) OPTIMIZER=1;; # instala TAMBEM o schematize-optimizer (idem)
 esac; done
 : "${DEPLOYER:=0}"
+: "${OPTIMIZER:=0}"
 
 log() { printf '\033[1;36m▶ %s\033[0m\n' "$*"; }
 ok()  { printf '\033[1;32m✓ %s\033[0m\n' "$*"; }
@@ -701,6 +704,28 @@ install_source() {
     else
       warn "o deployer não compilou — o schematize segue instalado e funcionando."
       warn "tente sozinho: https://github.com/schematizeme/schematize_deployer_rs"
+    fi
+  fi
+
+  # ---------------------------------------------------------------------------
+  # OPTIMIZER — recursos da máquina (ADR-0011). OPT-IN, com `--optimizer`.
+  #
+  # Mesma razão do deployer para ser opcional, e uma a mais: este app MEXE NA MÁQUINA.
+  # Instalar por padrão algo que altera slice de systemd e (adiante) cmdline de kernel, em
+  # quem não pediu, é o oposto do piso 10 e do §37.48.
+  #
+  # Best-effort pelo mesmo motivo: quem pediu o optimizer não deixou de querer o schematize.
+  # ---------------------------------------------------------------------------
+  if [ "$OPTIMIZER" = 1 ]; then
+    local opt="$base/schematize_optimizer_rs"
+    log "compilando o schematize-optimizer (recursos) — pedido com --optimizer"
+    if _sync_repo "https://github.com/schematizeme/schematize_optimizer_rs.git" "$opt" 2>/dev/null \
+       && as_user sh -c "cd '$opt' && CARGO_TARGET_DIR='$tgt' cargo build --release" \
+       && as_user install -m755 "$tgt/release/optimizer" "$bin/optimizer"; then
+      ok "schematize-optimizer instalado (optimizer). Comece com: optimizer diag"
+    else
+      warn "o optimizer não compilou — o schematize segue instalado e funcionando."
+      warn "tente sozinho: https://github.com/schematizeme/schematize_optimizer_rs"
     fi
   fi
 
