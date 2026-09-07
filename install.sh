@@ -112,7 +112,7 @@ pkg_install() {
 }
 ensure_runtime_deps() {
   local miss=(); for b in curl unzip git; do command -v "$b" >/dev/null || miss+=("$b"); done
-  [ ${#miss[@]} -gt 0 ] && pkg_install "${miss[@]}" || true
+  if [ ${#miss[@]} -gt 0 ]; then pkg_install "${miss[@]}" || true; fi
 }
 # URL base de download da ÚLTIMA versão, via tag real da API (imune ao cache do
 # CDN no asset de nome fixo em /latest/download/). Fallback: /latest/download.
@@ -651,8 +651,15 @@ install_source() {
 #
 # Irmao do `SCHEMATIZE_INSTALL_NO_SELF`, que ja existia com o mesmo espirito.
 # ---------------------------------------------------------------------------
-[ -n "${SCHEMATIZE_INSTALL_LIB:-}" ] && return 0 2>/dev/null || true
-[ -n "${SCHEMATIZE_INSTALL_LIB:-}" ] && exit 0
+if [ -n "${SCHEMATIZE_INSTALL_LIB:-}" ]; then
+  # `return` so e valido se o script foi SOURCEADO; se foi EXECUTADO, e erro. Em vez de
+  # tentar e cair no fallback (o que faz o shellcheck ver o `exit` como inalcancavel),
+  # PERGUNTA: em bash, `BASH_SOURCE[0]` difere de `$0` exatamente quando ha source.
+  if [ "${BASH_SOURCE[0]}" != "$0" ]; then
+    return 0
+  fi
+  exit 0
+fi
 
 case "$MODE" in
   source) install_source ;;
