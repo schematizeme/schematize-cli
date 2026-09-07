@@ -332,6 +332,13 @@ CMD schematize ssh gen
 CMD schematize ssh github
   SOBRE Add an existing PUBLIC key to your GitHub account (gh must be authenticated)
   ARG name                  OBRIGATORIO
+CMD schematize ssh import
+  SOBRE Import an EXISTING key pair into ~/.ssh/<name> (another machine, a backup, a vault). Derives the public key from the private one; the private key is copied byte for byte and keeps its passphrase. Use --passphrase if the key is encrypted
+  ARG comment              --comment
+  ARG file                  OBRIGATORIO
+  ARG force                --force
+  ARG name                 --name
+  ARG passphrase           --passphrase
 CMD schematize ssh list
   SOBRE List keys in ~/.ssh (name, type, fingerprint, comment). Never reads the private key
 CMD schematize ssh rm

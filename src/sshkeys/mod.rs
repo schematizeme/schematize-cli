@@ -1,4 +1,4 @@
-//! sshkeys — gestão de chaves SSH da máquina do usuário (gerar/listar/exportar/remover).
+//! sshkeys — gestão de chaves SSH da máquina do usuário (gerar/IMPORTAR/listar/exportar/remover).
 //! O quê: envolve o `ssh-keygen` (via `util`) pra agilizar setup de GitHub/servidores;
 //! guarda o par em `~/.ssh/<name>` (privada 600) e `~/.ssh/<name>.pub` (644).
 //! Onde: lógica COMPARTILHADA (o CLI usa via `schematize ssh`; a GUI consumirá depois).
@@ -18,10 +18,12 @@ use std::path::{Path, PathBuf};
 mod bitwarden;
 mod chaves;
 mod entropia;
+mod importar;
 mod uso;
 pub use bitwarden::*;
 pub use chaves::*;
 pub use entropia::*;
+pub use importar::*;
 pub use uso::*;
 
 // ------------------------------------------------------------------------------------------------

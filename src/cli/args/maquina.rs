@@ -32,6 +32,25 @@ pub(crate) enum SshCmd {
         #[arg(long)]
         force: bool,
     },
+    /// Import an EXISTING key pair into ~/.ssh/<name> (another machine, a backup, a vault).
+    /// Derives the public key from the private one; the private key is copied byte for byte
+    /// and keeps its passphrase. Use --passphrase if the key is encrypted.
+    Import {
+        /// Path to the PRIVATE key file (not the .pub).
+        file: String,
+        /// Name it will have in ~/.ssh (default: the source file name).
+        #[arg(long)]
+        name: Option<String>,
+        /// Passphrase, if the key is encrypted. Only used to read the key; it stays encrypted.
+        #[arg(long)]
+        passphrase: Option<String>,
+        /// Override the comment embedded in the public key.
+        #[arg(long)]
+        comment: Option<String>,
+        /// Overwrite an existing key with the same name.
+        #[arg(long)]
+        force: bool,
+    },
     /// List keys in ~/.ssh (name, type, fingerprint, comment). Never reads the private key.
     List,
     /// Print the PUBLIC key (paste it on GitHub/servers); --copy sends it to the clipboard.

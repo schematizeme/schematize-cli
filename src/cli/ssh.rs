@@ -45,6 +45,29 @@ pub(crate) fn ssh_cmd(sub: SshCmd) -> Result<(), String> {
             }
             Ok(())
         }
+        SshCmd::Import { file, name, passphrase, comment, force } => {
+            let origem = std::path::Path::new(&file);
+            // Sem --name, herda o nome do arquivo de origem: `~/backup/deploy` vira `deploy`.
+            // É o que a pessoa espera, e evita obrigá-la a repetir o nome que já digitou.
+            let nome = match name {
+                Some(n) => n,
+                None => {
+                    origem.file_stem().and_then(|s| s.to_str()).map(str::to_string).ok_or_else(
+                        || format!("não consegui deduzir o nome de {file} — use --name"),
+                    )?
+                }
+            };
+            let info =
+                sshkeys::import(origem, &nome, passphrase.as_deref(), comment.as_deref(), force)?;
+            println!("{}", tf("ssh.imported", &[("name", &info.name), ("kind", &info.kind)]));
+            println!("{}", tf("ssh.fingerprint", &[("fp", &info.fingerprint)]));
+            // A prova vem do ssh-keygen -l sobre o que FICOU em ~/.ssh, não do que a gente
+            // acha que copiou: é o que distingue "importei" de "importei certo".
+            if let Ok(proof) = sshkeys::proof_line(&info.name) {
+                println!("prova (ssh-keygen -l): {proof}");
+            }
+            Ok(())
+        }
         SshCmd::List => {
             let keys = sshkeys::list();
             if keys.is_empty() {
