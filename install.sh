@@ -324,6 +324,15 @@ install_app_icons() {
 # que o app se chamou Overflow: uma cópia com aquele nome sobrevivendo num dir de
 # maior precedência no PATH é exatamente o tipo de fantasma que faz o app "voltar"
 # pra uma versão velha — o bug que esta purga existe pra matar.
+#
+# O `deployer` NÃO está nesta lista, e a ausência é DELIBERADA. A purga roda em TODA
+# instalação; se ele entrasse aqui, um `install.sh` sem `--deployer` — o caso normal —
+# passaria a APAGAR o deployer de quem o tem. Instalar o app não pode desinstalar outro,
+# pelo mesmo motivo que atualizar não pode instalar o que ninguém pediu.
+#
+# Ele também não precisa da purga: só é instalado em `~/.cargo/bin`, e o `install -m755`
+# sobrescreve. A ambiguidade de "quatro lugares possíveis" que criou esta função nunca
+# existiu para ele.
 BINS="overflow overflow-gui overflow-updater overflow-updater-gui \
 schematize schematize-gui schematize-updater schematize-updater-gui"
 

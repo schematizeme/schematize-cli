@@ -288,3 +288,19 @@ fn a_falha_do_deployer_nao_derruba_o_install() {
         "o deployer é opcional: `die` aqui derrubaria a instalação do schematize junto"
     );
 }
+
+/// **A purga NÃO pode levar o deployer.** Ela roda em toda instalação; com o `deployer` na
+/// lista, um `install.sh` sem `--deployer` — o caso normal — apagaria o deployer de quem o
+/// tem. Instalar um app não pode desinstalar outro, pelo mesmo motivo que atualizar não pode
+/// instalar o que ninguém pediu.
+#[test]
+fn a_purga_nao_leva_o_deployer_junto() {
+    let txt = std::fs::read_to_string(install_sh()).unwrap();
+    let i = txt.find("BINS=").expect("a lista de purga");
+    let lista: String = txt[i..].lines().take(2).collect::<Vec<_>>().join(" ");
+    assert!(lista.contains("schematize-gui"), "sanidade: é a lista certa? {lista}");
+    assert!(
+        !lista.contains("deployer"),
+        "o `deployer` entrou na purga — todo install sem --deployer passaria a apagá-lo: {lista}"
+    );
+}
