@@ -123,23 +123,69 @@ resolve_dl() {
   if [ -n "$tag" ]; then echo "https://github.com/$REPO/releases/download/$tag"; else echo "$BASE"; fi
 }
 # libs de runtime da GUI — só para o modo binário (o pacote resolve sozinho).
+# ---------------------------------------------------------------------------
+# O que JA esta instalado nao se instala de novo — e sobretudo nao se pede sudo pra isso.
+#
+# POR QUE EXISTE: o `gui_build_deps` chamava o gerenciador de pacotes SEMPRE, mesmo com
+# tudo presente. Numa maquina sem sudo, ou sem tty pra digitar a senha (instalacao
+# disparada de dentro de um script, sessao remota, CI), o `sudo` falha na hora e — como
+# o `gui_build_deps` era chamado sem `|| true`, sob `set -e` — a instalacao do fonte
+# MORRIA por causa de dependencia que ja estava instalada.
+#
+# Piso "prever macacos" (§37.48): nao quebre por invocacao nao prevista, e nunca peca
+# privilegio pra nao fazer nada.
+#
+# POR QUE `rpm -q --whatprovides` E NAO `rpm -q`: no openSUSE `pkg-config` e
+# `sqlite-devel` sao PROVIDES virtuais — quem os fornece sao `pkgconf-pkg-config` e
+# `sqlite3-devel`. Com `rpm -q` puro os dois apareceriam como faltantes numa maquina que
+# os tem, e o sudo seria pedido a toa exatamente no caso que esta funcao quer evitar.
+# ---------------------------------------------------------------------------
+pkgs_faltantes() { # <pkg...> — imprime, um por linha, so os que NAO estao presentes
+  local p
+  for p in "$@"; do
+    case "$FAMILY" in
+      debian) dpkg -s "$p" >/dev/null 2>&1 || printf '%s\n' "$p" ;;
+      rpm)    rpm -q --whatprovides "$p" >/dev/null 2>&1 || printf '%s\n' "$p" ;;
+      # Familia desconhecida: nao da pra afirmar que esta instalado, entao trata como
+      # faltante e deixa o pkg_install decidir. Nao inventa VERDE sobre o que nao checou.
+      *)      printf '%s\n' "$p" ;;
+    esac
+  done
+}
+
+# Instala so o que falta da lista; se nao falta nada, nao encosta no gerenciador.
+instala_faltantes() { # <rotulo> <pkg...>
+  local rotulo="$1"; shift
+  local falta=()
+  mapfile -t falta < <(pkgs_faltantes "$@")
+  if [ ${#falta[@]} -eq 0 ]; then
+    ok "$rotulo: ja presentes — nao vou pedir sudo pra nao fazer nada."
+    return 0
+  fi
+  log "$rotulo: instalando o que falta (${falta[*]})"
+  pkg_install "${falta[@]}"
+}
+
 gui_runtime_deps() {
   case "$FAMILY" in
-    debian) pkg_install libx11-6 libxcursor1 libxrandr2 libxi6 libxkbcommon0 libwayland-client0 libgl1 libfontconfig1 || true ;;
-    rpm)    pkg_install libX11-6 libXcursor1 libXrandr2 libXi6 libxkbcommon0 libwayland-client0 Mesa-libGL1 fontconfig || true ;;
+    debian) instala_faltantes "libs de runtime da GUI" libx11-6 libxcursor1 libxrandr2 libxi6 \
+              libxkbcommon0 libwayland-client0 libgl1 libfontconfig1 || true ;;
+    rpm)    instala_faltantes "libs de runtime da GUI" libX11-6 libXcursor1 libXrandr2 libXi6 \
+              libxkbcommon0 libwayland-client0 Mesa-libGL1 fontconfig || true ;;
   esac
 }
 # libs de BUILD — só para --from-source.
 gui_build_deps() {
-  log "instalando libs de build da GUI (X11/Wayland/GL + fontconfig p/ o Slint)"
   case "$FAMILY" in
     # libfontconfig1-dev: o Slint 1.17 (fontique no núcleo) LINKA a libfontconfig no build.
     # libsqlite3-dev: PREFERIR a lib da distro a compilar o SQLite embutido (~250 mil
     # linhas de C a cada build limpo). Se ela estiver aqui, o build do CLI linka a dela.
-    debian) pkg_install build-essential pkg-config libx11-dev libxcursor-dev libxrandr-dev libxi-dev \
+    debian) instala_faltantes "libs de build da GUI" build-essential pkg-config libx11-dev \
+              libxcursor-dev libxrandr-dev libxi-dev \
               libxkbcommon-dev libwayland-dev libgl1-mesa-dev libxcb1-dev libxcb-render0-dev \
               libxcb-shape0-dev libxcb-xfixes0-dev libfontconfig1-dev libsqlite3-dev ;;
-    rpm)    pkg_install gcc gcc-c++ make pkg-config libX11-devel libXcursor-devel libXrandr-devel \
+    rpm)    instala_faltantes "libs de build da GUI" gcc gcc-c++ make pkg-config libX11-devel \
+              libXcursor-devel libXrandr-devel \
               libXi-devel libxkbcommon-devel wayland-devel Mesa-libGL-devel libxcb-devel fontconfig-devel \
               sqlite-devel ;;
     *) die "GUI do fonte: instale manualmente as libs de X11/Wayland/GL/fontconfig da sua distro." ;;
