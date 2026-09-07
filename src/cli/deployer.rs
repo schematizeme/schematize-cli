@@ -41,7 +41,7 @@ pub(crate) fn deployer_cmd(sub: DeployerCmd) -> Result<(), String> {
             Ok(())
         }
 
-        DeployerCmd::Instalar => {
+        DeployerCmd::Install => {
             if let Estado::Instalado { caminho, versao } = deployerlink::descobrir() {
                 println!("deployer {versao} já está instalado em {}", caminho.display());
                 println!("para atualizar, rode: {}", deployerlink::como_instalar());
@@ -112,7 +112,7 @@ pub(crate) fn apps_cmd() -> Result<(), String> {
         for a in &faltam {
             // O comando do PRÓPRIO schematize, não o `curl`: "instalar pelo schematize" é o
             // que se prometeu, e mandar colar uma linha de curl é dar instrução, não instalar.
-            println!("    schematize apps instalar {}", a.bin);
+            println!("    schematize apps install {}", a.bin);
         }
         println!();
         println!("(ou, sem o schematize: {})", deployerlink::como_instalar_app(faltam[0].flag));
@@ -123,7 +123,7 @@ pub(crate) fn apps_cmd() -> Result<(), String> {
 /// **O quê:** instala um app do ecossistema **de verdade** — roda o `install.sh` com a flag
 /// dele, herdando o terminal.
 ///
-/// **Onde:** `schematize apps instalar <app>`.
+/// **Onde:** `schematize apps install <app>`.
 ///
 /// **Por que agora instala, se antes só imprimia o comando:** "instalar pelo schematize" era
 /// a promessa, e imprimir uma linha para a pessoa colar não é instalar — é dar instrução. A
@@ -149,7 +149,7 @@ pub(crate) fn apps_instalar(app: Option<String>, yes: bool) -> Result<(), String
             println!("  {:<12} {}", a.bin, a.sobre);
         }
         println!();
-        println!("Instale com: schematize apps instalar <app>");
+        println!("Instale com: schematize apps install <app>");
         return Ok(());
     };
 
@@ -222,7 +222,7 @@ pub(crate) fn apps_exec(app: String, args: Vec<String>) -> Result<(), String> {
             std::process::exit(st.code().unwrap_or(1));
         }
         _ => Err(format!(
-            "`{}` não está instalado. Instale com:\n    schematize apps instalar {}",
+            "`{}` não está instalado. Instale com:\n    schematize apps install {}",
             a.bin, a.bin
         )),
     }

@@ -229,7 +229,7 @@ fn main() {
         Cmd::Mcp { sub } => crate::cli::mcp::mcp_cmd(sub),
         Cmd::Apps { sub } => match sub {
             None => crate::cli::deployer::apps_cmd(),
-            Some(crate::cli::args::AppsCmd::Instalar { app, yes }) => {
+            Some(crate::cli::args::AppsCmd::Install { app, yes }) => {
                 crate::cli::deployer::apps_instalar(app, yes)
             }
             Some(crate::cli::args::AppsCmd::Exec { app, args }) => {

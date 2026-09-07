@@ -384,8 +384,8 @@ mod tests {
 pub(crate) enum DeployerCmd {
     /// O deployer está instalado? Em que versão e onde?
     Status,
-    /// Mostra como instalar o deployer nesta máquina.
-    Instalar,
+    /// Show how to install the deployer on this machine.
+    Install,
     /// Repassa tudo depois do `--` ao deployer, herdando o terminal e o código de saída.
     /// Ex.: schematize deployer exec -- vps list
     Exec {
@@ -402,15 +402,15 @@ pub(crate) enum DeployerCmd {
 /// separar os apps veio desfazer.
 #[derive(clap::Subcommand)]
 pub(crate) enum AppsCmd {
-    /// Instala um app do ecossistema DE VERDADE (compila do fonte; leva minutos).
-    Instalar {
-        /// Nome do app (`deployer`, `optimizer`). Sem nome, lista os que faltam.
+    /// Actually INSTALL an ecosystem app (builds from source; takes minutes).
+    Install {
+        /// App name (`deployer`, `optimizer`). Without a name, lists what is missing.
         app: Option<String>,
-        /// Não perguntar antes de começar.
+        /// Do not ask before starting.
         #[arg(long)]
         yes: bool,
     },
-    /// Repassa um comando ao app, herdando o terminal e o código de saída.
+    /// Forward a command to the app, inheriting the terminal and the exit code.
     /// Ex.: schematize apps exec optimizer -- diag
     Exec {
         app: String,

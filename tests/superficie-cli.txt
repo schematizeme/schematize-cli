@@ -9,11 +9,11 @@ CMD schematize agents
 CMD schematize apps
   SOBRE Apps do ecossistema: quais existem, quais estão instalados, e INSTALAR de fato
 CMD schematize apps exec
-  SOBRE Repassa um comando ao app, herdando o terminal e o código de saída. Ex.: schematize apps exec optimizer -- diag
+  SOBRE Forward a command to the app, inheriting the terminal and the exit code. Ex.: schematize apps exec optimizer -- diag
   ARG app                   OBRIGATORIO
   ARG args                  <valor>
-CMD schematize apps instalar
-  SOBRE Instala um app do ecossistema DE VERDADE (compila do fonte; leva minutos)
+CMD schematize apps install
+  SOBRE Actually INSTALL an ecosystem app (builds from source; takes minutes)
   ARG app                  
   ARG yes                  --yes
 CMD schematize archive
@@ -58,8 +58,8 @@ CMD schematize deployer
 CMD schematize deployer exec
   SOBRE Repassa tudo depois do `--` ao deployer, herdando o terminal e o código de saída. Ex.: schematize deployer exec -- vps list
   ARG args                  <valor>
-CMD schematize deployer instalar
-  SOBRE Mostra como instalar o deployer nesta máquina
+CMD schematize deployer install
+  SOBRE Show how to install the deployer on this machine
 CMD schematize deployer status
   SOBRE O deployer está instalado? Em que versão e onde?
 CMD schematize diagnostics
