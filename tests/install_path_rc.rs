@@ -281,7 +281,14 @@ fn a_flag_deployer_e_opt_in() {
 fn a_falha_do_deployer_nao_derruba_o_install() {
     let txt = std::fs::read_to_string(install_sh()).unwrap();
     let i = txt.find("compilando o schematize-deployer").expect("o bloco do deployer");
-    let bloco = &txt[i..(i + 900).min(txt.len())];
+    // Recorta até o PRÓXIMO bloco, não por número de caracteres. A versão anterior usava uma
+    // janela fixa de 900, e ela quebrou assim que o bloco cresceu — um teste que sabe o
+    // TAMANHO do código quebra em refatoração; um que sabe a ESTRUTURA, não.
+    let resto = &txt[i..];
+    let bloco = match resto.find("\n  # ---") {
+        Some(fim) => &resto[..fim],
+        None => resto,
+    };
     assert!(bloco.contains("warn "), "a falha tem de AVISAR, não passar calada");
     assert!(
         !bloco.contains("die "),

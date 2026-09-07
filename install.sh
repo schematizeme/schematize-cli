@@ -700,7 +700,15 @@ install_source() {
     if _sync_repo "https://github.com/schematizeme/schematize_deployer_rs.git" "$dep" 2>/dev/null \
        && as_user sh -c "cd '$dep' && CARGO_TARGET_DIR='$tgt' cargo build --release $feats" \
        && as_user install -m755 "$tgt/release/deployer" "$bin/deployer"; then
-      ok "schematize-deployer instalado (deployer). Comece com: deployer cofre init"
+      # O app registra a PRÓPRIA entrada no menu — é o que o torna abrível sem o schematize.
+      # Best-effort: sem ícone é chato; derrubar a instalação por causa dele é pior.
+      # O app registra a PRÓPRIA entrada no menu — é o que o torna abrível sem o
+      # schematize. Best-effort: sem ícone é chato; derrubar a instalação por isso é pior.
+      if as_user "$bin/deployer" desktop --instalar >/dev/null 2>&1; then
+        ok "schematize-deployer instalado (deployer) — já aparece no menu de aplicativos."
+      else
+        ok "schematize-deployer instalado (deployer). Comece com: deployer cofre init"
+      fi
     else
       warn "o deployer não compilou — o schematize segue instalado e funcionando."
       warn "tente sozinho: https://github.com/schematizeme/schematize_deployer_rs"
@@ -722,7 +730,13 @@ install_source() {
     if _sync_repo "https://github.com/schematizeme/schematize_optimizer_rs.git" "$opt" 2>/dev/null \
        && as_user sh -c "cd '$opt' && CARGO_TARGET_DIR='$tgt' cargo build --release" \
        && as_user install -m755 "$tgt/release/optimizer" "$bin/optimizer"; then
-      ok "schematize-optimizer instalado (optimizer). Comece com: optimizer diag"
+      # O app registra a PRÓPRIA entrada no menu — é o que o torna abrível sem o
+      # schematize. Best-effort: sem ícone é chato; derrubar a instalação por isso é pior.
+      if as_user "$bin/optimizer" desktop --instalar >/dev/null 2>&1; then
+        ok "schematize-optimizer instalado (optimizer) — já aparece no menu de aplicativos."
+      else
+        ok "schematize-optimizer instalado (optimizer). Comece com: optimizer diag"
+      fi
     else
       warn "o optimizer não compilou — o schematize segue instalado e funcionando."
       warn "tente sozinho: https://github.com/schematizeme/schematize_optimizer_rs"
