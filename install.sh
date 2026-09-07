@@ -10,6 +10,7 @@
 #   curl -fsSL .../install.sh | bash                 # compila CLI + GUI na máquina (PADRÃO)
 #   curl -fsSL .../install.sh | bash -s -- --binary  # atalho: binários pré-compilados do release (se houver)
 #   curl -fsSL .../install.sh | bash -s -- --package # atalho: pacote .deb/.rpm da distro (se houver)
+#   curl -fsSL .../install.sh | bash -s -- --deployer # instala TAMBÉM o schematize-deployer (SSH/VPS)
 set -euo pipefail
 
 REPO="schematizeme/schematize-cli"
@@ -20,7 +21,9 @@ for a in "$@"; do case "$a" in
   --from-source|--source) MODE=source;; --binary) MODE=binary;;
   --package|--deb|--rpm) MODE=package;; --auto) MODE=package;;
   --gui) : ;;  # compat: no-op
+  --deployer) DEPLOYER=1;;   # instala TAMBEM o schematize-deployer (ver `install_deployer`)
 esac; done
+: "${DEPLOYER:=0}"
 
 log() { printf '\033[1;36m▶ %s\033[0m\n' "$*"; }
 ok()  { printf '\033[1;32m✓ %s\033[0m\n' "$*"; }
@@ -667,6 +670,31 @@ install_source() {
   else
     warn "GUI do updater não compilou (opcional) — segue sem ela."
   fi
+  # ---------------------------------------------------------------------------
+  # DEPLOYER — SSH, VPS e acesso remoto auditado (ADR-0010). OPT-IN, com `--deployer`.
+  #
+  # POR QUE NÃO ENTRA POR PADRÃO: ele SAIU do fluxo principal de propósito. Enquanto a fase
+  # 7 não roda, o `schematize` ainda TEM `ssh` e `vps` embutidos — instalar os dois por
+  # padrão entregaria a mesma funcionalidade duas vezes, por dois comandos diferentes, e é
+  # exatamente a ambiguidade que a `purge_previous` deste script existe pra matar.
+  #
+  # POR QUE É BEST-EFFORT: quem pediu `--deployer` pediu o app de deploy, mas não deixou de
+  # querer o schematize. Falhar o install inteiro porque um app OPCIONAL não compilou é o
+  # oposto do piso 10 — a ausência de um não pode derrubar o outro.
+  # ---------------------------------------------------------------------------
+  if [ "$DEPLOYER" = 1 ]; then
+    local dep="$base/schematize_deployer_rs"
+    log "compilando o schematize-deployer (SSH/VPS) — pedido com --deployer"
+    if _sync_repo "https://github.com/schematizeme/schematize_deployer_rs.git" "$dep" 2>/dev/null \
+       && as_user sh -c "cd '$dep' && CARGO_TARGET_DIR='$tgt' cargo build --release $feats" \
+       && as_user install -m755 "$tgt/release/deployer" "$bin/deployer"; then
+      ok "schematize-deployer instalado (deployer). Comece com: deployer cofre init"
+    else
+      warn "o deployer não compilou — o schematize segue instalado e funcionando."
+      warn "tente sozinho: https://github.com/schematizeme/schematize_deployer_rs"
+    fi
+  fi
+
   # Os `target/` por-repo de antes do target compartilhado não são mais lidos por
   # build nenhum — viram dezenas de GB de lixo. O script mudou o layout, o script
   # limpa: pedir pro usuário apagar à mão é o oposto do piso da casa. Só DEPOIS dos

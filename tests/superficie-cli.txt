@@ -43,6 +43,15 @@ CMD schematize debug
   ARG online               --online
   ARG out                  --out
   ARG stdout               --stdout
+CMD schematize deployer
+  SOBRE Deployer: o app de SSH/VPS, separado (ADR-0010). Instalar, ver estado e repassar comandos
+CMD schematize deployer exec
+  SOBRE Repassa tudo depois do `--` ao deployer, herdando o terminal e o código de saída. Ex.: schematize deployer exec -- vps list
+  ARG args                  <valor>
+CMD schematize deployer instalar
+  SOBRE Mostra como instalar o deployer nesta máquina
+CMD schematize deployer status
+  SOBRE O deployer está instalado? Em que versão e onde?
 CMD schematize diagnostics
   SOBRE Envia (OPT-IN) o relatório de diagnóstico REDIGIDO pro servidor (POST /diagnostics). Nada é enviado por padrão — só com este comando e após confirmar
   ARG yes                  --yes

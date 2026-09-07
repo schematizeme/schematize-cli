@@ -244,6 +244,11 @@ pub(crate) enum Cmd {
         #[command(subcommand)]
         sub: ProjectsCmd,
     },
+    /// Deployer: o app de SSH/VPS, separado (ADR-0010). Instalar, ver estado e repassar comandos.
+    Deployer {
+        #[command(subcommand)]
+        sub: DeployerCmd,
+    },
     /// Log in to the schematize platform via the browser (OAuth device flow).
     Login,
     /// Log out (delete the local session).
@@ -366,4 +371,20 @@ mod tests {
             surgiram.iter().map(|s| s.to_string()).collect::<Vec<_>>().join("\n  "),
         );
     }
+}
+
+/// A ponte com o `schematize deployer`. Nenhum destes comandos falha por ele não existir —
+/// "não instalado" é resposta, não erro (piso 10).
+#[derive(clap::Subcommand)]
+pub(crate) enum DeployerCmd {
+    /// O deployer está instalado? Em que versão e onde?
+    Status,
+    /// Mostra como instalar o deployer nesta máquina.
+    Instalar,
+    /// Repassa tudo depois do `--` ao deployer, herdando o terminal e o código de saída.
+    /// Ex.: schematize deployer exec -- vps list
+    Exec {
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        args: Vec<String>,
+    },
 }

@@ -9,6 +9,7 @@ pub(crate) mod args;
 pub(crate) mod caixa;
 pub(crate) mod conta;
 pub(crate) mod db;
+pub(crate) mod deployer;
 pub(crate) mod disco;
 pub(crate) mod diversos;
 pub(crate) mod git;

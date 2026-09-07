@@ -13,6 +13,7 @@ pub mod config;
 pub mod database;
 pub mod debug;
 pub mod debugreport;
+pub mod deployerlink;
 pub mod diagnostics;
 pub mod disco;
 pub mod doctor;

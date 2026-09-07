@@ -245,3 +245,46 @@ fn o_arnes_consegue_ver_falha() {
         .unwrap();
     assert!(!out.status.success(), "o arnês reportou sucesso para função inexistente — está cego");
 }
+
+// ---------------------------------------------------------------------------
+// A flag `--deployer` (ADR-0010) — opt-in, e o opt-in é a asserção.
+// ---------------------------------------------------------------------------
+
+/// `--deployer` liga o flag; **sem ele o flag fica desligado**. A segunda metade é a que
+/// importa: o Deployer saiu do fluxo principal de propósito, e enquanto o `schematize` ainda
+/// tem `ssh` e `vps` embutidos, instalá-lo por padrão entregaria a mesma funcionalidade duas
+/// vezes por dois comandos — a ambiguidade que a `purge_previous` deste script existe para
+/// matar.
+#[test]
+fn a_flag_deployer_e_opt_in() {
+    let sh = install_sh();
+    let ver = |args: &str| -> String {
+        let script = format!(". '{}' >/dev/null 2>&1 ; echo \"$DEPLOYER\"", sh.display());
+        let out = Command::new("bash")
+            .arg("-c")
+            .arg(format!("set -- {args}; {script}"))
+            .env("SCHEMATIZE_INSTALL_LIB", "1")
+            .env("SCHEMATIZE_INSTALL_NO_SELF", "1")
+            .output()
+            .unwrap();
+        String::from_utf8_lossy(&out.stdout).trim().to_string()
+    };
+    assert_eq!(ver(""), "0", "sem a flag, o deployer NÃO pode ser instalado");
+    assert_eq!(ver("--deployer"), "1", "com a flag, liga");
+    // Combina com os outros modos sem atrapalhá-los.
+    assert_eq!(ver("--binary --deployer"), "1");
+}
+
+/// O bloco do deployer é **best-effort**: o `install.sh` não pode morrer porque um app
+/// OPCIONAL não compilou. Quem pediu `--deployer` não deixou de querer o schematize.
+#[test]
+fn a_falha_do_deployer_nao_derruba_o_install() {
+    let txt = std::fs::read_to_string(install_sh()).unwrap();
+    let i = txt.find("compilando o schematize-deployer").expect("o bloco do deployer");
+    let bloco = &txt[i..(i + 900).min(txt.len())];
+    assert!(bloco.contains("warn "), "a falha tem de AVISAR, não passar calada");
+    assert!(
+        !bloco.contains("die "),
+        "o deployer é opcional: `die` aqui derrubaria a instalação do schematize junto"
+    );
+}
