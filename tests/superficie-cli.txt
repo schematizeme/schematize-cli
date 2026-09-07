@@ -7,7 +7,15 @@ CMD schematize agents
   ARG json                 --json
   ARG split                --split
 CMD schematize apps
-  SOBRE Apps do ecossistema: quais existem, quais estão instalados e como instalar
+  SOBRE Apps do ecossistema: quais existem, quais estão instalados, e INSTALAR de fato
+CMD schematize apps exec
+  SOBRE Repassa um comando ao app, herdando o terminal e o código de saída. Ex.: schematize apps exec optimizer -- diag
+  ARG app                   OBRIGATORIO
+  ARG args                  <valor>
+CMD schematize apps instalar
+  SOBRE Instala um app do ecossistema DE VERDADE (compila do fonte; leva minutos)
+  ARG app                  
+  ARG yes                  --yes
 CMD schematize archive
   SOBRE Archive de evolução: materializa a estrutura do <projeto>_archive/, extrai o chat da sessão pro chats/ e gera o context_agent/#N.txt (contexto portável). Roda no dir do projeto
 CMD schematize autostart

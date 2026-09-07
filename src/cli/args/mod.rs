@@ -244,8 +244,11 @@ pub(crate) enum Cmd {
         #[command(subcommand)]
         sub: ProjectsCmd,
     },
-    /// Apps do ecossistema: quais existem, quais estão instalados e como instalar.
-    Apps,
+    /// Apps do ecossistema: quais existem, quais estão instalados, e INSTALAR de fato.
+    Apps {
+        #[command(subcommand)]
+        sub: Option<AppsCmd>,
+    },
     /// Deployer: o app de SSH/VPS, separado (ADR-0010). Instalar, ver estado e repassar comandos.
     Deployer {
         #[command(subcommand)]
@@ -386,6 +389,31 @@ pub(crate) enum DeployerCmd {
     /// Repassa tudo depois do `--` ao deployer, herdando o terminal e o código de saída.
     /// Ex.: schematize deployer exec -- vps list
     Exec {
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        args: Vec<String>,
+    },
+}
+
+/// Os apps EXTERNOS do ecossistema (deployer, optimizer, e os que vierem).
+///
+/// **Por que aqui e não um `Cmd` por app:** a lógica é a mesma para todos — o que muda é o
+/// nome, a flag e a frase, e isso já vive numa tabela (`deployerlink::EXTERNOS`). Um enum
+/// por app obrigaria a mexer no clap a cada produto novo, que é exatamente o acoplamento que
+/// separar os apps veio desfazer.
+#[derive(clap::Subcommand)]
+pub(crate) enum AppsCmd {
+    /// Instala um app do ecossistema DE VERDADE (compila do fonte; leva minutos).
+    Instalar {
+        /// Nome do app (`deployer`, `optimizer`). Sem nome, lista os que faltam.
+        app: Option<String>,
+        /// Não perguntar antes de começar.
+        #[arg(long)]
+        yes: bool,
+    },
+    /// Repassa um comando ao app, herdando o terminal e o código de saída.
+    /// Ex.: schematize apps exec optimizer -- diag
+    Exec {
+        app: String,
         #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
         args: Vec<String>,
     },

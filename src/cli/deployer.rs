@@ -105,12 +105,125 @@ pub(crate) fn apps_cmd() -> Result<(), String> {
         };
         println!("{} {} {}", pad(a.bin, 11), pad(&estado, 14), a.sobre);
     }
-    println!();
-    println!("Para instalar um que falte:");
-    for a in EXTERNOS {
-        if !descobrir_app(a.bin).utilizavel() {
-            println!("    {}", deployerlink::como_instalar_app(a.flag));
+    let faltam: Vec<_> = EXTERNOS.iter().filter(|a| !descobrir_app(a.bin).utilizavel()).collect();
+    if !faltam.is_empty() {
+        println!();
+        println!("Para instalar um que falte:");
+        for a in &faltam {
+            // O comando do PRÓPRIO schematize, não o `curl`: "instalar pelo schematize" é o
+            // que se prometeu, e mandar colar uma linha de curl é dar instrução, não instalar.
+            println!("    schematize apps instalar {}", a.bin);
         }
+        println!();
+        println!("(ou, sem o schematize: {})", deployerlink::como_instalar_app(faltam[0].flag));
     }
     Ok(())
+}
+
+/// **O quê:** instala um app do ecossistema **de verdade** — roda o `install.sh` com a flag
+/// dele, herdando o terminal.
+///
+/// **Onde:** `schematize apps instalar <app>`.
+///
+/// **Por que agora instala, se antes só imprimia o comando:** "instalar pelo schematize" era
+/// a promessa, e imprimir uma linha para a pessoa colar não é instalar — é dar instrução. A
+/// razão original (compilar leva minutos e pede rede) continua verdadeira, e por isso a
+/// operação **avisa e confirma** em vez de simplesmente não existir.
+///
+/// **Herda o terminal de propósito:** a compilação leva minutos e o `install.sh` pede sudo
+/// para as libs. Capturar a saída deixaria a pessoa olhando um cursor parado, e o pedido de
+/// senha não teria onde aparecer.
+pub(crate) fn apps_instalar(app: Option<String>, yes: bool) -> Result<(), String> {
+    use schematize::deployerlink::{descobrir_app, externo, EXTERNOS};
+
+    let Some(nome) = app else {
+        // Sem nome: mostra o que falta, em vez de escolher por conta própria.
+        let faltam: Vec<_> =
+            EXTERNOS.iter().filter(|a| !descobrir_app(a.bin).utilizavel()).collect();
+        if faltam.is_empty() {
+            println!("todos os apps do ecossistema já estão instalados.");
+            return Ok(());
+        }
+        println!("Apps que faltam:");
+        for a in faltam {
+            println!("  {:<12} {}", a.bin, a.sobre);
+        }
+        println!();
+        println!("Instale com: schematize apps instalar <app>");
+        return Ok(());
+    };
+
+    // Deny-by-default: só o que está na tabela. Um nome desconhecido não vira flag inventada
+    // no instalador — isso passaria `--qualquercoisa` para um script que roda com sudo.
+    let Some(a) = externo(&nome) else {
+        let nomes: Vec<&str> = EXTERNOS.iter().map(|x| x.bin).collect();
+        return Err(format!("não conheço o app `{nome}`. Os que existem: {}", nomes.join(", ")));
+    };
+
+    if let Estado::Instalado { versao, caminho } = descobrir_app(a.bin) {
+        println!("{} {versao} já está instalado em {}", a.bin, caminho.display());
+        println!("Para atualizar, rode o mesmo comando — ele recompila do fonte:");
+        println!("    {}", deployerlink::como_instalar_app(a.flag));
+        return Ok(());
+    }
+
+    let cmd = deployerlink::como_instalar_app(a.flag);
+    println!("Vou instalar o `{}` — {}", a.bin, a.sobre);
+    println!();
+    println!("  Isto COMPILA do fonte e leva minutos. Precisa de rede, e o instalador");
+    println!("  pode pedir sudo para as bibliotecas de build do sistema.");
+    println!("  Comando: {cmd}");
+    if !yes && !crate::cli::ssh::confirm("\n  Seguir? (s/N)") {
+        println!("cancelado — nada foi feito.");
+        return Ok(());
+    }
+
+    // Herda o terminal: a compilação é longa e o sudo precisa de onde perguntar.
+    let st = std::process::Command::new("bash")
+        .arg("-c")
+        .arg(&cmd)
+        .status()
+        .map_err(|e| format!("não consegui iniciar a instalação: {e}"))?;
+    if !st.success() {
+        return Err(format!(
+            "a instalação terminou com erro ({}). O schematize segue funcionando; \
+             o `{}` é opcional.",
+            st.code().map(|c| c.to_string()).unwrap_or_else(|| "sinal".into()),
+            a.bin
+        ));
+    }
+    match descobrir_app(a.bin) {
+        Estado::Instalado { versao, .. } => println!("\n✓ {} {versao} instalado.", a.bin),
+        // Veredito pelo ESTADO, não pelo código de saída do script: o install.sh é
+        // best-effort com os apps opcionais, então ele pode sair 0 sem ter instalado.
+        _ => println!(
+            "\nO instalador terminou, mas o `{}` ainda não responde. Rode \
+             `schematize apps` para ver o estado.",
+            a.bin
+        ),
+    }
+    Ok(())
+}
+
+/// **O quê:** repassa um comando a um app do ecossistema.
+/// **Onde:** `schematize apps exec <app> -- <args>`.
+pub(crate) fn apps_exec(app: String, args: Vec<String>) -> Result<(), String> {
+    use schematize::deployerlink::{descobrir_app, externo, EXTERNOS};
+    let Some(a) = externo(&app) else {
+        let nomes: Vec<&str> = EXTERNOS.iter().map(|x| x.bin).collect();
+        return Err(format!("não conheço o app `{app}`. Os que existem: {}", nomes.join(", ")));
+    };
+    match descobrir_app(a.bin) {
+        Estado::Instalado { caminho, .. } => {
+            let st = std::process::Command::new(&caminho)
+                .args(&args)
+                .status()
+                .map_err(|e| format!("não consegui executar {}: {e}", caminho.display()))?;
+            std::process::exit(st.code().unwrap_or(1));
+        }
+        _ => Err(format!(
+            "`{}` não está instalado. Instale com:\n    schematize apps instalar {}",
+            a.bin, a.bin
+        )),
+    }
 }

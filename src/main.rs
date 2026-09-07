@@ -227,7 +227,15 @@ fn main() {
         Cmd::Ssh { sub } => ssh_cmd(sub),
         Cmd::Vps { sub } => crate::cli::vps::vps_cmd(sub),
         Cmd::Mcp { sub } => crate::cli::mcp::mcp_cmd(sub),
-        Cmd::Apps => crate::cli::deployer::apps_cmd(),
+        Cmd::Apps { sub } => match sub {
+            None => crate::cli::deployer::apps_cmd(),
+            Some(crate::cli::args::AppsCmd::Instalar { app, yes }) => {
+                crate::cli::deployer::apps_instalar(app, yes)
+            }
+            Some(crate::cli::args::AppsCmd::Exec { app, args }) => {
+                crate::cli::deployer::apps_exec(app, args)
+            }
+        },
         Cmd::Deployer { sub } => crate::cli::deployer::deployer_cmd(sub),
         Cmd::Projects { sub } => projects_cmd(sub),
         Cmd::Login => login_cmd(),
