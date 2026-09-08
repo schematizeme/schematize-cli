@@ -113,21 +113,25 @@ jobs:
   # chamada ficava orfa. O codigo estava no `main`, verde, ha um dia — e so quebrou no job
   # `windows` do RELEASE, ou seja, DEPOIS da tag cortada, com o release publicado pela metade.
   #
-  # A causa nao foi o `cfg`: foi o Windows so ser compilado em tag. Um alvo que so e exercitado
-  # na publicacao e um alvo que descobre os proprios bugs na frente do usuario.
+  # A causa nao foi o `cfg`: foi o Windows so ser compilado em tag. Um alvo que so e
+  # exercitado na publicacao e um alvo que descobre os proprios bugs na frente do usuario.
   #
-  # `cargo check`, nao `build`: a pergunta e "resolve e tipa", que e a classe inteira de erro
-  # que o `cfg` produz. Linkar custaria minutos por push para responder a mesma pergunta.
-  # Roda em ubuntu com o alvo do Windows adicionado — nao precisa de runner Windows.
+  # POR QUE RUNNER WINDOWS, E NAO CROSS-COMPILE DO UBUNTU (que foi a 1a tentativa e falhou):
+  # uma dependencia C compilada por `cc-rs` precisa do `lib.exe` da MSVC, que nao existe no
+  # ubuntu — `error occurred in cc-rs: failed to find tool "lib.exe"`. Daria pra desviar pro
+  # alvo `-gnu` com mingw, mais barato, e ele PEGARIA esta classe de bug (`cfg(windows)` vale
+  # nos dois). Mas o release publica `-msvc`, e um guard que exercita um alvo diferente do que
+  # se publica e um guard que mente sobre o que provou. Aqui o ambiente e o MESMO do release.
+  #
+  # `check` e nao `build`: a pergunta e "resolve e tipa", que e a classe inteira de erro que o
+  # `cfg` produz. Linkar custaria minutos por push pra responder a mesma pergunta.
   # ---------------------------------------------------------------------------
   windows-compila:
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
 
       - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: x86_64-pc-windows-msvc
 
       - name: cache cargo
         uses: actions/cache@v4
@@ -138,5 +142,5 @@ jobs:
             target
           key: ${{ runner.os }}-cargo-win-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: cargo check --target x86_64-pc-windows-msvc
-        run: cargo check --target x86_64-pc-windows-msvc --all-targets
+      - name: cargo check (Windows)
+        run: cargo check --all-targets
