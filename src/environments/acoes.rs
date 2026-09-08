@@ -237,3 +237,122 @@ pub(crate) fn ensure_tool_ready(tool: &Tool) {
     // (iii) nem no PATH nem em ~/.local/bin — a instalação pode ter falhado.
     println!("{}", tf("env.ready_missing", &[("bin", tool.bin)]));
 }
+
+/// `schematize env switch <lang> --to <method>` — troca o método de instalação.
+///
+/// **O quê:** descobre por onde a linguagem está instalada, instala pelo método novo e só
+/// então remove o antigo.
+///
+/// **Onde:** despachado por `cli::diversos`.
+///
+/// ## A ordem é a garantia: instala o novo ANTES de remover o velho
+///
+/// O contrário — remover e depois instalar — deixa a pessoa **sem a linguagem** se o segundo
+/// passo falhar por rede, por espaço em disco ou por um pacote que a distro não tem. Nesta
+/// ordem, o pior caso é ficar com os dois instalados, que é chato e reversível.
+///
+/// ## Origem desconhecida NÃO é trocável
+///
+/// Se a procedência é [`Procedencia::Desconhecida`], a troca **recusa**. Remover pelo método
+/// errado — um `rustup self uninstall` num binário que o rustup nunca viu — falha na melhor
+/// das hipóteses e estraga outra coisa na pior. Dizer "não sei de onde isto veio, resolva à
+/// mão" é a resposta honesta.
+pub fn switch(lang: &str, para: &str, dry_run: bool, yes: bool) -> Result<(), String> {
+    use super::procedencia::{self, Procedencia};
+
+    let env = defs::ENVS
+        .iter()
+        .find(|e| e.lang == lang)
+        .ok_or_else(|| format!("não conheço a linguagem `{lang}`. Veja `schematize env list`"))?;
+    // `parse` devolve `Option`: nome desconhecido vira erro que LISTA o que existe, em vez
+    // de um "None" que não ensina nada.
+    let novo = Method::parse(para).ok_or_else(|| {
+        format!(
+            "método `{para}` não existe. Os que existem: {}",
+            Method::ALL.iter().map(|x| x.slug()).collect::<Vec<_>>().join(", ")
+        )
+    })?;
+    let m = Machine::probe();
+    if !m.available().contains(&novo) {
+        return Err(format!(
+            "o método `{}` não está disponível nesta máquina. Disponíveis: {}",
+            novo.slug(),
+            m.available().iter().map(|x| x.slug()).collect::<Vec<_>>().join(", ")
+        ));
+    }
+
+    let atual = procedencia::de(env.lang, env.bin, m.mise, m.docker);
+    if !atual.instalado() {
+        return Err(format!(
+            "`{lang}` não está instalado — não há o que trocar. Use `schematize env install {lang} --method {}`",
+            novo.slug()
+        ));
+    }
+    if let Procedencia::Desconhecida { caminho } = &atual {
+        return Err(format!(
+            "`{lang}` está em {} e eu não sei quem o instalou — pode ter sido asdf, nvm, um \
+             tarball ou a mão de alguém.\n  Não vou trocar: remover pelo método errado falha, \
+             ou pior, mexe no que não devia.\n  Remova você por onde instalou, e depois rode \
+             `schematize env install {lang} --method {}`",
+            caminho.display(),
+            novo.slug()
+        ));
+    }
+    let antigo = atual.metodo().expect("instalado e conhecido tem método");
+    if antigo == novo {
+        println!("`{lang}` já está instalado {} — nada a trocar.", atual.rotulo());
+        return Ok(());
+    }
+
+    let antigo_slug = antigo.slug();
+    println!("TROCAR `{lang}`: {} → via {}", atual.rotulo(), novo.slug());
+    println!();
+    println!("  1. instala por `{}`", novo.slug());
+    println!("  2. só então remove o `{}`", antigo.slug());
+    println!();
+    println!("  Nesta ordem de propósito: se o passo 1 falhar, você continua com o {antigo_slug}");
+    println!("  que já tinha. A ordem inversa deixaria a máquina sem a linguagem.");
+    if dry_run {
+        println!();
+        println!("(--dry-run: nada foi executado)");
+        return Ok(());
+    }
+    if !yes {
+        // A lib NÃO pergunta: quem tem terminal é a CLI. Sem `--yes` (ou `--dry-run`), a
+        // troca não acontece — falha fechada, e a mensagem diz o que falta.
+        println!();
+        println!("Nada foi feito. Repita com `--yes` para executar, ou `--dry-run` para ver");
+        println!("o plano sem tocar em nada.");
+        return Ok(());
+    }
+
+    println!("\n── 1/2: instalando por {} ──", novo.slug());
+    install(lang, Some(novo.slug().to_string()), false, true)?;
+
+    // Reconfere ANTES de remover: se o install saiu 0 mas não deixou nada utilizável,
+    // remover o antigo agora tiraria a única cópia funcional.
+    let depois = procedencia::de(env.lang, env.bin, m.mise, m.docker);
+    if !depois.instalado() {
+        return Err(format!(
+            "a instalação por `{}` terminou sem deixar `{lang}` utilizável. NÃO removi o `{}` \
+             — você segue com o que tinha.",
+            novo.slug(),
+            antigo.slug()
+        ));
+    }
+
+    println!("\n── 2/2: removendo o {} ──", antigo.slug());
+    if let Err(e) = remove(lang, Some(antigo.slug().to_string()), false) {
+        // Falhar aqui deixa os dois instalados. É chato e é reversível — e muito melhor que
+        // o inverso. Dizer exatamente isso evita que a pessoa ache que perdeu algo.
+        println!("aviso: não consegui remover o {}: {e}", antigo.slug());
+        println!("       `{lang}` está instalado pelos DOIS métodos agora. Nada se perdeu;");
+        println!(
+            "       remova o antigo quando quiser: schematize env remove {lang} --method {}",
+            antigo.slug()
+        );
+        return Ok(());
+    }
+    println!("\n✓ `{lang}` agora está via {}.", novo.slug());
+    Ok(())
+}

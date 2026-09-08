@@ -22,6 +22,7 @@ mod estado;
 mod maquina;
 mod path;
 mod plano;
+pub mod procedencia;
 pub use acoes::*;
 pub use estado::*;
 use maquina::*;

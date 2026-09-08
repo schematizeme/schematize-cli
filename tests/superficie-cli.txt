@@ -98,6 +98,12 @@ CMD schematize env remove
   ARG dry_run              --dry-run
   ARG lang                  OBRIGATORIO
   ARG method               --method
+CMD schematize env switch
+  SOBRE Switch how a language is installed (docker|mise|distro|official). Installs the new method FIRST, then removes the old one — a failure never leaves you without the language
+  ARG dry_run              --dry-run
+  ARG lang                  OBRIGATORIO
+  ARG to                   --to OBRIGATORIO
+  ARG yes                  --yes -y
 CMD schematize git
   SOBRE Contas de git/GitHub, repositórios e o que ainda não saiu da máquina
 CMD schematize git accounts

@@ -24,6 +24,11 @@ pub struct LangEnv {
     pub installed: Option<Method>,
     /// runtime/binário já presente no PATH (cobre distro/official e TODAS as ferramentas).
     pub runtime_present: bool,
+    /// POR ONDE entrou — não só que entrou. `None` para ferramentas (têm um caminho só).
+    ///
+    /// O campo `installed` acima só sabia de docker e mise; para distro e oficial ele dizia
+    /// `None`, e a tabela mostrava "instalado" mudo. Este responde a pergunta que faltava.
+    pub procedencia: Option<super::procedencia::Procedencia>,
 }
 
 impl LangEnv {
@@ -47,6 +52,7 @@ pub fn status() -> Vec<LangEnv> {
         methods_available: available.clone(),
         installed: installed_method(env, &m),
         runtime_present: detect::has_bin(env.bin),
+        procedencia: Some(super::procedencia::de(env.lang, env.bin, m.mise, m.docker)),
     });
     let tools = defs::TOOLS.iter().map(|tool| LangEnv {
         lang: tool.slug,
@@ -56,12 +62,22 @@ pub fn status() -> Vec<LangEnv> {
         methods_available: Vec::new(),
         installed: None,
         runtime_present: detect::has_bin(tool.bin),
+        // Ferramenta tem UM caminho canônico; perguntar "por onde" não faz sentido.
+        procedencia: None,
     });
     langs.chain(tools).collect()
 }
 
 /// Texto de status pra a tabela: instalado por qual método, ou só "instalado", ou não.
 pub(crate) fn status_text(le: &LangEnv) -> String {
+    // A PROCEDÊNCIA manda quando existe: ela distingue as quatro vias, e diz "não sei" em vez
+    // de deixar um "instalado" mudo. O `installed` (docker/mise) fica como retaguarda para
+    // quem consome a struct e ainda não conhece o campo novo.
+    if let Some(p) = &le.procedencia {
+        if p.instalado() {
+            return p.rotulo();
+        }
+    }
     if let Some(method) = le.installed {
         return tf("env.installed_via", &[("method", method.slug())]);
     }
@@ -85,5 +101,53 @@ pub fn list() {
             printed_tools_header = true;
         }
         println!("  {:<14} {:<34} {}", le.display, le.install_hint, status_text(le));
+    }
+}
+
+#[cfg(test)]
+mod tests_procedencia {
+    use super::*;
+    use crate::environments::procedencia::Procedencia;
+
+    fn le(p: Option<Procedencia>, runtime: bool) -> LangEnv {
+        LangEnv {
+            lang: "x",
+            display: "X",
+            category: "language",
+            install_hint: String::new(),
+            methods_available: Vec::new(),
+            installed: None,
+            runtime_present: runtime,
+            procedencia: p,
+        }
+    }
+
+    /// **O buraco que isto fechou:** antes, distro e official caíam num "instalado" mudo —
+    /// o runtime estava lá e nada dizia por onde entrou. Agora o rótulo diz.
+    #[test]
+    fn distro_e_oficial_deixam_de_ser_instalado_mudo() {
+        let d = le(Some(Procedencia::Distro { pacote: "ruby3.4".into() }), true);
+        assert!(status_text(&d).contains("ruby3.4"), "{}", status_text(&d));
+
+        let o = le(Some(Procedencia::Oficial { caminho: "/home/u/.cargo/bin/cargo".into() }), true);
+        assert!(status_text(&o).contains("oficial"), "{}", status_text(&o));
+    }
+
+    /// Origem desconhecida é DITA, não maquiada de "instalado" — e traz o caminho, que é o
+    /// que permite investigar.
+    #[test]
+    fn origem_desconhecida_aparece_na_tabela() {
+        let x = le(Some(Procedencia::Desconhecida { caminho: "/opt/velho/bin/node".into() }), true);
+        let t = status_text(&x);
+        assert!(t.contains("desconhecida"), "{t}");
+        assert!(t.contains("/opt/velho"), "sem o caminho não dá para investigar: {t}");
+    }
+
+    /// Ferramenta não tem procedência (um caminho canônico só) — e o texto continua o de
+    /// antes, sem regressão.
+    #[test]
+    fn ferramenta_sem_procedencia_mantem_o_texto_antigo() {
+        let t = le(None, true);
+        assert!(!status_text(&t).contains("via "), "ferramenta não tem 'via': {}", status_text(&t));
     }
 }

@@ -122,6 +122,22 @@ pub(crate) enum DiscoCmd {
 
 #[derive(Subcommand)]
 pub(crate) enum EnvCmd {
+    /// Switch how a language is installed (docker|mise|distro|official).
+    /// Installs the new method FIRST, then removes the old one — a failure never leaves you
+    /// without the language.
+    Switch {
+        /// language slug (go|rust|node|...).
+        lang: String,
+        /// target method.
+        #[arg(long = "to")]
+        to: String,
+        /// Show what would happen; change nothing.
+        #[arg(long)]
+        dry_run: bool,
+        /// Do not ask before starting.
+        #[arg(long, short = 'y')]
+        yes: bool,
+    },
     /// List languages and dev tools, install paths available here, and install status.
     List,
     /// Install a language runtime (via a method) OR a dev tool (claude|code|codex; --method ignored).

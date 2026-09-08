@@ -189,6 +189,9 @@ fn main() {
             Auto::Disable => autostart::disable(),
         },
         Cmd::Env { sub } => match sub {
+            EnvCmd::Switch { lang, to, dry_run, yes } => {
+                schematize::environments::switch(&lang, &to, dry_run, yes)
+            }
             EnvCmd::List => {
                 environments::list();
                 Ok(())
