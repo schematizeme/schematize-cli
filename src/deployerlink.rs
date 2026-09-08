@@ -27,30 +27,52 @@ use std::path::PathBuf;
 ///
 /// **Por que uma tabela e não um módulo por app:** a lógica de descobrir, versionar e
 /// instalar é idêntica; duplicá-la por app seria a divergência esperando acontecer. O que
-/// muda entre eles é só o nome do binário, a flag e a frase.
+/// muda entre eles é só o nome do binário e a frase.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct AppExterno {
     /// Nome do binário no `$PATH`.
     pub bin: &'static str,
-    /// Flag do `install.sh` que o instala.
-    pub flag: &'static str,
-    /// Uma linha sobre o que ele faz — vai no `status`.
+    /// Uma linha sobre o que ele faz — vai no `status` e na aba do Mercado.
     pub sobre: &'static str,
 }
+
+// O campo `flag` (a flag do `install.sh`) SAIU no ADR-0013: quem instala app da casa é o
+// `schematize-market`, e a flag era só o argumento do `curl | bash` que deixou de existir.
 
 /// Os apps externos que o schematize conhece.
 pub const EXTERNOS: &[AppExterno] = &[
     AppExterno {
         bin: "schematize-deployer",
-        flag: "--deployer",
         sobre: "SSH, VPS e acesso remoto auditado, com a credencial no cofre",
     },
     AppExterno {
         bin: "schematize-optimizer",
-        flag: "--optimizer",
         sobre: "mede o ambiente de dev e põe cada software no seu teto de recurso",
     },
+    AppExterno {
+        bin: "schematize-market",
+        sobre: "instala e atualiza tudo do ecossistema — runtimes, ferramentas e os apps da casa",
+    },
 ];
+
+/// **O quê:** o nome que este binário TEVE antes de ser renomeado, se houve renomeação.
+///
+/// **Onde:** [`descobrir_app`], como segunda tentativa.
+///
+/// **Por que existe:** o Deployer se chamou `deployer` até o commit `0fa0112` do repo dele.
+/// Numa máquina que o instalou antes disso, é esse o arquivo que está em `~/.cargo/bin` — e
+/// procurar só o nome novo faz o `status` e a aba do Mercado na GUI afirmarem "não instalado"
+/// sobre um app que está lá. Medido: `schematize-market list` dizia isso de um deployer 0.5.0.
+///
+/// **Por que a lista é curta e vive aqui:** o hub não depende do crate do market (ADR-0012), e
+/// duplicar a tabela inteira seria pior. O que se duplica é UM par nome-novo → nome-velho, com
+/// teste dos dois lados; a alternativa era o hub não saber nada e continuar mentindo.
+fn nome_legado(bin: &str) -> Option<&'static str> {
+    match bin {
+        "schematize-deployer" => Some("deployer"),
+        _ => None,
+    }
+}
 
 /// **O quê:** acha um app externo pelo nome do binário.
 /// **Onde:** a CLI, ao despachar `schematize <app> …`.
@@ -62,12 +84,6 @@ pub fn externo(bin: &str) -> Option<&'static AppExterno> {
 pub const BIN: &str = "schematize-deployer";
 /// Repositório, para a mensagem de instalação e para o `install.sh`.
 pub const REPO: &str = "schematizeme/schematize_deployer_rs";
-/// O `install.sh` que sabe instalar o Deployer — é o do SCHEMATIZE, com `--deployer`.
-///
-/// Repetido aqui em vez de reusar o do `selfupdate`: lá ele é privado e `#[cfg(unix)]`, e
-/// esta mensagem tem de existir no Windows também (onde ela é justamente a única saída).
-const INSTALL_SH: &str =
-    "https://raw.githubusercontent.com/schematizeme/schematize-cli/main/install.sh";
 
 /// O que se sabe do Deployer nesta máquina.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -100,7 +116,7 @@ impl Estado {
 /// fallback. Sem isso, o app aberto pelo lançador do desktop (que dá PATH mínimo) diria
 /// "não instalado" sobre um Deployer que está em `~/.cargo/bin`.
 pub fn descobrir_app(bin: &str) -> Estado {
-    let Some(caminho) = resolve_bin(bin) else {
+    let Some(caminho) = resolve_bin(bin).or_else(|| nome_legado(bin).and_then(resolve_bin)) else {
         return Estado::Ausente;
     };
     match crate::util::run(&caminho.to_string_lossy(), &["--version"]) {
@@ -117,23 +133,27 @@ pub fn descobrir() -> Estado {
     descobrir_app(BIN)
 }
 
-/// **O quê:** a linha de comando que instala o Deployer nesta máquina.
+/// **O quê:** a linha de comando que instala um app da casa nesta máquina.
 ///
-/// **Onde:** [`Estado::Ausente`] na CLI e na GUI. Função PURA — devolve o texto, não executa.
+/// **Onde:** o `status` da CLI e a aba do Mercado na GUI. Função PURA — devolve o texto,
+/// não executa.
+///
+/// **Quem instala é o `schematize-market` (ADR-0013), e isso mudou aqui.** Este texto era
+/// `curl -fsSL <install.sh> | bash -s -- --deployer`. Havia três lugares montando esse mesmo
+/// `curl | bash` — este, o market e o próprio script —, cada um com um comportamento, e
+/// nenhum deles dono. O market absorveu o updater e passou a ser o único responsável por
+/// instalar e atualizar; delegar a ele é o que faz este módulo parar de ser a terceira cópia.
 ///
 /// **Por que não instala sozinho:** instalar compila um app inteiro, pede rede e leva
 /// minutos. Fazer isso como efeito colateral de um `status` seria surpresa cara. O comando
 /// fica visível para a pessoa rodar quando quiser.
-pub fn como_instalar_app(flag: &str) -> String {
-    // O `install.sh` que tem a flag `--deployer` é o do SCHEMATIZE, não o do Deployer: é ele
-    // que já sabe cuidar do Rust, das libs de build e do target compartilhado. O Deployer
-    // entra como um quinto repo daquele mesmo fluxo.
-    format!("curl -fsSL {INSTALL_SH} | bash -s -- {flag}")
+pub fn como_instalar_app(bin: &str) -> String {
+    format!("schematize-market install {bin}")
 }
 
-/// **O quê:** como instalar o Deployer. **Onde:** compat.
+/// **O quê:** como instalar o Deployer. **Onde:** compat com quem já chamava.
 pub fn como_instalar() -> String {
-    como_instalar_app("--deployer")
+    como_instalar_app(BIN)
 }
 
 #[cfg(test)]
@@ -153,14 +173,39 @@ mod tests {
         assert!(!ruim.utilizavel(), "binário que não responde não pode contar como instalado");
     }
 
-    /// A instrução de instalação cita o repo do schematize (é o `install.sh` dele que tem a
-    /// flag) e a flag `--deployer`. Se um dia o caminho mudar, este teste é quem avisa.
+    /// A instrução de instalação DELEGA ao market (ADR-0013) — nada de `curl | bash`.
+    ///
+    /// Havia três lugares montando o mesmo `curl -fsSL <install.sh> | bash`: este, o market
+    /// e o próprio script. Se algum voltar a montá-lo, volta a duplicação que o ADR-0013
+    /// existe para acabar — e, no caso do market, um LOOP (o script delega a ele).
     #[test]
-    fn a_instrucao_de_instalar_e_acionavel() {
+    fn a_instrucao_de_instalar_delega_ao_market() {
         let c = como_instalar();
-        assert!(c.contains("--deployer"), "sem a flag o comando instala o app errado: {c}");
-        assert!(c.contains("install.sh"), "{c}");
-        assert!(c.starts_with("curl "), "tem de ser colável no terminal: {c}");
+        assert!(c.starts_with("schematize-market install"), "tem de delegar ao gestor: {c}");
+        assert!(c.contains(BIN), "e nomear o app certo: {c}");
+        for proibido in ["curl", "install.sh", "bash -s", "--deployer"] {
+            assert!(!c.contains(proibido), "`{proibido}` voltou ao caminho de instalar: {c}");
+        }
+        // E vale para todo app da tabela, não só o deployer.
+        for a in EXTERNOS {
+            let c = como_instalar_app(a.bin);
+            assert!(c.starts_with("schematize-market install"), "{}: {c}", a.bin);
+            assert!(!c.contains("curl"), "{}: {c}", a.bin);
+        }
+    }
+
+    /// **O nome LEGADO é reconhecido.** Enquanto não era, o `status` e a aba do Mercado na
+    /// GUI diziam "não instalado" sobre um deployer que estava na máquina — a resposta que
+    /// manda a pessoa instalar o que já tem.
+    #[test]
+    fn descobrir_app_conhece_o_nome_legado() {
+        assert_eq!(nome_legado("schematize-deployer"), Some("deployer"));
+        assert_eq!(nome_legado("schematize-optimizer"), None);
+        assert_eq!(nome_legado("schematize-market"), None);
+        // O nome velho NUNCA é o novo — se virarem iguais, a busca de fallback vira ruído.
+        for a in EXTERNOS {
+            assert_ne!(nome_legado(a.bin), Some(a.bin));
+        }
     }
 
     /// **A regra que a ponte existe para cumprir:** descobrir NUNCA falha. Numa máquina sem

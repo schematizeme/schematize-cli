@@ -115,7 +115,7 @@ pub(crate) fn apps_cmd() -> Result<(), String> {
             println!("    schematize apps install {}", a.bin);
         }
         println!();
-        println!("(ou, sem o schematize: {})", deployerlink::como_instalar_app(faltam[0].flag));
+        println!("(ou, sem o schematize: {})", deployerlink::como_instalar_app(faltam[0].bin));
     }
     Ok(())
 }
@@ -163,11 +163,11 @@ pub(crate) fn apps_instalar(app: Option<String>, yes: bool) -> Result<(), String
     if let Estado::Instalado { versao, caminho } = descobrir_app(a.bin) {
         println!("{} {versao} já está instalado em {}", a.bin, caminho.display());
         println!("Para atualizar, rode o mesmo comando — ele recompila do fonte:");
-        println!("    {}", deployerlink::como_instalar_app(a.flag));
+        println!("    {}", deployerlink::como_instalar_app(a.bin));
         return Ok(());
     }
 
-    let cmd = deployerlink::como_instalar_app(a.flag);
+    let cmd = deployerlink::como_instalar_app(a.bin);
     println!("Vou instalar o `{}` — {}", a.bin, a.sobre);
     println!();
     println!("  Isto COMPILA do fonte e leva minutos. Precisa de rede, e o instalador");
