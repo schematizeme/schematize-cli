@@ -64,7 +64,9 @@ mod tests {
     fn matriz_lang_metodo_completa() {
         for env in defs::ENVS {
             for method in Method::ALL {
-                for fam in [Family::Debian, Family::Rpm, Family::Unknown] {
+                for fam in
+                    [Family::Debian, Family::Suse, Family::Fedora, Family::Arch, Family::Unknown]
+                {
                     let r = defs::install_recipe(env, method, fam, true);
                     match r {
                         Recipe::Steps(s) => {
@@ -104,9 +106,11 @@ mod tests {
         let arch = "ID=arch\nID_LIKE=\n";
         assert_eq!(detect::family_from(ubuntu), Family::Debian);
         assert_eq!(detect::family_from(mint), Family::Debian);
-        assert_eq!(detect::family_from(suse), Family::Rpm);
-        assert_eq!(detect::family_from(fedora), Family::Rpm);
-        assert_eq!(detect::family_from(arch), Family::Unknown);
+        assert_eq!(detect::family_from(suse), Family::Suse);
+        assert_eq!(detect::family_from(fedora), Family::Fedora);
+        // Arch passou a ser suportado (era `Unknown`). Esta linha documentava a AUSÊNCIA de
+        // suporte; agora documenta a presença.
+        assert_eq!(detect::family_from(arch), Family::Arch);
         assert_eq!(detect::family_from(""), Family::Unknown);
     }
 
@@ -194,17 +198,22 @@ mod tests {
 
     /// VS Code no Rpm usa o repo oficial da Microsoft (3 passos: chave, repo, install).
     #[test]
-    fn vscode_rpm_usa_repo_microsoft() {
+    fn vscode_fedora_usa_repo_microsoft() {
         let tool = defs::find_tool("code").unwrap();
-        let steps = match defs::tool_install_recipe(tool, Family::Rpm) {
+        let steps = match defs::tool_install_recipe(tool, Family::Fedora) {
             Recipe::Steps(s) => s,
-            _ => panic!("esperava Steps pra VS Code em Rpm"),
+            _ => panic!("esperava Steps pra VS Code em Fedora"),
         };
         assert_eq!(steps.len(), 3);
         assert!(steps[0]
             .cmd
             .contains("rpm --import https://packages.microsoft.com/keys/microsoft.asc"));
-        assert!(steps[2].cmd.contains("dnf install -y code") && steps[2].cmd.contains("zypper"));
+        // O comando do Fedora é `dnf` PURO. Antes ele carregava um `if command -v zypper …`
+        // dentro, porque Fedora e SUSE eram a mesma família — e o usuário via aquele shell no
+        // plano de consentimento sem saber qual metade rodaria na máquina dele.
+        assert!(steps[2].cmd.contains("dnf install -y code"), "{}", steps[2].cmd);
+        assert!(!steps[2].cmd.contains("zypper"), "Fedora não pode carregar comando de SUSE");
+        assert!(!steps[2].cmd.contains("command -v"), "nada de decidir em runtime");
     }
 
     /// VS Code em família desconhecida é N/A (não chuta gerenciador de pacotes).
@@ -218,7 +227,7 @@ mod tests {
     #[test]
     fn claude_e_codex_caminho_canonico() {
         let claude = defs::find_tool("claude").unwrap();
-        for fam in [Family::Debian, Family::Rpm, Family::Unknown] {
+        for fam in [Family::Debian, Family::Suse, Family::Fedora, Family::Arch, Family::Unknown] {
             match defs::tool_install_recipe(claude, fam) {
                 Recipe::Steps(s) => {
                     assert_eq!(s.len(), 1);
@@ -254,7 +263,7 @@ mod tests {
         }
         assert!(matches!(defs::tool_remove_recipe(code, Family::Unknown), Recipe::Na(_)));
         let codex = defs::find_tool("codex").unwrap();
-        match defs::tool_remove_recipe(codex, Family::Rpm) {
+        match defs::tool_remove_recipe(codex, Family::Fedora) {
             Recipe::Steps(s) => assert!(s[0].cmd.contains("npm uninstall -g @openai/codex")),
             _ => panic!("codex remove tem Steps"),
         }
@@ -265,7 +274,7 @@ mod tests {
     #[test]
     fn codex_instala_com_sudo() {
         let codex = defs::find_tool("codex").unwrap();
-        for fam in [Family::Debian, Family::Rpm, Family::Unknown] {
+        for fam in [Family::Debian, Family::Suse, Family::Fedora, Family::Arch, Family::Unknown] {
             match defs::tool_install_recipe(codex, fam) {
                 Recipe::Steps(s) => {
                     let npm = s

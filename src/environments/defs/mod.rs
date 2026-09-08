@@ -9,6 +9,12 @@
 
 use super::detect::Family;
 
+mod distro;
+// Reexporta o que o `defs` usa e o que o resto do crate já chamava por `defs::…` — o corte é
+// de arquivo, não de superfície: nada fora daqui precisou mudar de nome.
+pub use distro::distro_indisponivel;
+use distro::{distro_install_cmd, distro_pkgs, distro_remove_cmd};
+
 /// Um environment de linguagem: runtime + ferramentas comuns de desenvolvimento.
 pub struct Env {
     /// slug curto (o que o usuário digita): "go", "rust", ...
@@ -223,62 +229,6 @@ pub fn docker_image(lang: &str) -> Option<&'static str> {
     }
 }
 
-/// Pacotes da distro por (linguagem, gerenciador). Retorna a lista de pacotes do runtime.
-/// Nomes podem variar entre distros da mesma família — por isso separamos zypper de dnf.
-struct DistroPkgs {
-    debian: &'static str,
-    zypper: &'static str,
-    dnf: &'static str,
-}
-
-/// Mapa de pacotes de runtime da distro por linguagem.
-fn distro_pkgs(lang: &str) -> Option<DistroPkgs> {
-    Some(match lang {
-        "go" => DistroPkgs { debian: "golang-go", zypper: "go", dnf: "golang" },
-        "rust" => DistroPkgs { debian: "rustc cargo", zypper: "rust cargo", dnf: "rust cargo" },
-        "elixir" => DistroPkgs { debian: "elixir", zypper: "elixir", dnf: "elixir" },
-        "csharp" => {
-            DistroPkgs { debian: "dotnet-sdk-8.0", zypper: "dotnet-sdk-8.0", dnf: "dotnet-sdk-8.0" }
-        }
-        "zig" => DistroPkgs { debian: "zig", zypper: "zig", dnf: "zig" },
-        "ruby" => DistroPkgs {
-            debian: "ruby ruby-dev",
-            zypper: "ruby ruby-devel",
-            dnf: "ruby ruby-devel",
-        },
-        "node" => DistroPkgs { debian: "nodejs npm", zypper: "nodejs npm", dnf: "nodejs npm" },
-        _ => return None,
-    })
-}
-
-/// Comando de instalar pacotes conforme a família (embute o if zypper/dnf pra rpm).
-fn distro_install_cmd(fam: Family, pkgs: &DistroPkgs) -> String {
-    match fam {
-        Family::Debian => {
-            format!("sudo apt-get update -qq && sudo apt-get install -y {}", pkgs.debian)
-        }
-        Family::Rpm => format!(
-            "if command -v zypper >/dev/null; then sudo zypper --non-interactive install -y {}; \
-             else sudo dnf install -y {}; fi",
-            pkgs.zypper, pkgs.dnf
-        ),
-        Family::Unknown => String::new(),
-    }
-}
-
-/// Comando de remover pacotes conforme a família.
-fn distro_remove_cmd(fam: Family, pkgs: &DistroPkgs) -> String {
-    match fam {
-        Family::Debian => format!("sudo apt-get remove -y {}", pkgs.debian),
-        Family::Rpm => format!(
-            "if command -v zypper >/dev/null; then sudo zypper --non-interactive rm -y {}; \
-             else sudo dnf remove -y {}; fi",
-            pkgs.zypper, pkgs.dnf
-        ),
-        Family::Unknown => String::new(),
-    }
-}
-
 /// Passos pra instalar as FERRAMENTAS via o pkg-manager da própria linguagem (runtime já no PATH).
 /// Reusado por mise/official/distro. `docker` não usa (as ferramentas vivem na imagem).
 /// Só inclui o que tem instalador não-interativo confiável; o resto vira `caveats`.
@@ -402,6 +352,11 @@ pub fn install_recipe(env: &Env, method: Method, fam: Family, mise_present: bool
                     return Recipe::Na(format!("sem pacote de distro mapeado pra {}.", env.display))
                 }
             };
+            // Recusa ANTES de montar o plano. Sem isto, a pessoa digitava a senha do sudo
+            // para ver o gerenciador de pacotes morrer com "Nenhum fornecedor encontrado".
+            if let Some(motivo) = distro_indisponivel(env.lang, fam) {
+                return Recipe::Na(motivo);
+            }
             let mut steps = vec![step(&distro_install_cmd(fam, &pkgs), fam.label(), true, false)];
             steps.extend(tool_steps(env.lang, Method::Distro));
             Recipe::Steps(steps)
@@ -551,7 +506,11 @@ pub fn tool_install_recipe(tool: &Tool, fam: Family) -> Recipe {
                 true,
                 false,
             )]),
-            Family::Rpm => Recipe::Steps(vec![
+            // SUSE e Fedora usam o MESMO repo da Microsoft, com comandos diferentes.
+            // Antes eram um `Family::Rpm` com um `if command -v zypper` dentro do comando —
+            // e o usuário via aquele shell no plano de consentimento sem saber qual metade
+            // rodaria na máquina dele.
+            Family::Suse => Recipe::Steps(vec![
                 step(
                     "sudo rpm --import https://packages.microsoft.com/keys/microsoft.asc",
                     "packages.microsoft.com (chave oficial)",
@@ -559,23 +518,43 @@ pub fn tool_install_recipe(tool: &Tool, fam: Family) -> Recipe {
                     false,
                 ),
                 step(
-                    "if command -v zypper >/dev/null; then \
-                       sudo zypper --non-interactive addrepo -f https://packages.microsoft.com/yumrepos/vscode vscode; \
-                     else \
-                       printf '[code]\\nname=Visual Studio Code\\nbaseurl=https://packages.microsoft.com/yumrepos/vscode\\nenabled=1\\nautorefresh=1\\ntype=rpm-md\\ngpgcheck=1\\ngpgkey=https://packages.microsoft.com/keys/microsoft.asc\\n' | sudo tee /etc/yum.repos.d/vscode.repo >/dev/null; \
-                     fi",
-                    "packages.microsoft.com/yumrepos/vscode (repo oficial)",
+                    "sudo zypper --non-interactive addrepo -f https://packages.microsoft.com/yumrepos/vscode vscode",
+                    "packages.microsoft.com (repo oficial)",
                     true,
                     false,
                 ),
                 step(
-                    "if command -v zypper >/dev/null; then sudo zypper --non-interactive install -y code; \
-                     else sudo dnf install -y code; fi",
-                    "repo oficial da Microsoft",
+                    "sudo zypper --non-interactive --gpg-auto-import-keys install -y code",
+                    "packages.microsoft.com",
                     true,
                     false,
                 ),
             ]),
+            Family::Fedora => Recipe::Steps(vec![
+                step(
+                    "sudo rpm --import https://packages.microsoft.com/keys/microsoft.asc",
+                    "packages.microsoft.com (chave oficial)",
+                    true,
+                    false,
+                ),
+                step(
+                    "sudo dnf config-manager --add-repo https://packages.microsoft.com/yumrepos/vscode",
+                    "packages.microsoft.com (repo oficial)",
+                    true,
+                    false,
+                ),
+                step("sudo dnf install -y code", "packages.microsoft.com", true, false),
+            ]),
+            // Arch: o `code` dos repos oficiais é o build OSS (Code - OSS), não o VS Code da
+            // Microsoft. O proprietário só existe no AUR, e AUR exige um helper (yay, paru…)
+            // que varia por máquina. Dizer isso é melhor que instalar outro programa com o
+            // mesmo nome e deixar a pessoa descobrir sozinha que faltam extensões.
+            Family::Arch => Recipe::Na(
+                "no Arch, o VS Code da Microsoft vive no AUR (`visual-studio-code-bin`), que \
+                 exige um helper (yay/paru). O `code` dos repos oficiais é o Code - OSS, que é \
+                 outro programa. Instale por um dos dois caminhos, à sua escolha."
+                    .into(),
+            ),
             Family::Unknown => Recipe::Na(
                 "família da distro não detectada — VS Code precisa de apt (.deb) ou dnf/zypper (rpm).".into(),
             ),
@@ -615,13 +594,20 @@ pub fn tool_remove_recipe(tool: &Tool, fam: Family) -> Recipe {
             Family::Debian => {
                 Recipe::Steps(vec![step("sudo apt-get remove -y code", fam.label(), true, false)])
             }
-            Family::Rpm => Recipe::Steps(vec![step(
-                "if command -v zypper >/dev/null; then sudo zypper --non-interactive rm -y code; \
-                 else sudo dnf remove -y code; fi",
+            Family::Suse => Recipe::Steps(vec![step(
+                "sudo zypper --non-interactive rm -y code",
                 fam.label(),
                 true,
                 false,
             )]),
+            Family::Fedora => {
+                Recipe::Steps(vec![step("sudo dnf remove -y code", fam.label(), true, false)])
+            }
+            Family::Arch => Recipe::Na(
+                "não fui eu que instalei o VS Code nesta máquina — remova pelo caminho que \
+                 usou (pacman ou o helper de AUR)."
+                    .into(),
+            ),
             Family::Unknown => Recipe::Na("família da distro não detectada.".into()),
         },
         // Instalado como root (sudo npm -g) → remover também exige sudo (senão EACCES).
