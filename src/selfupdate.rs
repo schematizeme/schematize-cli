@@ -166,7 +166,15 @@ fn upgrade_from_source_in_terminal() -> Result<String, String> {
 
 /// O binário baixado EXECUTA nesta máquina? (`<bin> --version` roda). Protege contra trocar por um
 /// binário de glibc incompatível (ex.: build do Debian num openSUSE Leap) que brickaria a instalação.
-#[cfg(unix)]
+///
+/// **Por que NÃO é `#[cfg(unix)]`, embora já tenha sido.** A pergunta que ela faz — "o binário
+/// que acabei de baixar roda aqui?" — vale em todo SO; o `cfg` era incidental, porque o único
+/// chamador de então vivia sob `cfg(not(windows))`. Quando o [`ensure_gestor`] (ADR-0013) passou
+/// a chamá-la de código cross-platform, a definição sumia no Windows e a chamada ficava órfã:
+/// `cannot find function binary_runs in this scope`, que quebrou o job `windows` do release.
+///
+/// O que é específico de Unix é o `chmod +x` de antes da chamada — e esse continua com o `cfg`
+/// dele, no chamador, que é onde ele pertence.
 fn binary_runs(bin: &Path) -> bool {
     util::run(bin.to_str().unwrap_or_default(), &["--version"]).is_ok()
 }

@@ -104,3 +104,39 @@ jobs:
           git clone --depth 1 https://github.com/schematizeme/schematize_gui_slint.git \
             ../schematize_gui_slint
           cargo test --lib guipin -- --ignored
+
+  # ---------------------------------------------------------------------------
+  # O CODIGO COMPILA NO WINDOWS?
+  #
+  # POR QUE ISTO EXISTE: o `binary_runs` era `#[cfg(unix)]`, e quando o `ensure_gestor`
+  # (ADR-0013) passou a chama-lo de codigo cross-platform, a definicao sumia no Windows e a
+  # chamada ficava orfa. O codigo estava no `main`, verde, ha um dia — e so quebrou no job
+  # `windows` do RELEASE, ou seja, DEPOIS da tag cortada, com o release publicado pela metade.
+  #
+  # A causa nao foi o `cfg`: foi o Windows so ser compilado em tag. Um alvo que so e exercitado
+  # na publicacao e um alvo que descobre os proprios bugs na frente do usuario.
+  #
+  # `cargo check`, nao `build`: a pergunta e "resolve e tipa", que e a classe inteira de erro
+  # que o `cfg` produz. Linkar custaria minutos por push para responder a mesma pergunta.
+  # Roda em ubuntu com o alvo do Windows adicionado — nao precisa de runner Windows.
+  # ---------------------------------------------------------------------------
+  windows-compila:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-win-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: cargo check --target x86_64-pc-windows-msvc
+        run: cargo check --target x86_64-pc-windows-msvc --all-targets
