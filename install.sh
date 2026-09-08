@@ -328,14 +328,18 @@ install_app_icons() {
 # maior precedência no PATH é exatamente o tipo de fantasma que faz o app "voltar"
 # pra uma versão velha — o bug que esta purga existe pra matar.
 #
-# O `deployer` NÃO está nesta lista, e a ausência é DELIBERADA. A purga roda em TODA
-# instalação; se ele entrasse aqui, um `install.sh` sem `--deployer` — o caso normal —
-# passaria a APAGAR o deployer de quem o tem. Instalar o app não pode desinstalar outro,
-# pelo mesmo motivo que atualizar não pode instalar o que ninguém pediu.
+# O `schematize-deployer` e o `schematize-optimizer` NÃO estão nesta lista, e a ausência é
+# DELIBERADA. A purga roda em TODA instalação; se eles entrassem aqui, um `install.sh` sem
+# `--deployer` — o caso normal — passaria a APAGAR o deployer de quem o tem. Instalar o app
+# não pode desinstalar outro, pelo mesmo motivo que atualizar não pode instalar o que
+# ninguém pediu.
 #
-# Ele também não precisa da purga: só é instalado em `~/.cargo/bin`, e o `install -m755`
+# Eles também não precisam da purga: só são instalados em `~/.cargo/bin`, e o `install -m755`
 # sobrescreve. A ambiguidade de "quatro lugares possíveis" que criou esta função nunca
-# existiu para ele.
+# existiu para eles.
+#
+# Os nomes ANTIGOS `deployer`/`optimizer` (sem prefixo) são caso diferente, e estão na lista
+# de APOSENTADOS abaixo — ver a nota lá.
 BINS="overflow overflow-gui overflow-updater overflow-updater-gui \
 schematize schematize-gui schematize-updater schematize-updater-gui"
 
@@ -364,14 +368,23 @@ purge_previous() {
   #    antes abriria uma janela em que um build longo que falha deixa a máquina sem app
   #    nenhum. As cópias que causam o bug são as OUTRAS: são elas que o PATH pega
   #    primeiro. Some com elas e a ambiguidade acaba, sem desarmar ninguém no caminho.
-  # Binários do INTERREGNO (nome Overflow) também no dir de DESTINO. A purga normal
-  # poupa o destino de propósito — é lá que a instalação nova vai escrever, e apagar
-  # antes abriria uma janela sem app. Mas `overflow*` foi retirado de circulação: não
-  # há instalação nova pra escrever por cima, e deixá-lo cria um binário órfão no PATH.
+  # Binários APOSENTADOS — também no dir de DESTINO. A purga normal poupa o destino de
+  # propósito: é lá que a instalação nova vai escrever, e apagar antes abriria uma janela
+  # sem app. Mas estes nomes saíram de circulação e NÃO têm instalação nova pra escrever
+  # por cima; deixá-los cria um binário órfão no PATH.
+  #
+  #   `overflow*`  — o interregno em que o app se chamou Overflow.
+  #   `deployer`, `optimizer` — o nome sem prefixo, antes do ADR-0012. Hoje os binários são
+  #   `schematize-deployer` e `schematize-optimizer`; o nome curto não é mais escrito por
+  #   ninguém, então sobreviveria no PATH apontando para uma versão congelada — e o app,
+  #   atualizado ao lado, pareceria "não ter mudado nada".
+  #
+  # Note a diferença para a nota do BINS: ali o nome está VIVO e apagá-lo desinstalaria o
+  # app de alguém. Aqui o nome está MORTO, e não apagá-lo é que quebra.
   for d in "$TARGET_HOME/.cargo/bin" "$TARGET_HOME/.local/bin" /usr/local/bin /usr/bin; do
-    for b in overflow overflow-gui overflow-updater overflow-updater-gui; do
+    for b in overflow overflow-gui overflow-updater overflow-updater-gui deployer optimizer; do
       [ -e "$d/$b" ] && { rm -f "$d/$b" 2>/dev/null || $SUDO rm -f "$d/$b" 2>/dev/null; } && \
-        log "removido binário do interregno: $d/$b"
+        log "removido binário aposentado: $d/$b"
     done
   done
 
@@ -682,6 +695,62 @@ install_source() {
   else
     warn "GUI do updater não compilou (opcional) — segue sem ela."
   fi
+# -----------------------------------------------------------------------------
+# registrar_no_menu <caminho-do-binario> <nome>
+#
+# Cada app do ecossistema registra a PRÓPRIA entrada no menu de aplicativos — é o que o
+# torna abrível sem o schematize (ADR-0010/0011).
+#
+# POR QUE ISTO VIROU FUNÇÃO, E POR QUE ELA FALA QUANDO FALHA
+#
+# Antes, os dois blocos chamavam `desktop --instalar >/dev/null 2>&1` inline. Quando a CLI
+# dos apps foi traduzida para inglês, a flag virou `--install` — e as duas chamadas passaram
+# a falhar **em silêncio**, porque o `>/dev/null` engolia o erro e o ramo `else` só dizia
+# "instalado", sem mencionar o ícone. O resultado foi um app instalado que não aparecia em
+# lista de software nenhuma, sem uma linha de saída que apontasse a causa.
+#
+# Best-effort continua certo: sem ícone é chato, derrubar a instalação por causa dele é
+# pior. Mas best-effort **não é mudo**. Se o passo falhar, isto diz qual comando falhar e
+# como consertar à mão — o §37.48 cobra mensagem acionável, não um sucesso que mente.
+# -----------------------------------------------------------------------------
+registrar_no_menu() {
+  local exe="$1" nome="$2" saida
+  if saida="$(as_user "$exe" desktop --install 2>&1)"; then
+    ok "$nome já aparece no menu de aplicativos."
+    return 0
+  fi
+  warn "$nome foi instalado, mas não consegui pôr o ícone no menu."
+  warn "  o que falhou: $exe desktop --install"
+  [ -n "$saida" ] && warn "  disse: $(printf '%s' "$saida" | head -n 2 | tr '\n' ' ')"
+  warn "  rode o comando acima para tentar de novo; o app funciona pelo terminal do mesmo jeito."
+  return 0
+}
+
+  # ---------------------------------------------------------------------------
+  # MARKET — instalar e remover programas (ADR-0012). Vai SEMPRE, sem flag.
+  #
+  # POR QUE ESTE É DIFERENTE DO DEPLOYER E DO OPTIMIZER: aqueles são opt-in porque fazem
+  # coisa que ninguém pediu (guardar credencial, mexer em slice de systemd). O market faz
+  # exatamente o que quem rodou este script já estava fazendo — instalar programa. Ele é o
+  # "de brinde com qualquer aplicação base": sem ele, quem instala o schematize hoje perde o
+  # `env`, que saiu do hub nesta mesma decisão.
+  #
+  # Best-effort pelo mesmo motivo dos outros (piso 10): se não compilar, o schematize segue
+  # instalado. Mas aqui a falha DÓI mais, e por isso o aviso diz o que se perdeu.
+  # ---------------------------------------------------------------------------
+  local mkt="$base/schematize_market_rs"
+  log "compilando o schematize-market (instalar/remover programas)"
+  if _sync_repo "https://github.com/schematizeme/schematize_market_rs.git" "$mkt" 2>/dev/null \
+     && as_user sh -c "cd '$mkt' && CARGO_TARGET_DIR='$tgt' cargo build --release" \
+     && as_user install -m755 "$tgt/release/schematize-market" "$bin/schematize-market"; then
+    registrar_no_menu "$bin/schematize-market" "schematize-market"
+    ok "schematize-market instalado. Veja tudo com: schematize-market list"
+  else
+    warn "o schematize-market não compilou — o schematize segue instalado e funcionando,"
+    warn "mas a instalação de linguagens (go, rust, node…) mora nele. Tente sozinho:"
+    warn "  https://github.com/schematizeme/schematize_market_rs"
+  fi
+
   # ---------------------------------------------------------------------------
   # DEPLOYER — SSH, VPS e acesso remoto auditado (ADR-0010). OPT-IN, com `--deployer`.
   #
@@ -699,18 +768,11 @@ install_source() {
     log "compilando o schematize-deployer (SSH/VPS) — pedido com --deployer"
     if _sync_repo "https://github.com/schematizeme/schematize_deployer_rs.git" "$dep" 2>/dev/null \
        && as_user sh -c "cd '$dep' && CARGO_TARGET_DIR='$tgt' cargo build --release $feats" \
-       && as_user install -m755 "$tgt/release/deployer" "$bin/deployer"; then
-      # O app registra a PRÓPRIA entrada no menu — é o que o torna abrível sem o schematize.
-      # Best-effort: sem ícone é chato; derrubar a instalação por causa dele é pior.
-      # O app registra a PRÓPRIA entrada no menu — é o que o torna abrível sem o
-      # schematize. Best-effort: sem ícone é chato; derrubar a instalação por isso é pior.
-      if as_user "$bin/deployer" desktop --instalar >/dev/null 2>&1; then
-        ok "schematize-deployer instalado (deployer) — já aparece no menu de aplicativos."
-      else
-        ok "schematize-deployer instalado (deployer). Comece com: deployer cofre init"
-      fi
+       && as_user install -m755 "$tgt/release/schematize-deployer" "$bin/schematize-deployer"; then
+      registrar_no_menu "$bin/schematize-deployer" "schematize-deployer"
+      ok "schematize-deployer instalado. Comece com: schematize-deployer vault init"
     else
-      warn "o deployer não compilou — o schematize segue instalado e funcionando."
+      warn "o schematize-deployer não compilou — o schematize segue instalado e funcionando."
       warn "tente sozinho: https://github.com/schematizeme/schematize_deployer_rs"
     fi
   fi
@@ -729,16 +791,11 @@ install_source() {
     log "compilando o schematize-optimizer (recursos) — pedido com --optimizer"
     if _sync_repo "https://github.com/schematizeme/schematize_optimizer_rs.git" "$opt" 2>/dev/null \
        && as_user sh -c "cd '$opt' && CARGO_TARGET_DIR='$tgt' cargo build --release" \
-       && as_user install -m755 "$tgt/release/optimizer" "$bin/optimizer"; then
-      # O app registra a PRÓPRIA entrada no menu — é o que o torna abrível sem o
-      # schematize. Best-effort: sem ícone é chato; derrubar a instalação por isso é pior.
-      if as_user "$bin/optimizer" desktop --instalar >/dev/null 2>&1; then
-        ok "schematize-optimizer instalado (optimizer) — já aparece no menu de aplicativos."
-      else
-        ok "schematize-optimizer instalado (optimizer). Comece com: optimizer diag"
-      fi
+       && as_user install -m755 "$tgt/release/schematize-optimizer" "$bin/schematize-optimizer"; then
+      registrar_no_menu "$bin/schematize-optimizer" "schematize-optimizer"
+      ok "schematize-optimizer instalado. Comece com: schematize-optimizer diag"
     else
-      warn "o optimizer não compilou — o schematize segue instalado e funcionando."
+      warn "o schematize-optimizer não compilou — o schematize segue instalado e funcionando."
       warn "tente sozinho: https://github.com/schematizeme/schematize_optimizer_rs"
     fi
   fi

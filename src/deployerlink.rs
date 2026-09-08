@@ -41,12 +41,12 @@ pub struct AppExterno {
 /// Os apps externos que o schematize conhece.
 pub const EXTERNOS: &[AppExterno] = &[
     AppExterno {
-        bin: "deployer",
+        bin: "schematize-deployer",
         flag: "--deployer",
         sobre: "SSH, VPS e acesso remoto auditado, com a credencial no cofre",
     },
     AppExterno {
-        bin: "optimizer",
+        bin: "schematize-optimizer",
         flag: "--optimizer",
         sobre: "mede o ambiente de dev e põe cada software no seu teto de recurso",
     },
@@ -59,7 +59,7 @@ pub fn externo(bin: &str) -> Option<&'static AppExterno> {
 }
 
 /// Nome do binário do Deployer.
-pub const BIN: &str = "deployer";
+pub const BIN: &str = "schematize-deployer";
 /// Repositório, para a mensagem de instalação e para o `install.sh`.
 pub const REPO: &str = "schematizeme/schematize_deployer_rs";
 /// O `install.sh` que sabe instalar o Deployer — é o do SCHEMATIZE, com `--deployer`.
@@ -144,10 +144,12 @@ mod tests {
     /// binário quebrado seria tratado como bom e a GUI abriria o que não abre.
     #[test]
     fn so_o_instalado_e_utilizavel() {
-        let bom = Estado::Instalado { caminho: "/x/deployer".into(), versao: "0.2.1".into() };
+        let bom =
+            Estado::Instalado { caminho: "/x/schematize-deployer".into(), versao: "0.2.1".into() };
         assert!(bom.utilizavel());
         assert!(!Estado::Ausente.utilizavel());
-        let ruim = Estado::Quebrado { caminho: "/x/deployer".into(), erro: "libc".into() };
+        let ruim =
+            Estado::Quebrado { caminho: "/x/schematize-deployer".into(), erro: "libc".into() };
         assert!(!ruim.utilizavel(), "binário que não responde não pode contar como instalado");
     }
 
