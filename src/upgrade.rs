@@ -22,12 +22,12 @@ pub fn app_version() -> &'static str {
 
 /// Há versão mais nova do PRÓPRIO app publicada? Retorna `Some((atual, latest))` se sim, `None`
 /// se já está em dia OU se a checagem falhou (rede/GitHub) — resiliente, nunca panica.
-/// O quê: reusa o MESMO mecanismo raw de `skills::latest_version_raw` (lê a versão do `Cargo.toml`
+/// O quê: reusa o MESMO mecanismo raw de `versoes::latest_version_raw` (lê a versão do `Cargo.toml`
 /// no `main` via raw.githubusercontent, SEM a API 60/h) e compara semver com `util::semver_lt`.
 /// Onde: consumido pela GUI (badge "Atualizar app") e pelo módulo de notificações.
 pub fn app_update_available() -> Option<(String, String)> {
     let cur = app_version().to_string();
-    let latest = crate::skills::latest_version_raw(APP_REPO)?;
+    let latest = crate::versoes::latest_version_raw(APP_REPO)?;
     if crate::util::semver_lt(&cur, &latest) {
         Some((cur, latest))
     } else {

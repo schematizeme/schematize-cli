@@ -4,6 +4,7 @@
 //! catálogo por skill (disco vs raw) e o tail do update.log. Onde: `schematize debug`.
 
 use crate::util::{self, commands_dir, config_path, settings_path, skills_dir};
+use crate::versoes;
 use crate::{registry, skills};
 use std::path::Path;
 
@@ -50,7 +51,7 @@ pub fn report_text() -> String {
     let cur = env!("CARGO_PKG_VERSION");
 
     let _ = writeln!(o, "instalada (este bin): {cur}");
-    let src = skills::latest_version_raw("schematize-cli");
+    let src = versoes::latest_version_raw("schematize-cli");
     let _ = writeln!(o, "fonte (raw main): {}", src.as_deref().unwrap_or("? (raw indisponível)"));
     match &src {
         Some(s) if s == cur => {
@@ -67,7 +68,7 @@ pub fn report_text() -> String {
     let _ = writeln!(
         o,
         "API releases/latest: {}",
-        skills::latest_release_tag("schematize-cli")
+        versoes::latest_release_tag("schematize-cli")
             .as_deref()
             .unwrap_or("? (rate limit? ver abaixo)")
     );
@@ -119,7 +120,7 @@ pub fn run() {
 
     hdr("versão do schematize (CLI)");
     kv("instalada (este bin)", cur);
-    let src = skills::latest_version_raw("schematize-cli");
+    let src = versoes::latest_version_raw("schematize-cli");
     kv("fonte (raw main)", src.as_deref().unwrap_or("? (raw indisponível)"));
     match &src {
         Some(s) if s == cur => kv("veredito", "atualizado ✓"),
@@ -130,7 +131,7 @@ pub fn run() {
     }
     kv(
         "API releases/latest",
-        skills::latest_release_tag("schematize-cli")
+        versoes::latest_release_tag("schematize-cli")
             .as_deref()
             .unwrap_or("? (rate limit? ver abaixo)"),
     );
@@ -186,7 +187,7 @@ pub fn run() {
     kv("skills no catálogo", &cat.len().to_string());
     for it in &cat {
         let inst = skills::installed_version(it).unwrap_or_else(|| "—".into());
-        let latest = skills::latest_version_raw(&it.repo).unwrap_or_else(|| "?".into());
+        let latest = versoes::latest_version_raw(&it.repo).unwrap_or_else(|| "?".into());
         let mark = if inst == "—" {
             "não instalada"
         } else if inst == latest {

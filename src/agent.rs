@@ -4,6 +4,7 @@
 
 use crate::i18n::{t, tf};
 use crate::registry::{self, Item};
+use crate::versoes;
 use crate::{news, skills, util};
 use notify_rust::Notification;
 use std::time::Duration;
@@ -13,7 +14,7 @@ const CLI_REPO: &str = "schematize-cli";
 
 /// Última versão publicada do CLI (via API do GitHub).
 fn cli_latest() -> Option<String> {
-    skills::latest_version_raw(CLI_REPO)
+    versoes::latest_version_raw(CLI_REPO)
 }
 
 /// Uma atualização disponível.

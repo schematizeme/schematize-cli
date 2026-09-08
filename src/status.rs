@@ -3,6 +3,7 @@
 //! Onde: chamado por main; também é a "home" conceitual da GUI.
 
 use crate::i18n::{self, t, tf};
+use crate::versoes;
 use crate::{autostart, links, overdev, registry, settings, skills};
 
 fn header(s: &str) {
@@ -20,7 +21,7 @@ pub fn run() {
         println!("  {}", skills::status_line(it, &st, true));
     }
     let cur = env!("CARGO_PKG_VERSION");
-    let cli_latest = skills::latest_version_raw("schematize-cli").unwrap_or_else(|| "?".into());
+    let cli_latest = versoes::latest_version_raw("schematize-cli").unwrap_or_else(|| "?".into());
     let cli_up = if cli_latest == cur { t("common.current") } else { t("common.update") };
     println!("  {:<12} {:<8} latest={:<8} {}", t("status.cli"), cur, cli_latest, cli_up);
 

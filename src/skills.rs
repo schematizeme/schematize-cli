@@ -66,30 +66,8 @@ pub fn installed_version(it: &Item) -> Option<String> {
 /// Resolve a última versão de uma skill/CLI a partir do FONTE (raw main) — NÃO da API
 /// do GitHub (que é limitada a 60/h e por isso quebrava o versionamento). Ver `latest_version_raw`.
 pub fn resolve_latest(it: &Item) -> Result<String, String> {
-    latest_version_raw(&it.repo)
+    crate::versoes::latest_version_raw(&it.repo)
         .ok_or_else(|| format!("não consegui resolver a versão de {}", it.slug))
-}
-
-/// Última versão lida de `raw.githubusercontent.com/<org>/<repo>/main/...` — SEM a API
-/// (evita o teto de 60/h que zerava a detecção). Skills têm `VERSION` no root; a CLI tem a
-/// versão no `Cargo.toml`. raw tem cache curto e limite muito maior; casa com o source-first.
-pub fn latest_version_raw(repo: &str) -> Option<String> {
-    let is_cli = repo == "schematize-cli";
-    let file = if is_cli { "Cargo.toml" } else { "VERSION" };
-    let url = format!("https://raw.githubusercontent.com/{}/{}/main/{}", registry::ORG, repo, file);
-    let body =
-        util::run("curl", &["-sfL", "-m", "8", "-H", "User-Agent: schematize-cli", &url]).ok()?;
-    if is_cli {
-        // primeira linha `version = "x.y.z"` do [package]
-        body.lines()
-            .map(|l| l.trim())
-            .find(|l| l.starts_with("version") && l.contains('='))
-            .and_then(|l| l.split('"').nth(1))
-            .map(|s| s.to_string())
-    } else {
-        let v = body.trim().to_string();
-        (!v.is_empty() && v.chars().next().is_some_and(|c| c.is_ascii_digit())).then_some(v)
-    }
 }
 
 /// TODAS as versões numa ÚNICA chamada, pelo AGREGADOR da API (`GET /versions`).
@@ -131,27 +109,6 @@ fn parse_versions(json: &str) -> BTreeMap<String, String> {
             (!s.is_empty()).then(|| (k.clone(), s.to_string()))
         })
         .collect()
-}
-
-/// (Fallback/diagnóstico) última versão via API do GitHub (`releases/latest` → `tag_name`),
-/// sem "v". Limitada a 60/h/IP — por isso NÃO é mais o caminho primário de detecção.
-pub fn latest_release_tag(repo: &str) -> Option<String> {
-    let url = format!("https://api.github.com/repos/{}/{}/releases/latest", registry::ORG, repo);
-    let body = util::run(
-        "curl",
-        &[
-            "-sfL",
-            "-H",
-            "Accept: application/vnd.github+json",
-            "-H",
-            "User-Agent: schematize-cli",
-            &url,
-        ],
-    )
-    .ok()?;
-    let v: serde_json::Value = serde_json::from_str(&body).ok()?;
-    let tag = v.get("tag_name")?.as_str()?;
-    Some(tag.trim_start_matches('v').to_string())
 }
 
 /// Instala (ou reinstala) uma skill a partir do release latest. Retorna a versão.

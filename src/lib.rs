@@ -47,4 +47,5 @@ pub mod updaterboot;
 pub mod upgrade;
 pub mod usage;
 pub mod util;
+pub mod versoes;
 pub mod vps;

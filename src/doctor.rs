@@ -3,7 +3,8 @@
 //! Onde: chamado por main. Não toca em nada sem --fix (além de criar diretórios base).
 
 use crate::i18n::{t, tf};
-use crate::{autostart, settings, skills, updaterboot, util};
+use crate::versoes;
+use crate::{autostart, settings, updaterboot, util};
 use std::fs;
 use std::path::Path;
 
@@ -129,7 +130,7 @@ pub fn run(fix: bool) {
 
     // versão do CLI vs latest
     let cur = env!("CARGO_PKG_VERSION");
-    match skills::latest_version_raw("schematize-cli") {
+    match versoes::latest_version_raw("schematize-cli") {
         Some(l) if l != cur => {
             issues += 1;
             line(&Lv::Warn, &t("doctor.check_cli"), &format!("{cur} → {l}"));
@@ -215,7 +216,7 @@ pub fn report_text() -> String {
 
     // Versão do CLI vs latest.
     let cur = env!("CARGO_PKG_VERSION");
-    match skills::latest_version_raw("schematize-cli") {
+    match versoes::latest_version_raw("schematize-cli") {
         Some(l) if l != cur => ln("WARN", "versão CLI", &format!("{cur} → {l}"), &mut o),
         _ => ln("OK", "versão CLI", cur, &mut o),
     }

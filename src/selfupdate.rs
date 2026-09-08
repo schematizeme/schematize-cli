@@ -8,9 +8,9 @@
 
 // Só o caminho Unix consome estes itens; sem a guarda o build de Windows enche de
 // aviso de código morto (o job de release não usa -D warnings, mas ruído esconde sinal).
-#[cfg(unix)]
-use crate::skills::latest_release_tag;
 use crate::util;
+#[cfg(unix)]
+use crate::versoes::latest_release_tag;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -314,7 +314,7 @@ pub fn run() -> Result<String, String> {
     #[cfg(not(target_os = "windows"))]
     {
         // Detecção pelo FONTE (raw main), não pela API 60/h — o que quebrava o versionamento.
-        let tag = crate::skills::latest_version_raw(REPO)
+        let tag = crate::versoes::latest_version_raw(REPO)
             .or_else(|| latest_release_tag(REPO))
             .ok_or_else(|| {
                 "não consegui resolver a versão mais recente (rede/GitHub?)".to_string()
