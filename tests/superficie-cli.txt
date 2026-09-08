@@ -48,7 +48,7 @@ CMD schematize db sql
   ARG postgres             --postgres
   ARG sqlite               --sqlite
 CMD schematize debug
-  SOBRE Debug the updater/versioning; or --collect a shareable, secret-safe debug report
+  SOBRE Debug the update manager/versioning; or --collect a shareable, secret-safe debug report
   ARG collect              --collect
   ARG online               --online
   ARG out                  --out

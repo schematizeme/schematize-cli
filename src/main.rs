@@ -171,7 +171,7 @@ fn main() {
             // O agente é o processo LONGO da máquina (autostart): é o lugar certo
             // pra garantir o gestor de atualizações sem o usuário pedir. Sai na
             // hora se já estiver instalado (só um stat, sem rede).
-            schematize::updaterboot::ensure_in_background();
+            schematize::gestorboot::ensure_in_background();
             // Auto-cura dos hooks do overdev: quem ligou numa versão antiga carrega o
             // comando daquela versão no settings.json, e atualizar o app não regravava.
             // No-op se o overdev está desligado ou o comando já é o atual.

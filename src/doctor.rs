@@ -4,7 +4,7 @@
 
 use crate::i18n::{t, tf};
 use crate::versoes;
-use crate::{autostart, settings, updaterboot, util};
+use crate::{autostart, gestorboot, settings, util};
 use std::fs;
 use std::path::Path;
 
@@ -141,33 +141,49 @@ pub fn run(fix: bool) {
     // GUI: flavor (Slint novo vs egui antigo), lançador .desktop e coexistência pacote+fonte.
     issues += gui_checks(fix);
 
-    // Gestor de atualizações (`schematize-updater`). Sem ele o update cai no
-    // fluxo interno — que é justamente o caminho de "cliquei e não aconteceu
+    // Gestor de atualizações (`schematize-market`, ADR-0013). Sem ele o update cai
+    // no fluxo interno — que é justamente o caminho de "cliquei e não aconteceu
     // nada". O doctor INSTALA (não só reclama): é o que o usuário espera de um
     // comando chamado "doctor", e não exige saber que existe um gestor separado.
-    if updaterboot::present() {
-        line(&Lv::Ok, "gestor de atualizações (schematize-updater)", "");
+    const GESTOR: &str = "gestor de atualizações (schematize-market)";
+    if gestorboot::present() {
+        line(&Lv::Ok, GESTOR, "");
     } else {
-        match updaterboot::ensure_now_forcado() {
-            updaterboot::Outcome::Instalado(p) => {
-                line(
-                    &Lv::Ok,
-                    "gestor de atualizações (schematize-updater)",
-                    &format!("instalado em {}", p.display()),
-                );
+        match gestorboot::ensure_now_forcado() {
+            gestorboot::Outcome::Instalado(p) => {
+                line(&Lv::Ok, GESTOR, &format!("instalado em {}", p.display()));
             }
-            updaterboot::Outcome::JaTinha => {
-                line(&Lv::Ok, "gestor de atualizações (schematize-updater)", "");
-            }
+            gestorboot::Outcome::JaTinha => line(&Lv::Ok, GESTOR, ""),
             outcome => {
                 issues += 1;
                 let detalhe = match outcome {
-                    updaterboot::Outcome::Falhou(e) => e,
+                    gestorboot::Outcome::Falhou(e) => e,
                     _ => "não consegui instalar agora (rede?)".to_string(),
                 };
-                line(&Lv::Warn, "gestor de atualizações (schematize-updater)", &detalhe);
+                line(&Lv::Warn, GESTOR, &detalhe);
             }
         }
+    }
+
+    // O ANTECESSOR ainda na máquina: aviso, não erro.
+    //
+    // Depois do ADR-0013 o `schematize-updater` não é mais atualizado por ninguém — ele
+    // responde `update` e faz um trabalho que o market já refez. Deixá-lo no PATH é o
+    // fantasma clássico: dois programas dizendo coisas diferentes sobre o mesmo sistema.
+    // O doctor NÃO o apaga sozinho (quem assume é o market, dizendo o que fez); aqui só
+    // aponta, com o comando exato.
+    if let Some(velho) = crate::selfupdate::updater_aposentado_presente() {
+        // CONTA como problema, e não é rigor de mais: o binário antigo não fica só ocupando
+        // espaço — ele responde. Um `schematize-updater update` numa máquina onde o market já
+        // assumiu roda um gestor congelado e desfaz o que o novo fez. Uma linha de ATENÇÃO que
+        // não entra no total faria o resumo dizer "1 problema" com dois avisos na tela, e um
+        // sumário que não bate com o que está acima dele é um sumário em que ninguém confia.
+        issues += 1;
+        line(
+            &Lv::Warn,
+            "gestor ANTIGO ainda instalado (schematize-updater)",
+            &format!("foi substituído pelo market; remova com: rm {}", velho.display()),
+        );
     }
 
     println!();

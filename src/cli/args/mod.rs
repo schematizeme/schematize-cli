@@ -131,7 +131,7 @@ pub(crate) enum Cmd {
         #[arg(long)]
         fix: bool,
     },
-    /// Debug the updater/versioning; or --collect a shareable, secret-safe debug report.
+    /// Debug the update manager/versioning; or --collect a shareable, secret-safe debug report.
     Debug {
         /// Collect a FULL debug report (system, install, deps, config, skills, overdev, logs).
         #[arg(long)]
@@ -142,7 +142,7 @@ pub(crate) enum Cmd {
         /// Print the whole report to stdout instead of writing a file (only with --collect).
         #[arg(long)]
         stdout: bool,
-        /// Include NETWORK diagnostics (updater/rate-limit, catalog reach, doctor's github check).
+        /// Include NETWORK diagnostics (manager/rate-limit, catalog reach, doctor's github check).
         /// Off by default so the report is FAST even on a slow/blocked network.
         #[arg(long)]
         online: bool,

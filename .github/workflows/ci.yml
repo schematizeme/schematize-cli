@@ -83,3 +83,24 @@ jobs:
       # perdia pedido). Segunda passada barata contra regressão intermitente.
       - name: testes (segunda passada, caça a flaky)
         run: cargo test --all-targets --quiet
+
+      # O PIN DA GUI EM DIA — o unico teste desta suite que precisa do repo IRMAO.
+      #
+      # `packaging/gui-pin.txt` decide qual commit da GUI o release publica. Ate aqui a suite
+      # so provava que ele tem a FORMA certa (40 hex, uma linha): nada notava que ele estava
+      # PARADO. Um pin que nunca e bumpado publica, release apos release, uma GUI de meses
+      # atras — sem nenhum erro em lugar nenhum, porque o fetch funciona, o build funciona e o
+      # asset sai. O sintoma chega como "atualizei e a janela continua igual".
+      #
+      # Os testes que atravessam fronteira de repo sao `#[ignore]` de proposito (um deles ja
+      # quebrou o primeiro run verde desta esteira, por caminho relativo que so existia na
+      # maquina de quem desenvolve). Este passo e o lugar onde eles rodam: o irmao e clonado
+      # explicitamente, e so entao os `--ignored` sao chamados.
+      #
+      # `--depth 1` basta: o teste compara SHAs, nao percorre historico.
+      - name: pin da GUI em dia
+        run: |
+          set -euo pipefail
+          git clone --depth 1 https://github.com/schematizeme/schematize_gui_slint.git \
+            ../schematize_gui_slint
+          cargo test --lib guipin -- --ignored

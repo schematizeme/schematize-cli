@@ -1,5 +1,5 @@
 //! As SEÇÕES do relatório — cada uma coleta um recorte da máquina (sistema,
-//! instalação, PATH, dependências, config, skills, overdev, updater, doctor, logs).
+//! instalação, PATH, dependências, config, skills, overdev, gestor, doctor, logs).
 
 use super::*;
 
@@ -239,9 +239,9 @@ pub(crate) fn sec_overdev(o: &mut String) -> Vec<PathBuf> {
     roots
 }
 
-/// 8) Updater: reusa o diagnóstico textual do módulo `debug`.
-pub(crate) fn sec_updater(o: &mut String) {
-    hdr(o, "8. UPDATER (versionamento/self-update)");
+/// 8) Gestor de atualizações: reusa o diagnóstico textual do módulo `debug`.
+pub(crate) fn sec_gestor(o: &mut String) {
+    hdr(o, "8. GESTOR DE ATUALIZAÇÕES (versionamento/self-update)");
     let _ = writeln!(o, "{}", indent(&debug::report_text(), "  "));
 }
 

@@ -34,7 +34,12 @@ echo "  shell:  ${SHELL:-?}   \$0=$0"
 
 echo "===== 2. onde o binário está (todos os lugares que o app usa)"
 for d in "$HOME/.cargo/bin" "$HOME/.local/bin" /usr/local/bin /usr/bin; do
-    for b in schematize schematize-gui schematize-updater; do
+    # O `schematize-updater` continua na lista APESAR de aposentado (ADR-0013): e
+    # justamente a copia dele sobrevivendo no PATH que este diagnostico existe pra
+    # achar. Nome morto que ninguem apaga e o fantasma; nome morto que se ignora e
+    # o fantasma invisivel.
+    for b in schematize schematize-gui schematize-market schematize-deployer \
+             schematize-optimizer schematize-updater; do
         [ -e "$d/$b" ] || continue
         # `stat` em vez de `ls | awk`: nome com espaco quebraria o parsing, e este script
         # roda na maquina de outra pessoa — onde o inesperado e a regra.

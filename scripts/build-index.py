@@ -28,12 +28,28 @@ REPOS = {
     "schematize_gui_slint": dict(
         what="Face gráfica do app (Slint): mesma engine da CLI, painel de projetos/overdev/skills.",
         stack="Rust/Slint", runs="app desktop"),
+    # APOSENTADO pelo ADR-0013: absorvido pelo `schematize_market_rs`. Continua no indice de
+    # proposito — o grafo conta a evolucao do sistema, e um servico que some sem deixar rastro
+    # apaga justamente a pergunta "e o updater, para onde foi?". A descricao diz o destino.
     "schematize_updater_rs": dict(
-        what="Bootstrapper/gestor de versão cross-OS: instala binário ou builda do fonte, purga cópias-fantasma.",
-        stack="Rust", runs="binário local"),
+        what="APOSENTADO (ADR-0013) — absorvido pelo schematize_market_rs. Era o bootstrapper/gestor de versão cross-OS.",
+        stack="Rust", runs="arquivado"),
     "schematize_updater_gui_rs": dict(
-        what="Janela (Slint) do gestor de atualizações: casca fina sobre o binário do updater.",
+        what="Janela (Slint) do gestor: casca fina sobre o `schematize-market`, lendo o contrato `status --json` (ADR-0014). Binário: schematize-market-gui.",
         stack="Rust/Slint", runs="app desktop"),
+    # Os apps que saíram do hub (ADR-0010/0011/0012). Entram aqui porque o índice é
+    # EXAUSTIVO por contrato (§39/C3): um serviço da casa fora da tabela é um buraco no
+    # grafo, e o grafo é a fonte que se consulta ANTES de criar algo — um serviço invisível
+    # é um serviço que alguém vai reimplementar sem saber que já existe.
+    "schematize_deployer_rs": dict(
+        what="App schematize Deployer: chaves SSH, VPS, DNS (Cloudflare) e cofre de credenciais.",
+        stack="Rust/clap", runs="binário local"),
+    "schematize_optimizer_rs": dict(
+        what="App schematize Optimizer: mede o ambiente de dev e põe cada software no seu teto de recurso.",
+        stack="Rust/clap", runs="binário local"),
+    "schematize_market_rs": dict(
+        what="App schematize Market: DONO de instalar e atualizar (ADR-0013) — runtimes, ferramentas de dev, os apps da casa, o app e ele mesmo.",
+        stack="Rust/clap", runs="binário local"),
 }
 
 # ---------------------------------------------------------------- limpeza lexica
@@ -378,9 +394,24 @@ def own_text(u, units_in_file):
     return ''.join(txt), direct
 
 
+# Nome do binario -> repo que o produz. E o que transforma um `Command::new(...)` numa
+# ARESTA ENTRE SERVICOS no grafo global.
+#
+# ORDEM IMPORTA: a deteccao usa `binname in body_raw`, entao os nomes mais LONGOS vem
+# primeiro. Com `schematize-updater` antes de `schematize-updater-gui`, todo spawn da janela
+# seria atribuido ao updater — a aresta apontaria para o servico errado, e nada reprovaria.
+#
+# ESTAVA INCOMPLETA (corrigido em 2026-09-08, ADR-0013): faltavam market, deployer e
+# optimizer. O efeito era silencioso do pior jeito — o hub passou a disparar o
+# `schematize-market`, e a aresta simplesmente NAO APARECIA no grafo. Um grafo que omite a
+# dependencia mais nova e um grafo que se consulta e engana; o proposito dele e justamente
+# responder "quem chama quem" ANTES de alguem mexer.
 BOUNDARY_BIN = {
     'schematize-updater-gui': 'schematize_updater_gui_rs',
     'schematize-updater': 'schematize_updater_rs',
+    'schematize-deployer': 'schematize_deployer_rs',
+    'schematize-optimizer': 'schematize_optimizer_rs',
+    'schematize-market': 'schematize_market_rs',
     'schematize-gui': 'schematize_gui_slint',
 }
 
@@ -746,6 +777,12 @@ GLOBAL_HEADER = """# GRAFO GLOBAL — schematize (app)
 > Arestas SEMPRE em ASCII (hifen + maior-que), NUNCA a seta unicode: o parser do app
 > (`schematize_cli_rs/src/panel/parse.rs`) le ASCII, e o unicode quebra a leitura.
 >
+> **Nao ha aresta obsoleta.** Houve uma — `schematize_updater_gui_rs -> schematize_updater_rs`,
+> apontando para o servico aposentado pelo ADR-0013 — e ela ficou marcada aqui enquanto o
+> destino da janela era decisao humana em aberto. O ADR-0014 (D4) respondeu: a janela virou a
+> do market, e a aresta virou `-> schematize_market_rs`. Este paragrafo fica como o registro de
+> que o grafo mostra o sistema como ele E, e nao como se gostaria que fosse.
+>
 > Detalhe por servico: {links}.
 > Gerado por `scripts/build-index.py` em {date}.
 """
@@ -934,7 +971,18 @@ def main():
 
     (live / 'GRAFO_GLOBAL.md').write_text(emit_global(graphs, date), encoding='utf-8')
 
-    # Espelho durável no archive (secao 28): INDEX_GLOBAL + INDEX_FUNCTIONS + MAPA.
+    # Espelho durável no archive (secao 28): INDEX_GLOBAL + INDEX_FUNCTIONS + MAPA, MAIS
+    # um arquivo por servico.
+    #
+    # POR QUE OS ARQUIVOS POR SERVICO ENTRARAM (2026-09-08, ADR-0013): o espelho gravava so os
+    # tres agregados, e os `<servico>.md` do archive eram sobra de uma versao anterior deste
+    # script — congelados em QUATRO servicos enquanto `.schematize/grafos/` ja tinha SETE.
+    # Market, deployer e optimizer nunca chegaram la. Espelho que espelha parte e pior que
+    # espelho nenhum: ele parece completo. O `GRAFO_GLOBAL.md` tambem passa a ser espelhado
+    # com o proprio nome, porque e ele que os `<servico>.md` referenciam.
+    for g in graphs:
+        (mirror / f"{g['repo']}.md").write_text(emit_service(g, date), encoding='utf-8')
+    (mirror / 'GRAFO_GLOBAL.md').write_text(emit_global(graphs, date), encoding='utf-8')
     (mirror / 'INDEX_GLOBAL.md').write_text(emit_global(graphs, date), encoding='utf-8')
     (mirror / 'INDEX_FUNCTIONS.md').write_text(
         '\n\n---\n\n'.join(emit_service(g, date) for g in graphs), encoding='utf-8')

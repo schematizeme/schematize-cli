@@ -71,7 +71,33 @@ if [ -z "${SCHEMATIZE_INSTALL_SELF:-}" ] && [ -z "${SCHEMATIZE_INSTALL_NO_SELF:-
 fi
 
 [ "$(uname -s)" = "Linux" ] || die "só Linux por enquanto."
-SUDO=""; [ "$(id -u)" -eq 0 ] || SUDO="sudo"
+# ---------------------------------------------------------------------------
+# ELEVACAO: como este script instala pacote de sistema.
+#
+# Root -> nada de prefixo. Nao-root com `sudo` -> `sudo`. Nao-root SEM `sudo` -> vazio,
+# e a instalacao de pacotes vira um AVISO acionavel em vez de um erro cru.
+#
+# POR QUE A TERCEIRA LINHA EXISTE (§37.48 -- "prever macacos")
+#
+# Antes, `SUDO="sudo"` era posto sempre que o UID nao era 0, sem perguntar se o `sudo`
+# EXISTE. Numa maquina sem ele -- container minimo, imagem slim, distro enxuta -- a
+# primeira instalacao de pacote morria com `sudo: command not found`, uma mensagem do
+# shell que nao diz o que fazer e nao menciona o instalador. Medido: `debian:stable-slim`
+# com um usuario comum reproduz isso em segundos.
+#
+# Edge case que um leigo atinge e BUG do software, nao erro de quem rodou. Agora o
+# script diz quais pacotes faltam e como instala-los, e SEGUE ate onde da -- em muitos
+# casos ate o fim, porque quem ja tem as libs nao precisa de pacote nenhum.
+# ---------------------------------------------------------------------------
+SUDO=""
+SEM_ELEVACAO=0
+if [ "$(id -u)" -ne 0 ]; then
+  if command -v sudo >/dev/null 2>&1; then
+    SUDO="sudo"
+  else
+    SEM_ELEVACAO=1
+  fi
+fi
 
 # "PREVER MACACOS": software de massa não pode quebrar porque o usuário rodou como root (su/sudo).
 # Se estamos como root, descobre o usuário REAL (mesmo sob su) e instala PRA ELE — o app é de
@@ -110,6 +136,20 @@ esac
 log "distro: ${PRETTY_NAME:-desconhecida} (família: $FAMILY) — modo: $MODE"
 
 pkg_install() {
+  # Sem root e sem sudo nao ha como instalar pacote de sistema. Dizer isso -- com a lista
+  # e o comando -- e util; deixar o shell responder `sudo: command not found` nao e.
+  if [ "$SEM_ELEVACAO" = 1 ]; then
+    warn "nao consigo instalar pacote do sistema: voce nao e root e nao ha \`sudo\` aqui."
+    warn "  faltam: $*"
+    warn "  instale como root e rode este script de novo, por exemplo:"
+    case "$FAMILY" in
+      debian) warn "    apt-get update && apt-get install -y $*" ;;
+      rpm)    warn "    zypper install -y $*   (ou: dnf install -y $*)" ;;
+      *)      warn "    use o gerenciador de pacotes da sua distro" ;;
+    esac
+    warn "  sigo em frente — se as bibliotecas ja estiverem na maquina, nada se perde."
+    return 1
+  fi
   case "$FAMILY" in
     debian) $SUDO apt-get update -qq && $SUDO apt-get install -y "$@" ;;
     rpm)    if command -v zypper >/dev/null; then $SUDO zypper --non-interactive install -y "$@"; else $SUDO dnf install -y "$@"; fi ;;
@@ -169,6 +209,14 @@ instala_faltantes() { # <rotulo> <pkg...>
     return 0
   fi
   log "$rotulo: instalando o que falta (${falta[*]})"
+  # SEM_ELEVACAO e degradacao ANUNCIADA (o `pkg_install` ja explicou e deu o comando):
+  # nao pode derrubar o script sob `set -e`, senao a instalacao morre onde ela ainda
+  # podia terminar. Qualquer OUTRA falha do gerenciador continua abortando -- ali o erro
+  # e real e seguir em frente esconderia a causa.
+  if [ "$SEM_ELEVACAO" = 1 ]; then
+    pkg_install "${falta[@]}" || true
+    return 0
+  fi
   pkg_install "${falta[@]}"
 }
 
@@ -302,9 +350,9 @@ install_app_icons() {
   as_user update-desktop-database "$TARGET_HOME/.local/share/applications" 2>/dev/null || true
 }
 
-# Instala o schematize-updater (gestor de versão SEPARADO do app, cross-OS). Best-effort: nunca
-# falha o install do app. Assim toda instalação/update do app já carrega o updater — quem atualizou
-# passa a ter também o updater novo, sem rodar o bootstrap dele à mão.
+# O `install_updater` vivia aqui. Foi removido pelo ADR-0013 — quem o sucede é o
+# `install_market`, mais abaixo, e a diferença nao e so de nome: aquele baixava um gestor
+# que era so gestor; este baixa o programa que instala e atualiza todo o ecossistema.
 # ---------------------------------------------------------------------------
 # PURGA — mata QUALQUER instalação anterior antes de instalar a nova.
 #
@@ -340,8 +388,20 @@ install_app_icons() {
 #
 # Os nomes ANTIGOS `deployer`/`optimizer` (sem prefixo) são caso diferente, e estão na lista
 # de APOSENTADOS abaixo — ver a nota lá.
+#
+# O `schematize-updater` SAIU DAQUI e entrou nos APOSENTADOS (ADR-0013), e a diferença entre
+# as duas listas é exatamente o ponto:
+#
+#   * Aqui (BINS) estão os nomes VIVOS. A purga poupa o diretório de DESTINO, porque é lá
+#     que a instalação nova vai escrever — apagar antes abriria uma janela em que um build
+#     longo que falha deixa a máquina sem app.
+#   * Lá (APOSENTADOS) estão os nomes MORTOS. Eles NÃO têm instalação nova para escrever por
+#     cima, então são apagados INCLUSIVE no destino. Deixá-los cria um binário órfão no PATH.
+#
+# Trocar um pelo outro erra nos dois sentidos: nome vivo na lista de aposentados DESINSTALA
+# o app de alguém; nome morto na lista de vivos é o que NÃO é apagado, e vira o fantasma.
 BINS="overflow overflow-gui overflow-updater overflow-updater-gui \
-schematize schematize-gui schematize-updater schematize-updater-gui"
+schematize schematize-gui schematize-market-gui"
 
 purge_previous() {
   log "removendo instalações anteriores (binário, pacote, lançador) — dados e deps ficam"
@@ -378,11 +438,19 @@ purge_previous() {
   #   `schematize-deployer` e `schematize-optimizer`; o nome curto não é mais escrito por
   #   ninguém, então sobreviveria no PATH apontando para uma versão congelada — e o app,
   #   atualizado ao lado, pareceria "não ter mudado nada".
+  #   `schematize-updater-gui` — a JANELA antes de o dono dela mudar (ADR-0014). O binário
+  #   agora é `schematize-market-gui`; deixar o antigo cria duas entradas no menu, uma delas
+  #   abrindo uma tela que fala com um gestor que não existe mais.
+  #   `schematize-updater` — absorvido pelo `schematize-market` (ADR-0013). É o caso mais
+  #   perigoso da lista, porque ele não fica só ocupando espaço: ele RESPONDE. Um
+  #   `schematize-updater update` numa máquina onde o market já assumiu executa um gestor
+  #   congelado, que reinstala pelo caminho antigo e desfaz o que o novo fez.
   #
   # Note a diferença para a nota do BINS: ali o nome está VIVO e apagá-lo desinstalaria o
   # app de alguém. Aqui o nome está MORTO, e não apagá-lo é que quebra.
   for d in "$TARGET_HOME/.cargo/bin" "$TARGET_HOME/.local/bin" /usr/local/bin /usr/bin; do
-    for b in overflow overflow-gui overflow-updater overflow-updater-gui deployer optimizer; do
+    for b in overflow overflow-gui overflow-updater overflow-updater-gui \
+             deployer optimizer schematize-updater schematize-updater-gui; do
       [ -e "$d/$b" ] && { rm -f "$d/$b" 2>/dev/null || $SUDO rm -f "$d/$b" 2>/dev/null; } && \
         log "removido binário aposentado: $d/$b"
     done
@@ -412,41 +480,230 @@ purge_previous() {
   ok "instalação anterior removida — instalando do zero."
 }
 
-install_updater() {
-  local os arch asset
+# ---------------------------------------------------------------------------
+# install_market — o BOOTSTRAP do gestor (ADR-0013).
+#
+# O QUE: poe o `schematize-market` na maquina. Binario PRE-COMPILADO quando ha um
+# pra esta plataforma; senao, compila do fonte. Devolve 0 se o binario ficou la.
+#
+# ONDE: `install_source`, antes de tudo que depende dele (as flags `--deployer` e
+# `--optimizer` delegam ao market).
+#
+# POR QUE ESTE PASSO E O CORACAO DO SCRIPT AGORA
+#
+# O `schematize-updater` era o unico artefato publicado pre-compilado por SO, e este
+# script o baixava pronto justamente por ele ser pequeno e estavel. O ADR-0013 passa
+# o papel de gestor pro market; com ele vem a obrigacao. E o que faz este script
+# voltar a ser SO um bootstrap: ele instala o gestor, o gestor instala o resto.
+#
+# POR QUE NAO SOBRESCREVE O QUE JA EXISTE: o download vem do ultimo RELEASE, que pode
+# estar ATRAS do que a maquina tem — o market se reconstroi a cada `update`, e
+# sobrescrever aqui o REBAIXARIA, desfazendo correcoes dele mesmo. Foi assim que uma
+# correcao no proprio updater deixou de chegar. Aqui e bootstrap de quem nao tem.
+#
+# POR QUE A FALHA FALA (piso R3): sem o market nao ha caminho de atualizacao nenhum
+# nem instalacao de linguagem. Um `>/dev/null 2>&1` aqui e como dois apps sumiram do
+# menu em silencio quando `desktop --instalar` virou `--install`.
+# ---------------------------------------------------------------------------
+install_market() {
+  local bin="$TARGET_HOME/.cargo/bin" dst asset os arch url
+  dst="$bin/schematize-market"
+  as_user mkdir -p "$bin"
+
+  if [ -x "$dst" ]; then
+    ok "schematize-market ja instalado ($("$dst" --version 2>/dev/null | head -1))"
+    return 0
+  fi
+
+  # Nomes de asset IDENTICOS aos que `nucleo::plataforma::market_asset_name()` monta
+  # e aos que o `release.yml` do market publica — os tres sao travados por teste la.
   os="$(uname -s)"; arch="$(uname -m)"
   case "$os/$arch" in
-    Linux/x86_64)  asset="schematize-updater-linux-x86_64" ;;
-    Darwin/arm64)  asset="schematize-updater-macos-arm64" ;;
-    Darwin/x86_64) asset="schematize-updater-macos-x86_64" ;;
-    *) return 0 ;;
+    Linux/x86_64)  asset="schematize-market-linux-x86_64" ;;
+    Darwin/arm64)  asset="schematize-market-macos-arm64" ;;
+    Darwin/x86_64) asset="schematize-market-macos-x86_64" ;;
+    *) asset="" ;;
   esac
-  local url="https://github.com/schematizeme/schematize-updater/releases/latest/download/$asset"
-  local dst="$TARGET_HOME/.cargo/bin/schematize-updater"
-  as_user mkdir -p "$TARGET_HOME/.cargo/bin"
-  # Se já existe, NÃO mexe. Este download vem do último RELEASE publicado, que pode
-  # estar ATRÁS do que a máquina tem — o updater agora se reconstrói do fonte a cada
-  # `update`, e sobrescrever aqui rebaixaria ele pra uma versão mais velha, desfazendo
-  # correções (foi assim que uma correção no próprio updater deixou de chegar).
-  # Aqui é só o BOOTSTRAP de quem ainda não tem nenhum.
-  if [ -x "$dst" ]; then
-    ok "schematize-updater já instalado ($("$dst" --version 2>/dev/null | head -1))"
+
+  if [ -n "$asset" ]; then
+    url="https://github.com/schematizeme/schematize_market_rs/releases/latest/download/$asset"
+    log "baixando o schematize-market pronto ($asset)"
+    if as_user sh -c "curl -fsSL -o '$dst' '$url'" 2>/dev/null && [ -s "$dst" ]; then
+      as_user chmod +x "$dst" 2>/dev/null || true
+      # O binario TEM de executar aqui. Um asset da glibc errada baixa com HTTP 200 e
+      # nao roda — instala-lo e chamar de sucesso seria o gestor mentindo na primeira
+      # frase que diz. Se nao executa, apaga e cai pro fonte, que sempre funciona.
+      if as_user "$dst" --version >/dev/null 2>&1; then
+        ok "schematize-market instalado ($dst)"
+        return 0
+      fi
+      warn "o binario baixado nao executa nesta maquina (glibc/arquitetura?) — compilando do fonte."
+      as_user rm -f "$dst" 2>/dev/null || true
+    else
+      as_user rm -f "$dst" 2>/dev/null || true
+      warn "nao consegui baixar o schematize-market pronto (rede? release ainda nao cortado?)."
+      warn "  tentei: $url"
+      warn "  seguindo pelo fonte — leva minutos a mais, o resultado e o mesmo."
+    fi
+  else
+    log "sem binario pronto do market pra $os/$arch — compilando do fonte"
+  fi
+
+  install_market_do_fonte
+}
+
+# ---------------------------------------------------------------------------
+# install_market_do_fonte — o caminho confiavel do bootstrap.
+#
+# O QUE: clona o repo do market e compila. ONDE: `install_market`, quando nao ha
+# asset pra plataforma ou o baixado nao executa.
+#
+# POR QUE E FUNCAO SEPARADA: e o unico caminho que funciona em TODA plataforma, e o
+# `install_market` precisa poder chama-lo de dois pontos diferentes sem duplicar o
+# bloco. Duplicar aqui seria duplicar justamente o passo que nao pode divergir.
+# ---------------------------------------------------------------------------
+install_market_do_fonte() {
+  local base="$TARGET_HOME/.schematize/src" bin="$TARGET_HOME/.cargo/bin"
+  local tgt="$TARGET_HOME/.schematize/target" mkt="$base/schematize_market_rs"
+  as_user mkdir -p "$base" "$bin" "$tgt"
+  log "compilando o schematize-market do fonte"
+  if _sync_repo "https://github.com/schematizeme/schematize_market_rs.git" "$mkt"      && as_user sh -c "cd '$mkt' && CARGO_TARGET_DIR='$tgt' cargo build --release"      && as_user install -m755 "$tgt/release/schematize-market" "$bin/schematize-market"; then
+    ok "schematize-market compilado e instalado."
     return 0
   fi
+  # Erro nunca engolido (piso 4 e risco R3): sem o market a pessoa fica sem gestor de
+  # atualizacao E sem instalacao de linguagem. A mensagem diz o que se perdeu e como repetir.
+  warn "o schematize-market NAO foi instalado. O schematize segue funcionando, mas:"
+  # ATENCAO ao citar comando aqui: crase dentro de aspas DUPLAS e substituicao de
+  # comando em bash — um aviso escrito com crase EXECUTARIA o que ele so queria citar.
+  # (O shellcheck pegou isto ainda no gate; a linha rodava `schematize-market update`.)
+  warn "  - nao ha caminho de atualizacao (era o 'schematize-market update');"
+  warn "  - nao ha instalacao de linguagem (go, rust, node...);"
+  warn "  - as flags --deployer e --optimizer nao tem quem os instale."
+  warn "  repita a mao: git clone https://github.com/schematizeme/schematize_market_rs"
+  warn "               cd schematize_market_rs && cargo build --release"
+  warn "               install -m755 target/release/schematize-market ~/.cargo/bin/"
+  return 1
+}
+
+# ---------------------------------------------------------------------------
+# install_janela_do_gestor — a interface amigavel, por BINARIO PRONTO (ADR-0014 D5).
+#
+# O QUE: poe o `schematize-market-gui` na maquina, baixando o asset do release do market.
+# ONDE: `install_source`, depois do gestor. Best-effort: nunca falha a instalacao.
+#
+# A VOLTA POR CIMA QUE ESTE BLOCO DEU, e por que ela e a decisao certa nas duas pontas
+#
+# Ate o ADR-0013 este script COMPILAVA a janela do updater do fonte, em toda instalacao. O
+# updater foi aposentado, e a janela ficou falando com um binario que nao existe mais — entao
+# o bloco saiu: nao se instala software que so pode falhar. O ADR-0014 (D4) decidiu que ela
+# nao e descontinuada, vira a janela do market; o D5 a publica como asset do release dele. Com
+# dono e com asset, ela volta — e volta MELHOR, porque deixou de compilar.
+#
+# POR QUE SO O BINARIO PRONTO, sem fallback para o fonte: ela e chrome. Quem nao tem o asset
+# (plataforma fora da matriz, release ainda nao cortado) fica sem a janela e com TODO o resto
+# funcionando — `schematize-market` no terminal faz tudo que ela faz. Gastar minutos de build
+# num item opcional, numa instalacao que ja levou minutos, e o oposto de respeitar o tempo de
+# quem instalou.
+# ---------------------------------------------------------------------------
+install_janela_do_gestor() {
+  local bin="$TARGET_HOME/.cargo/bin" dst asset os arch url
+  dst="$bin/schematize-market-gui"
+  as_user mkdir -p "$bin"
+
+  [ -x "$dst" ] && { ok "janela do gestor ja instalada."; return 0; }
+
+  os="$(uname -s)"; arch="$(uname -m)"
+  case "$os/$arch" in
+    Linux/x86_64)  asset="schematize-market-gui-linux-x86_64" ;;
+    Darwin/arm64)  asset="schematize-market-gui-macos-arm64" ;;
+    Darwin/x86_64) asset="schematize-market-gui-macos-x86_64" ;;
+    *) log "sem janela do gestor pronta pra $os/$arch — seguindo sem ela (o terminal faz tudo)."
+       return 0 ;;
+  esac
+
+  url="https://github.com/schematizeme/schematize_market_rs/releases/latest/download/$asset"
+  log "baixando a janela do gestor ($asset)"
   if as_user sh -c "curl -fsSL -o '$dst' '$url'" 2>/dev/null && [ -s "$dst" ]; then
     as_user chmod +x "$dst" 2>/dev/null || true
-    ok "schematize-updater instalado ($dst) — atualize com: schematize-updater update"
+    ok "janela do gestor instalada ($dst)."
     return 0
   fi
-  # Falhar aqui não derruba o install do app, mas NÃO pode passar calado: sem o
-  # updater o caminho de atualização degrada, e "atualizei e não veio nada" volta.
-  # O app tenta de novo sozinho no arranque (ver `updaterboot`), e o `schematize
-  # doctor` instala sob demanda — mas o usuário merece saber agora.
+  # Best-effort NAO E MUDO (piso 4): a pessoa fica sem a janela e precisa saber por que, e
+  # que nada mais se perdeu com isso.
   as_user rm -f "$dst" 2>/dev/null || true
-  warn "não consegui baixar o schematize-updater (rede?). O app tenta sozinho ao abrir;"
-  warn "se quiser forçar agora: schematize doctor"
+  warn "nao consegui baixar a janela do gestor (rede? release ainda nao cortado?)."
+  warn "  tentei: $url"
+  warn "  seguindo sem ela — o \`schematize-market\` no terminal faz tudo que ela faz."
   return 0
 }
+
+# ---------------------------------------------------------------------------
+# delega_ao_market <app> — instala um app do ecossistema PELO GESTOR (ADR-0013).
+#
+# O QUE: chama `schematize-market install <app> -y`. Devolve 0 se o app ficou la.
+#
+# ONDE: as flags `--deployer` e `--optimizer` do `install_source`.
+#
+# POR QUE O SCRIPT DEIXOU DE COMPILAR ESSES APPS (D5)
+#
+# Este arquivo tinha ~900 linhas e sabia instalar cinco apps — um segundo gestor de
+# pacotes escrito em bash, ao lado do de verdade. Dois caminhos pra mesma coisa e
+# nenhum deles dono. O market compila do fonte com o mesmo checkout persistente e o
+# mesmo target compartilhado; aqui basta pedir.
+#
+# COMPATIBILIDADE: `--deployer` e `--optimizer` seguem funcionando ponta a ponta —
+# quem tem o comando na mao nao precisa saber que o dono mudou.
+#
+# POR QUE FALA QUANDO FALHA: best-effort nao e mudo (piso 4). Se o market nao esta la,
+# a mensagem diz por que o app nao veio, em vez de a flag virar no-op silencioso.
+# ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# garantir_o_gestor — poe o market na maquina e no menu. Idempotente.
+#
+# O QUE: chama `install_market` (que ja sai cedo se ele existir) e registra o icone.
+# Nunca falha o script: sem o gestor a pessoa perde atualizacao e instalacao de
+# linguagem, mas o schematize que ela acabou de instalar continua funcionando (piso 10).
+#
+# ONDE: `install_source`, ANTES da delegacao das flags (que precisa do market), e
+# `post_config`, que TODO caminho de instalacao atravessa.
+#
+# POR QUE NOS DOIS LUGARES, E POR QUE ISSO E O CONSERTO DE UM BUG REAL
+#
+# O `install_market` estava so no `install_source`. Os caminhos `--binary` e `package`
+# nunca o chamavam — instalavam o app e deixavam a maquina SEM GESTOR, o que depois do
+# ADR-0013 significa sem caminho de atualizacao nenhum. O antecessor (`install_updater`)
+# nao tinha esse buraco porque era chamado do `post_config`, por onde todos passam.
+#
+# Chamar dos dois pontos e seguro porque a funcao e idempotente: no `install_source` ela
+# faz o trabalho, e no `post_config` ela ve o binario la e retorna na hora.
+# ---------------------------------------------------------------------------
+garantir_o_gestor() {
+  if install_market; then
+    registrar_no_menu "$TARGET_HOME/.cargo/bin/schematize-market" "schematize-market"
+    return 0
+  fi
+  return 1
+}
+
+delega_ao_market() {
+  local app="$1" mkt="$TARGET_HOME/.cargo/bin/schematize-market"
+  if [ ! -x "$mkt" ]; then
+    warn "$app nao foi instalado: o schematize-market nao esta na maquina, e e ele quem instala."
+    warn "  resolva o market primeiro (veja as mensagens acima) e depois rode:"
+    warn "  schematize-market install $app"
+    return 1
+  fi
+  log "instalando o $app pelo gestor — schematize-market install $app"
+  if as_user "$mkt" install "$app" -y; then
+    ok "$app instalado."
+    return 0
+  fi
+  warn "o $app nao foi instalado. O schematize segue funcionando — o app e opcional."
+  warn "  tente de novo: schematize-market install $app"
+  return 1
+}
+
 # ---------------------------------------------------------------------------
 # PATH nos rc de shell.
 #
@@ -476,7 +733,7 @@ install_updater() {
 #
 # POR QUE NAO CHAMAR O BINARIO DO UPDATER PRA FAZER ISSO: o `ensure_path_setup` do
 # updater roda dentro do `install.rs` DELE. Neste ponto do script o updater pode nem
-# estar instalado (o `install_updater` roda depois, e e best-effort). O PATH nao pode
+# estar instalado (o `garantir_o_gestor` roda depois, e e best-effort). O PATH nao pode
 # depender de um passo que tem permissao de falhar.
 # ---------------------------------------------------------------------------
 ensure_path_rc() {
@@ -555,7 +812,9 @@ post_config() {
   # imprime comandos que o terminal do usuário não resolve — o bug do openSUSE.
   ensure_path_rc "$TARGET_HOME/.cargo/bin"
   as_user "$BIN" autostart enable || true
-  install_updater || true
+  # TODO caminho de instalacao passa por aqui — inclusive `--binary` e `package`, que nao
+  # entram no `install_source`. E o que garante que ninguem termine sem gestor.
+  garantir_o_gestor || true
   echo; ok "pronto. Próximos passos:"
   # HONESTIDADE: se o dir ainda não está no PATH DESTA sessão, os comandos abaixo só
   # funcionam num terminal novo. Mandar digitá-los sem avisar é o que fez a pessoa
@@ -625,10 +884,10 @@ install_source() {
   local cli="$base/schematize-cli" gui="$base/schematize_gui_slint"
   local bin="$TARGET_HOME/.cargo/bin"; as_user mkdir -p "$bin"
 
-  # TARGET COMPARTILHADO pelos três repos (CLI, GUI Slint, GUI do updater).
-  # 226 das dependências são as MESMAS nos três; com um `target/` por checkout elas
-  # compilavam TRÊS vezes (e ocupavam três vezes o disco). Com um só, compilam uma.
-  # Exige perfil de release idêntico nos três — está documentado no Cargo.toml deles.
+  # TARGET COMPARTILHADO pelos repos que este script compila (CLI, GUI Slint, market).
+  # 226 das dependências são as MESMAS em todos; com um `target/` por checkout elas
+  # compilavam uma vez POR REPO (e ocupavam o disco uma vez por repo). Com um só, compilam
+  # uma vez. Exige perfil de release idêntico — está documentado no Cargo.toml de cada um.
   local tgt="$TARGET_HOME/.schematize/target"; as_user mkdir -p "$tgt"
   export CARGO_TARGET_DIR="$tgt"
 
@@ -644,7 +903,21 @@ install_source() {
   # CLI SEM a feature `gui` — NÃO produz o schematize-gui egui (a única GUI é o Slint, repo próprio).
   log "compilando o CLI do fonte (incremental — recompila só o que mudou; 1ª vez leva minutos)"
   _sync_repo "https://github.com/$REPO.git" "$cli" || die "clone do CLI falhou"
-  as_user sh -c "cd '$cli' && CARGO_TARGET_DIR='$tgt' cargo build --release $feats" || die "build do CLI falhou"
+  if ! as_user sh -c "cd '$cli' && CARGO_TARGET_DIR='$tgt' cargo build --release $feats"; then
+    # §37.48: mensagem acionavel, sem culpa. "build do CLI falhou" nao diz nada a quem nao
+    # le Rust — e quando a causa e a que este script JA ANUNCIOU (nao consegui instalar
+    # pacote porque nao ha root nem sudo), nao dize-lo e deixar a pessoa procurar o que ja
+    # sabemos. Medido em `debian:stable-slim` com usuario comum: o build morre em
+    # `linker \`cc\` not found`, que e exatamente o `build-essential` que nao pode ser instalado.
+    if [ "$SEM_ELEVACAO" = 1 ]; then
+      warn "o build falhou, e a causa mais provavel e a de cima: faltam as ferramentas de"
+      warn "compilacao (compilador C, pkg-config, libs de dev) que eu nao pude instalar"
+      warn "porque voce nao e root e nao ha \`sudo\` nesta maquina."
+      warn "  caminho mais curto: instale-as como root e rode este script de novo."
+      warn "  ou, se houver binario pronto pra sua plataforma:  bash install.sh --binary"
+    fi
+    die "build do CLI falhou"
+  fi
   as_user install -m755 "$tgt/release/schematize" "$bin/schematize"
 
   # GUI = Slint (a ÚNICA GUI). Se o build falhar, NÃO cai pro egui — melhor sem GUI que o fantasma.
@@ -665,36 +938,18 @@ install_source() {
     warn "build da GUI Slint falhou — rode o install de novo. (Não instalamos GUI egui de fallback.)"
   fi
 
-  # GESTOR DE ATUALIZAÇÕES (schematize-updater) — do FONTE, junto com o app.
+  # O `schematize-updater` NAO e mais compilado nem baixado aqui (ADR-0013).
   #
-  # Não é acessório: é ele que atualiza tudo depois. Antes vinha só como download do
-  # último RELEASE publicado, que costuma estar atrás do main — então o script do site
-  # instalava um gestor velho, que por sua vez não conseguia entregar correções dele
-  # mesmo. Compilando aqui, quem instala pelo site sai com os DOIS na versão do main.
-  # Se o build falhar, cai no download do release (melhor um gestor velho que nenhum).
-  local upd="$base/schematize-updater"
-  log "compilando o gestor de atualizações — schematize-updater"
-  if _sync_repo "https://github.com/schematizeme/schematize-updater.git" "$upd" 2>/dev/null \
-     && as_user sh -c "cd '$upd' && CARGO_TARGET_DIR='$tgt' cargo build --release" \
-     && as_user install -m755 "$tgt/release/schematize-updater" "$bin/schematize-updater"; then
-    ok "gestor de atualizações instalado (schematize-updater)."
-  else
-    warn "build do schematize-updater falhou — tentando o binário publicado."
-    install_updater || true
-  fi
+  # Ele era compilado neste ponto, do fonte, "junto com o app". Deixou de existir como app
+  # separado: o `schematize-market` — instalado logo abaixo, por binario pronto quando ha —
+  # e o unico responsavel por instalar e atualizar o ecossistema.
+  #
+  # Quem ja tem o binario antigo na maquina nao fica com ele: o nome esta na lista de
+  # APOSENTADOS da `purge_previous`, que o apaga INCLUSIVE no diretorio de destino, dizendo
+  # o que removeu. Ver a nota das duas listas la em cima.
 
-  # GUI do updater (janela amigável do gestor de atualizações) — OPCIONAL. Não depende do crate
-  # `schematize` (fala só com o binário do updater), então sem `cargo update`. Best-effort: se
-  # falhar, o app já está instalado — é só chrome. Não roda `die`.
-  local ugui="$base/schematize-updater-gui"
-  log "compilando a GUI do updater — schematize-updater-gui (opcional)"
-  if _sync_repo "https://github.com/schematizeme/schematize-updater-gui.git" "$ugui" 2>/dev/null \
-     && as_user sh -c "cd '$ugui' && CARGO_TARGET_DIR='$tgt' cargo build --release" \
-     && as_user install -m755 "$tgt/release/schematize-updater-gui" "$bin/schematize-updater-gui"; then
-    ok "GUI do updater instalada (schematize-updater-gui)."
-  else
-    warn "GUI do updater não compilou (opcional) — segue sem ela."
-  fi
+  install_janela_do_gestor
+
 # -----------------------------------------------------------------------------
 # registrar_no_menu <caminho-do-binario> <nome>
 #
@@ -727,77 +982,44 @@ registrar_no_menu() {
 }
 
   # ---------------------------------------------------------------------------
-  # MARKET — instalar e remover programas (ADR-0012). Vai SEMPRE, sem flag.
+  # MARKET — o GESTOR (ADR-0012 + ADR-0013). Vai SEMPRE, sem flag.
   #
-  # POR QUE ESTE É DIFERENTE DO DEPLOYER E DO OPTIMIZER: aqueles são opt-in porque fazem
-  # coisa que ninguém pediu (guardar credencial, mexer em slice de systemd). O market faz
-  # exatamente o que quem rodou este script já estava fazendo — instalar programa. Ele é o
-  # "de brinde com qualquer aplicação base": sem ele, quem instala o schematize hoje perde o
-  # `env`, que saiu do hub nesta mesma decisão.
+  # POR QUE ESTE E DIFERENTE DE TODO O RESTO: ele nao e mais "mais um app". Depois do
+  # ADR-0013 e ele quem instala e atualiza o ecossistema inteiro. Sem ele a maquina fica
+  # sem caminho de atualizacao E sem instalacao de linguagem — por isso o passo tenta o
+  # binario pronto primeiro (segundos) e so entao o fonte (minutos), em vez de compilar
+  # sempre como fazia antes.
   #
-  # Best-effort pelo mesmo motivo dos outros (piso 10): se não compilar, o schematize segue
-  # instalado. Mas aqui a falha DÓI mais, e por isso o aviso diz o que se perdeu.
+  # Segue best-effort quanto ao SCHEMATIZE (piso 10): se o market nao vier, o app ja
+  # esta instalado e funcionando. Mas a falha grita — ver `install_market_do_fonte`.
   # ---------------------------------------------------------------------------
-  local mkt="$base/schematize_market_rs"
-  log "compilando o schematize-market (instalar/remover programas)"
-  if _sync_repo "https://github.com/schematizeme/schematize_market_rs.git" "$mkt" 2>/dev/null \
-     && as_user sh -c "cd '$mkt' && CARGO_TARGET_DIR='$tgt' cargo build --release" \
-     && as_user install -m755 "$tgt/release/schematize-market" "$bin/schematize-market"; then
-    registrar_no_menu "$bin/schematize-market" "schematize-market"
+  if garantir_o_gestor; then
     ok "schematize-market instalado. Veja tudo com: schematize-market list"
-  else
-    warn "o schematize-market não compilou — o schematize segue instalado e funcionando,"
-    warn "mas a instalação de linguagens (go, rust, node…) mora nele. Tente sozinho:"
-    warn "  https://github.com/schematizeme/schematize_market_rs"
   fi
 
   # ---------------------------------------------------------------------------
-  # DEPLOYER — SSH, VPS e acesso remoto auditado (ADR-0010). OPT-IN, com `--deployer`.
+  # DEPLOYER e OPTIMIZER — OPT-IN, com `--deployer` / `--optimizer`.
   #
-  # POR QUE NÃO ENTRA POR PADRÃO: ele SAIU do fluxo principal de propósito. Enquanto a fase
-  # 7 não roda, o `schematize` ainda TEM `ssh` e `vps` embutidos — instalar os dois por
-  # padrão entregaria a mesma funcionalidade duas vezes, por dois comandos diferentes, e é
-  # exatamente a ambiguidade que a `purge_previous` deste script existe pra matar.
+  # POR QUE NAO ENTRAM POR PADRAO: um guarda credencial, o outro MEXE NA MAQUINA (slice
+  # de systemd e, adiante, cmdline de kernel). Instalar em quem nao pediu e o oposto do
+  # piso 10 e do §37.48.
   #
-  # POR QUE É BEST-EFFORT: quem pediu `--deployer` pediu o app de deploy, mas não deixou de
-  # querer o schematize. Falhar o install inteiro porque um app OPCIONAL não compilou é o
-  # oposto do piso 10 — a ausência de um não pode derrubar o outro.
+  # POR QUE O SCRIPT NAO OS COMPILA MAIS (D5): os dois blocos que estavam aqui clonavam,
+  # compilavam e instalavam — exatamente o que o `schematize-market install` faz, com o
+  # mesmo checkout persistente e o mesmo target compartilhado. Eram ~40 linhas de bash
+  # duplicando um gestor de pacotes de verdade. Agora este script so pede.
+  #
+  # As flags seguem valendo ponta a ponta: a compatibilidade e com quem ja tem o comando
+  # na mao, nao com o jeito antigo de cumpri-lo.
   # ---------------------------------------------------------------------------
+  # `if` e nao `A && B || C`: aqui a delegacao PODE falhar (o market pode nao estar la),
+  # e a falha ja fala por si — o `|| true` faria o `set -e` engolir o codigo de saida
+  # sem que ninguem lesse a diferenca. Ver SC2015.
   if [ "$DEPLOYER" = 1 ]; then
-    local dep="$base/schematize_deployer_rs"
-    log "compilando o schematize-deployer (SSH/VPS) — pedido com --deployer"
-    if _sync_repo "https://github.com/schematizeme/schematize_deployer_rs.git" "$dep" 2>/dev/null \
-       && as_user sh -c "cd '$dep' && CARGO_TARGET_DIR='$tgt' cargo build --release $feats" \
-       && as_user install -m755 "$tgt/release/schematize-deployer" "$bin/schematize-deployer"; then
-      registrar_no_menu "$bin/schematize-deployer" "schematize-deployer"
-      ok "schematize-deployer instalado. Comece com: schematize-deployer vault init"
-    else
-      warn "o schematize-deployer não compilou — o schematize segue instalado e funcionando."
-      warn "tente sozinho: https://github.com/schematizeme/schematize_deployer_rs"
-    fi
+    delega_ao_market schematize-deployer || true
   fi
-
-  # ---------------------------------------------------------------------------
-  # OPTIMIZER — recursos da máquina (ADR-0011). OPT-IN, com `--optimizer`.
-  #
-  # Mesma razão do deployer para ser opcional, e uma a mais: este app MEXE NA MÁQUINA.
-  # Instalar por padrão algo que altera slice de systemd e (adiante) cmdline de kernel, em
-  # quem não pediu, é o oposto do piso 10 e do §37.48.
-  #
-  # Best-effort pelo mesmo motivo: quem pediu o optimizer não deixou de querer o schematize.
-  # ---------------------------------------------------------------------------
   if [ "$OPTIMIZER" = 1 ]; then
-    local opt="$base/schematize_optimizer_rs"
-    log "compilando o schematize-optimizer (recursos) — pedido com --optimizer"
-    if _sync_repo "https://github.com/schematizeme/schematize_optimizer_rs.git" "$opt" 2>/dev/null \
-       && as_user sh -c "cd '$opt' && CARGO_TARGET_DIR='$tgt' cargo build --release" \
-       && as_user install -m755 "$tgt/release/schematize-optimizer" "$bin/schematize-optimizer"; then
-      registrar_no_menu "$bin/schematize-optimizer" "schematize-optimizer"
-      ok "schematize-optimizer instalado. Comece com: schematize-optimizer diag"
-    else
-      warn "o schematize-optimizer não compilou — o schematize segue instalado e funcionando."
-      warn "tente sozinho: https://github.com/schematizeme/schematize_optimizer_rs"
-    fi
+    delega_ao_market schematize-optimizer || true
   fi
 
   # Os `target/` por-repo de antes do target compartilhado não são mais lidos por
@@ -805,8 +1027,17 @@ registrar_no_menu() {
   # limpa: pedir pro usuário apagar à mão é o oposto do piso da casa. Só DEPOIS dos
   # builds (se algum falhar, o cache antigo continua lá) e só nos caminhos que este
   # script criou — nada de varrer por padrão.
+  #
+  # A lista e por CAMINHO, nao por variavel de bloco: o `$ugui` saiu junto com o bloco que
+  # compilava a janela do updater (ADR-0013), e o `shellcheck` pegou a referencia orfa que
+  # sobrou aqui — SC2154, "referenced but not assigned". Sob `set -u` isso e um abort. Os
+  # checkouts antigos daqueles repos continuam listados de proposito: eles EXISTEM na
+  # maquina de quem instalou antes, e sao justamente o lixo que este bloco existe pra levar.
   local liberado=0 mb
-  for antigo in "$cli/target" "$gui/target" "$ugui/target"; do
+  for antigo in "$cli/target" "$gui/target" \
+                "$base/schematize-updater-gui/target" \
+                "$base/schematize-updater/target" \
+                "$base/schematize_market_rs/target"; do
     [ -d "$antigo" ] || continue
     mb="$(du -sm "$antigo" 2>/dev/null | cut -f1)"; mb="${mb:-0}"
     as_user rm -rf "$antigo" 2>/dev/null || true

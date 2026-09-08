@@ -133,13 +133,17 @@ jobs:
     strategy:
       matrix:
         include:
-          - runner: macos-14   # Apple Silicon
+          - runner: macos-15   # Apple Silicon
             arch: arm64
             target: aarch64-apple-darwin
           # Intel: CROSS-COMPILADO no runner arm64. A imagem `macos-13` foi APOSENTADA pelo
           # GitHub — um job que a pede fica "queued" pra sempre e segura o release inteiro
           # (foi o que travou a v0.52.0 por horas com os outros três jobs já prontos).
-          - runner: macos-14
+          #
+          # `macos-15` e nao `macos-14`: a 14 ja esta marcada DEPRECATED no
+          # `actions/runner-images` (issue 13518) e vai pelo mesmo caminho da 13. Trocar antes
+          # de a imagem sumir custa esta linha; trocar depois custa um release travado sem erro.
+          - runner: macos-15
             arch: x86_64
             target: x86_64-apple-darwin
     runs-on: ${{ matrix.runner }}

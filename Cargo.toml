@@ -41,7 +41,8 @@ portable-pty = "0.9.0"
 # por isso que este é o único ponto onde reusar o pacote do sistema faz sentido.
 rusqlite = { version = "0.31", default-features = false }
 
-# Perfil de release COMPARTILHADO pelos repos do app (CLI, GUI Slint, updater-GUI).
+# Perfil de release COMPARTILHADO pelos repos do app (CLI, GUI Slint, market, deployer,
+# optimizer, updater-GUI). Cargo so reaproveita artefato quando o perfil bate EXATAMENTE.
 #
 # Por que idênticos: o install.sh compila os três com um `CARGO_TARGET_DIR` único.
 # 226 das dependências são as MESMAS nos três — com o target compartilhado elas

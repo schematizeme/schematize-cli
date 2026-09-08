@@ -87,7 +87,7 @@ fn hook_cmd(_exe: &str, sub: &str) -> String {
     // conforme de onde o comando foi chamado, reescrevendo o settings à toa.
     //
     // A lista fixa cobre 100% das instalações que a casa produz: `~/.cargo/bin` (fonte
-    // e updater) e `/usr/bin` (pacote .deb/.rpm), mais `/usr/local/bin` (self-update via
+    // e gestor) e `/usr/bin` (pacote .deb/.rpm), mais `/usr/local/bin` (self-update via
     // pkexec) e o PATH como rede. Sem binário nenhum, sai 0: hook que não bloqueia é
     // melhor que hook que quebra toda parada.
     //

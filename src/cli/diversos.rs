@@ -93,7 +93,8 @@ pub(crate) fn lang_cmd(code: Option<String>, list: bool) -> Result<(), String> {
 }
 
 /// `schematize debug [--collect] [--out <path>] [--stdout]`.
-/// Sem `--collect`: o debug do updater (comportamento atual). Com `--collect`: monta o
+/// Sem `--collect`: o debug do gestor de atualizações (comportamento atual). Com
+/// `--collect`: monta o
 /// relatório completo (secret-safe) e grava um arquivo modo 600 (ou imprime com `--stdout`).
 pub(crate) fn debug_cmd(
     collect: bool,

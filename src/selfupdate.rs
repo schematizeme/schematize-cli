@@ -172,34 +172,49 @@ fn binary_runs(bin: &Path) -> bool {
 }
 
 // ---------------------------------------------------------------------------
-// Delegação ao schematize-updater (o mecanismo CENTRAL de update). O app "depende" dele: toda
-// atualização passa por ele (instala se faltar), cobrindo instalação limpa E update. Se o updater
-// não puder ser instalado/rodado, cai no fluxo interno (binário/fonte) como rede de segurança.
+// DELEGAÇÃO AO GESTOR — `schematize-market` (ADR-0013).
+//
+// O app "depende" dele: toda atualização passa pelo gestor (que é instalado se faltar),
+// cobrindo instalação limpa E update. Se ele não puder ser instalado ou disparado, cai no
+// fluxo interno (binário/fonte) como rede de segurança.
+//
+// ATÉ O ADR-0013 o gestor era o `schematize-updater`. Ele foi ABSORVIDO pelo market, que
+// passou a ser o único responsável por instalar e atualizar. Este módulo aponta para o
+// sucessor, e não há caminho de volta ao antecessor de propósito: manter os dois seria
+// manter dois modelos do que está instalado, para divergirem — que é o problema que a
+// unificação existe para acabar. Uma máquina que só tenha o updater antigo continua
+// atendida: o `ensure_gestor` baixa o market pré-compilado, e se nem isso der, o fluxo
+// interno abaixo ainda atualiza o app.
 // ---------------------------------------------------------------------------
 
-fn updater_filename() -> &'static str {
+/// Nome do binário do gestor nesta plataforma.
+fn gestor_filename() -> &'static str {
     if cfg!(windows) {
-        "schematize-updater.exe"
+        "schematize-market.exe"
     } else {
-        "schematize-updater"
+        "schematize-market"
     }
 }
 
-/// Asset do updater pra esta plataforma (bate com o CI do schematize-updater). None se não há.
-fn updater_asset() -> Option<&'static str> {
+/// Asset do gestor pra esta plataforma. `None` se não há binário publicado.
+///
+/// Bate com o `release.yml` do `schematize_market_rs` e com o
+/// `nucleo::plataforma::market_asset_name()` de lá — os dois são travados por teste no repo
+/// do market, que é onde a lista nasce.
+fn gestor_asset() -> Option<&'static str> {
     match (std::env::consts::OS, std::env::consts::ARCH) {
-        ("linux", "x86_64") => Some("schematize-updater-linux-x86_64"),
-        ("macos", "aarch64") => Some("schematize-updater-macos-arm64"),
-        ("macos", "x86_64") => Some("schematize-updater-macos-x86_64"),
-        ("windows", "x86_64") => Some("schematize-updater-windows-x86_64.exe"),
+        ("linux", "x86_64") => Some("schematize-market-linux-x86_64"),
+        ("macos", "aarch64") => Some("schematize-market-macos-arm64"),
+        ("macos", "x86_64") => Some("schematize-market-macos-x86_64"),
+        ("windows", "x86_64") => Some("schematize-market-windows-x86_64.exe"),
         _ => None,
     }
 }
 
-/// Resolve o `schematize-updater` no `$PATH` + `~/.cargo/bin` + `~/.local/bin`. None se ausente.
+/// Resolve o gestor no `$PATH` + `~/.cargo/bin` + `~/.local/bin`. `None` se ausente.
 /// Exposto pra GUI checar na abertura ("pede pra instalar se faltar").
-pub fn updater_bin() -> Option<PathBuf> {
-    let name = updater_filename();
+pub fn gestor_bin() -> Option<PathBuf> {
+    let name = gestor_filename();
     if let Some(paths) = std::env::var_os("PATH") {
         for dir in std::env::split_paths(&paths) {
             let p = dir.join(name);
@@ -217,17 +232,17 @@ pub fn updater_bin() -> Option<PathBuf> {
     None
 }
 
-/// Garante o updater instalado: devolve o caminho; se faltar, baixa o asset da plataforma pro
+/// Garante o gestor instalado: devolve o caminho; se faltar, baixa o asset da plataforma pro
 /// `~/.cargo/bin`. Exposto pra GUI (botão "instalar gestor de atualizações").
-pub fn ensure_updater() -> Result<PathBuf, String> {
-    if let Some(p) = updater_bin() {
+pub fn ensure_gestor() -> Result<PathBuf, String> {
+    if let Some(p) = gestor_bin() {
         return Ok(p);
     }
-    let asset = updater_asset().ok_or("sem binário do updater pra esta plataforma/arch")?;
+    let asset = gestor_asset().ok_or("sem binário do gestor pra esta plataforma/arch")?;
     let url = format!(
-        "https://github.com/schematizeme/schematize-updater/releases/latest/download/{asset}"
+        "https://github.com/schematizeme/schematize_market_rs/releases/latest/download/{asset}"
     );
-    let dst = util::home().join(".cargo").join("bin").join(updater_filename());
+    let dst = util::home().join(".cargo").join("bin").join(gestor_filename());
     if let Some(parent) = dst.parent() {
         let _ = fs::create_dir_all(parent);
     }
@@ -236,19 +251,54 @@ pub fn ensure_updater() -> Result<PathBuf, String> {
     {
         let _ = util::run("chmod", &["+x", dst.to_str().unwrap_or_default()]);
     }
-    log(&format!("schematize-updater instalado em {}", dst.display()));
+    // O binário TEM de executar aqui. Um asset da glibc/arquitetura errada baixa com HTTP
+    // 200 e não roda; deixá-lo no PATH criaria um "gestor" que responde a nada, e o sintoma
+    // seria "cliquei em atualizar e não aconteceu nada" — de novo.
+    if !binary_runs(&dst) {
+        let _ = fs::remove_file(&dst);
+        return Err("o gestor baixado não executa nesta máquina (glibc/arquitetura?)".into());
+    }
+    log(&format!("schematize-market instalado em {}", dst.display()));
     Ok(dst)
 }
 
-/// Dispara `schematize-updater update`. Unix: num TERMINAL externo (pode compilar → precisa TTY).
-/// Windows: spawna (abre console). Err se não conseguir (o chamador cai no fluxo interno).
-fn run_updater(up: &Path) -> Result<String, String> {
+/// **O quê:** o gestor APOSENTADO (`schematize-updater`) ainda está na máquina? Devolve o
+/// caminho, se estiver.
+///
+/// **Onde:** o `schematize doctor`, para apontá-lo sem apagá-lo.
+///
+/// **Por que só apontar:** apagar binário da máquina de alguém é ação do gestor, que o faz
+/// dizendo o que fez (ADR-0013). Um diagnóstico que remove software em silêncio é o oposto
+/// do que a palavra "doctor" promete.
+pub fn updater_aposentado_presente() -> Option<PathBuf> {
+    let name = if cfg!(windows) { "schematize-updater.exe" } else { "schematize-updater" };
+    if let Some(paths) = std::env::var_os("PATH") {
+        for dir in std::env::split_paths(&paths) {
+            let p = dir.join(name);
+            if p.is_file() {
+                return Some(p);
+            }
+        }
+    }
+    for sub in [".cargo/bin", ".local/bin"] {
+        let p = util::home().join(sub).join(name);
+        if p.is_file() {
+            return Some(p);
+        }
+    }
+    None
+}
+
+/// Dispara `schematize-market update`. Unix: num TERMINAL externo (pode compilar → precisa
+/// TTY). Windows: spawna (abre console). `Err` se não conseguir — o chamador cai no fluxo
+/// interno.
+fn run_gestor(up: &Path) -> Result<String, String> {
     #[cfg(unix)]
     {
         let script = format!(
             "#!/usr/bin/env bash\nexport PATH=\"$HOME/.cargo/bin:$HOME/.local/bin:$PATH\"\n{up:?} update\necho\nread -rp '[update encerrado — Enter para fechar] '\n"
         );
-        let tmp = log_path().parent().unwrap_or(Path::new(".")).join("run-updater.sh");
+        let tmp = log_path().parent().unwrap_or(Path::new(".")).join("run-gestor.sh");
         fs::write(&tmp, &script).map_err(|e| e.to_string())?;
         let _ = util::run("chmod", &["+x", tmp.to_str().unwrap_or_default()]);
         let terms = [
@@ -274,32 +324,31 @@ fn run_updater(up: &Path) -> Result<String, String> {
             }
         }
         cmd.spawn().map_err(|e| format!("abrir terminal: {e}"))?;
-        Ok("Abri o schematize-updater num terminal — ele atualiza o app (build incremental)."
-            .into())
+        Ok("Abri o schematize-market num terminal — ele atualiza o app (build incremental).".into())
     }
     #[cfg(windows)]
     {
         std::process::Command::new(up)
             .arg("update")
             .spawn()
-            .map_err(|e| format!("iniciar o updater: {e}"))?;
-        Ok("schematize-updater rodando — ele atualiza o app.".into())
+            .map_err(|e| format!("iniciar o gestor: {e}"))?;
+        Ok("schematize-market rodando — ele atualiza o app.".into())
     }
 }
 
-/// Executa a atualização. DELEGA ao schematize-updater (instalando-o se faltar); só cai no fluxo
-/// interno (binário/fonte) se o updater não puder ser instalado/disparado.
+/// Executa a atualização. DELEGA ao `schematize-market` (instalando-o se faltar); só cai no
+/// fluxo interno (binário/fonte) se o gestor não puder ser instalado/disparado.
 pub fn run() -> Result<String, String> {
     let cur = env!("CARGO_PKG_VERSION");
     log(&format!("self-update: iniciando (atual v{cur}) em {}", std::env::consts::OS));
 
-    // 1) Caminho CENTRAL: delega ao schematize-updater (instala se faltar).
-    match ensure_updater() {
-        Ok(up) => match run_updater(&up) {
+    // 1) Caminho CENTRAL: delega ao gestor (instala se faltar).
+    match ensure_gestor() {
+        Ok(up) => match run_gestor(&up) {
             Ok(msg) => return Ok(msg),
-            Err(e) => log(&format!("run_updater falhou ({e}) — caindo no fluxo interno")),
+            Err(e) => log(&format!("run_gestor falhou ({e}) — caindo no fluxo interno")),
         },
-        Err(e) => log(&format!("updater indisponível ({e}) — caindo no fluxo interno")),
+        Err(e) => log(&format!("gestor indisponível ({e}) — caindo no fluxo interno")),
     }
 
     // Windows: substituir o .exe em execução é frágil — abre o release pra baixar o instalador.

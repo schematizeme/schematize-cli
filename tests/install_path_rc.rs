@@ -275,24 +275,158 @@ fn a_flag_deployer_e_opt_in() {
     assert_eq!(ver("--binary --deployer"), "1");
 }
 
-/// O bloco do deployer é **best-effort**: o `install.sh` não pode morrer porque um app
-/// OPCIONAL não compilou. Quem pediu `--deployer` não deixou de querer o schematize.
+/// A instalação do deployer é **best-effort**: o `install.sh` não pode morrer porque um app
+/// OPCIONAL não veio. Quem pediu `--deployer` não deixou de querer o schematize.
+///
+/// **A âncora mudou com o ADR-0013, o invariante não.** O script deixou de COMPILAR o
+/// deployer — quem o instala agora é o `schematize-market`, e este arquivo só delega
+/// (`delega_ao_market`). O que continua valendo, e é o ponto do teste, é que essa delegação
+/// AVISA quando falha e nunca derruba a instalação junto.
 #[test]
 fn a_falha_do_deployer_nao_derruba_o_install() {
     let txt = std::fs::read_to_string(install_sh()).unwrap();
-    let i = txt.find("compilando o schematize-deployer").expect("o bloco do deployer");
-    // Recorta até o PRÓXIMO bloco, não por número de caracteres. A versão anterior usava uma
-    // janela fixa de 900, e ela quebrou assim que o bloco cresceu — um teste que sabe o
-    // TAMANHO do código quebra em refatoração; um que sabe a ESTRUTURA, não.
+
+    // 1) A função que delega existe, avisa e não mata.
+    let i = txt.find("delega_ao_market() {").expect("a função que delega ao gestor");
     let resto = &txt[i..];
-    let bloco = match resto.find("\n  # ---") {
+    let bloco = match resto.find("\n}\n") {
         Some(fim) => &resto[..fim],
         None => resto,
     };
     assert!(bloco.contains("warn "), "a falha tem de AVISAR, não passar calada");
     assert!(
         !bloco.contains("die "),
-        "o deployer é opcional: `die` aqui derrubaria a instalação do schematize junto"
+        "o app delegado é opcional: `die` aqui derrubaria a instalação do schematize junto"
+    );
+    // A mensagem tem de ser acionável: dizer o comando para repetir à mão (§37.48).
+    assert!(
+        bloco.contains("schematize-market install"),
+        "a mensagem de falha precisa dar o comando para tentar de novo"
+    );
+
+    // 2) E o script NÃO compila mais o deployer — se voltar a compilar, voltam os dois
+    //    caminhos para a mesma coisa que o ADR-0013 existe para acabar.
+    assert!(
+        !txt.contains("schematize_deployer_rs.git"),
+        "o install.sh voltou a clonar o deployer — o dono da instalação é o market"
+    );
+    assert!(
+        !txt.contains("schematize_optimizer_rs.git"),
+        "o install.sh voltou a clonar o optimizer — o dono da instalação é o market"
+    );
+}
+
+/// **O LOOP, travado pelo lado do script.** O `install.sh --deployer` delega ao market, e o
+/// `market install <app>` compila do fonte. Se algum dia o market voltar a chamar este script,
+/// os dois se chamam em círculo — por isso o teste vive nos DOIS lados (o outro está em
+/// `schematize_market_rs::appsdacasa`).
+#[test]
+fn a_delegacao_nao_reentra_no_proprio_script() {
+    let txt = std::fs::read_to_string(install_sh()).unwrap();
+    let i = txt.find("delega_ao_market() {").expect("a função que delega ao gestor");
+    let resto = &txt[i..];
+    let bloco = match resto.find("\n}\n") {
+        Some(fim) => &resto[..fim],
+        None => resto,
+    };
+    for proibido in ["curl ", "install.sh", "RAW_INSTALL"] {
+        assert!(!bloco.contains(proibido), "`{proibido}` na delegação reabre o loop");
+    }
+}
+
+/// **TODA função chamada no `install.sh` está DEFINIDA nele.**
+///
+/// # O bug real que este teste existe para não repetir
+///
+/// O ADR-0013 removeu a função `install_updater`. Ficou uma chamada a ela no `post_config` —
+/// que é o caminho por onde TODA instalação passa. O sintoma, numa instalação limpa de
+/// verdade, foi uma linha no fim de tudo:
+///
+/// ```text
+/// /tmp/install.sh: line 732: install_updater: command not found
+/// ```
+///
+/// **Nenhum gate pegou isso.** `bash -n` não pega: chamar função inexistente é sintaticamente
+/// válido. O `shellcheck` não pega: para ele é um comando externo que talvez exista no PATH.
+/// A bateria de shells não pega: ela testa o shim do ops, não este arquivo. Só a instalação
+/// limpa em container pegou — depois de vinte minutos compilando.
+///
+/// Pior que a mensagem: sob `set -e` a chamada estava com `|| true`, então ela **não abortava
+/// nada**. A instalação terminava dizendo "pronto" com um erro no meio que ninguém leria — e
+/// se aquela chamada fosse o único ponto que instalava o gestor (era, nos caminhos `--binary`
+/// e `package`), a máquina terminaria sem gestor, em silêncio. É o risco R3 inteiro numa
+/// linha.
+///
+/// # Como ele funciona
+///
+/// Extrai os nomes DEFINIDOS (`nome() {`) e os nomes CHAMADOS que parecem função nossa —
+/// identificador com `_`, no início de um comando. Um chamado que não está definido reprova.
+/// Só nomes com `_` de propósito: é a convenção deste arquivo, e evita ter de manter uma
+/// allowlist de todo binário do sistema (`grep`, `curl`, `install`…), que é a lista que
+/// envelhece e cria falso positivo.
+#[test]
+fn nao_ha_chamada_a_funcao_que_nao_existe() {
+    let txt = std::fs::read_to_string(install_sh()).unwrap();
+
+    // A DEFINIÇÃO pode ter comentário ou corpo depois do `{` (`f() { # nota` e
+    // `log() { printf …; }` são os dois casos reais aqui), então a marca é o `() {`, não o
+    // fim da linha. Foi este detalhe que o teste errou na primeira escrita: sete funções que
+    // EXISTEM apareceram como órfãs.
+    let mut definidas: Vec<String> = Vec::new();
+    for l in txt.lines() {
+        let l = l.trim();
+        if let Some(i) = l.find("() {") {
+            let nome = &l[..i];
+            if !nome.is_empty() && nome.chars().all(|c| c.is_alphanumeric() || c == '_') {
+                definidas.push(nome.to_string());
+            }
+        }
+    }
+    assert!(definidas.len() > 10, "não achei as funções do script: {definidas:?}");
+
+    let mut orfas: Vec<(usize, String)> = Vec::new();
+    for (n, linha) in txt.lines().enumerate() {
+        let l = linha.trim();
+        // Comentário e definição não são chamada.
+        if l.starts_with('#') || l.ends_with("() {") {
+            continue;
+        }
+        // O primeiro token de um comando, inclusive depois de `if`, `&&`, `||`, `;`, `!`.
+        for pedaco in l.split(['|', '&', ';']) {
+            // Só o PRIMEIRO token que não seja palavra-chave de shell: é ele que nomeia o
+            // comando. O `break` no fim do corpo garante isso.
+            for t in pedaco.split_whitespace() {
+                if matches!(t, "if" | "then" | "else" | "elif" | "!" | "while" | "until" | "do") {
+                    continue;
+                }
+                // `$mv_` é EXPANSÃO DE VARIÁVEL no lugar do comando (o script monta o `mv` com
+                // ou sem `sudo` assim). O valor dela é decidido em runtime e não há função
+                // nossa para procurar.
+                if t.starts_with('$') || t.starts_with("\"$") {
+                    break;
+                }
+                let nome = t.trim_matches(|c: char| !c.is_alphanumeric() && c != '_');
+                if nome.contains('_')
+                    && nome.chars().all(|c| c.is_alphanumeric() || c == '_')
+                    && !nome.chars().next().is_some_and(|c| c.is_ascii_digit())
+                    // Parece nome de função nossa e NÃO está definido nem é variável.
+                    && !definidas.iter().any(|d| d == nome)
+                    // Variáveis são MAIÚSCULAS neste script; funções, minúsculas.
+                    && nome.chars().any(|c| c.is_lowercase())
+                    && !nome.chars().any(|c| c.is_uppercase())
+                    // Nomes conhecidos que NÃO são função deste script.
+                    && !matches!(nome, "update_desktop_database" | "gtk_update_icon_cache")
+                {
+                    orfas.push((n + 1, nome.to_string()));
+                }
+                break; // só o PRIMEIRO token de cada comando é o nome
+            }
+        }
+    }
+    assert!(
+        orfas.is_empty(),
+        "chamada(s) a função que NÃO existe no install.sh — é o `install_updater: command not \
+         found` de novo: {orfas:?}"
     );
 }
 

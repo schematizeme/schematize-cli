@@ -42,7 +42,7 @@ fn api_rate() -> Option<(i64, i64, i64)> {
     Some((c.get("remaining")?.as_i64()?, c.get("limit")?.as_i64()?, c.get("reset")?.as_i64()?))
 }
 
-/// Versão TEXTO (sem ANSI, sem cor) do diagnóstico essencial do updater — reusada pelo
+/// Versão TEXTO (sem ANSI, sem cor) do diagnóstico essencial do gestor — reusada pelo
 /// coletor de debug (`debugreport`). Best-effort: cada linha é independente e nunca panica.
 /// Cobre o núcleo: versão instalada/raw/API, rate-limit do GitHub e gravabilidade do exe.
 pub fn report_text() -> String {

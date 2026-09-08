@@ -1,7 +1,7 @@
 //! `schematize debug --collect` — COLETOR DE DEBUG.
 //! O quê: junta num único relatório de texto TUDO que ajuda a diagnosticar a
 //! ferramenta na máquina de outro usuário (sistema, instalação, PATH, dependências,
-//! config, skills, overdev, updater, doctor, logs) pra ele compartilhar.
+//! config, skills, gestor de atualizações, doctor, logs) pra ele compartilhar.
 //! Onde: `schematize debug --collect [--out <path>] [--stdout]`.
 //!
 //! PRIORIDADE Nº1 — NUNCA VAZAR SEGREDO. Duas camadas de defesa:
@@ -44,7 +44,7 @@ use sonda::*;
 /// Monta o relatório COMPLETO (texto). Aplica `scrub` no fim, como rede de segurança
 /// sobre tudo que entrou de env/arquivo/comando.
 /// Monta o relatório. `online=false` (default) é OFFLINE-first e RÁPIDO — pula as seções que
-/// batem na rede (updater/rate-limit do GitHub, alcance do catálogo, doctor/github_reachable),
+/// batem na rede (gestor/rate-limit do GitHub, alcance do catálogo, doctor/github_reachable),
 /// que podem TRAVAR numa máquina com rede bloqueada/lenta (curl sem timeout curto). Com
 /// `online=true` inclui esses diagnósticos de rede (úteis pra bug de versionamento).
 pub fn collect(online: bool) -> String {
@@ -68,7 +68,7 @@ pub fn collect(online: bool) -> String {
     sec_skills(&mut o, online);
     let overdev_roots = sec_overdev(&mut o);
     if online {
-        sec_updater(&mut o);
+        sec_gestor(&mut o);
         sec_doctor(&mut o);
     } else {
         hdr(&mut o, "8-9. UPDATER + DOCTOR (rede)");
@@ -160,12 +160,20 @@ pub fn ambiente() -> serde_json::Value {
         },
         // Versões dos OUTROS binários da mesma máquina. Quase todo bug nosso é de
         // DESCASAMENTO — CLI novo com GUI velha (o `Cargo.lock` da GUI pina o crate por
-        // commit), updater defasado — e sem isto a triagem gasta uma ida-e-volta só pra
+        // commit), gestor defasado — e sem isto a triagem gasta uma ida-e-volta só pra
         // descobrir isso. O `version` do topo do corpo é só de quem enviou.
+        //
+        // O `updater` continua aqui APESAR de aposentado (ADR-0013), e é justamente por
+        // isso: uma máquina em transição pode ter os dois, e é a presença do antecessor
+        // que explica metade dos relatos de "atualizei e voltou a versão velha". Some da
+        // saída quando some da máquina — `versao_de` já responde "(não instalado)".
         "app": {
             "cli": env!("CARGO_PKG_VERSION"),
             "gui": versao_de("schematize-gui"),
-            "updater": versao_de("schematize-updater"),
+            "market": versao_de("schematize-market"),
+            "deployer": versao_de("schematize-deployer"),
+            "optimizer": versao_de("schematize-optimizer"),
+            "updater_aposentado": versao_de("schematize-updater"),
         },
         "display": {
             "SLINT_BACKEND": getenv("SLINT_BACKEND"),
@@ -177,7 +185,7 @@ pub fn ambiente() -> serde_json::Value {
     })
 }
 
-/// Versão de um binário irmão (`schematize-gui`, `schematize-updater`), ou por que não deu.
+/// Versão de um binário irmão (`schematize-gui`, `schematize-market`, …), ou por que não deu.
 ///
 /// O quê: roda `<bin> --version` e devolve só o número. Onde: o bloco `app` do [`ambiente`].
 /// Por que: descasamento entre os binários é a causa nº 1 de "atualizei mas abre a versão
