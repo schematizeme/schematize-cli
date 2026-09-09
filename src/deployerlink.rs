@@ -148,7 +148,39 @@ pub fn descobrir() -> Estado {
 /// minutos. Fazer isso como efeito colateral de um `status` seria surpresa cara. O comando
 /// fica visível para a pessoa rodar quando quiser.
 pub fn como_instalar_app(bin: &str) -> String {
-    format!("schematize-market install {bin}")
+    format!("{GESTOR} install {bin}")
+}
+
+/// O nome do gestor. Constante porque ele aparece em texto E em execução, e escrever a string
+/// nos dois lugares é como o nome legado do deployer sobreviveu num deles.
+pub const GESTOR: &str = "schematize-market";
+
+/// **O quê:** o comando que EXECUTA a instalação, com o gestor resolvido em caminho absoluto.
+///
+/// **Onde:** `schematize apps install`, antes do `bash -c`.
+///
+/// ## Por que não dá pra executar o texto de [`como_instalar_app`]
+///
+/// Aquele texto é para a pessoa LER e copiar, e para isso o nome puro é o certo — num terminal
+/// normal o `$PATH` tem `~/.cargo/bin`. Mas quem executa nem sempre tem esse `$PATH`: a janela
+/// aberta pelo lançador do desktop recebe um PATH mínimo, e o terminal que ela abre herda.
+///
+/// Foi assim que um clique em "instalar" respondeu `schematize-market: comando não encontrado`
+/// sobre um gestor instalado. A GUI foi corrigida; esta é a MESMA falha no caminho da CLI, que
+/// também executa via `bash -c`. Corrigir só onde alguém clicou deixaria a outra metade
+/// esperando o próximo clique — que é a forma como este bug já voltou uma vez.
+///
+/// Devolve `None` quando o gestor não está em lugar nenhum: aí o chamador diz o que falta, em
+/// vez de deixar o `bash` reclamar de um nome.
+pub fn comando_de_instalacao(bin: &str) -> Option<String> {
+    comando_de_instalacao_com(GESTOR, bin)
+}
+
+/// **O quê:** [`comando_de_instalacao`] com o nome do gestor injetado — é o que permite testar
+/// o caminho "gestor ausente" sem depender do que está instalado na máquina de quem roda.
+pub fn comando_de_instalacao_com(gestor: &str, bin: &str) -> Option<String> {
+    let caminho = resolve_bin(gestor)?;
+    Some(format!("{} install {bin}", caminho.display()))
 }
 
 /// **O quê:** como instalar o Deployer. **Onde:** compat com quem já chamava.
@@ -158,6 +190,34 @@ pub fn como_instalar() -> String {
 
 #[cfg(test)]
 mod tests {
+
+    /// **O buraco que isto fecha.** O comando que EXECUTA usava o nome puro do gestor, e a
+    /// janela aberta pelo lançador do desktop tem PATH mínimo (sem `~/.cargo/bin`). O clique em
+    /// "instalar" respondia `schematize-market: comando não encontrado` sobre um gestor
+    /// instalado. Reproduzido com `env -i PATH=/usr/bin:/bin bash -c 'schematize-market -V'`.
+    ///
+    /// O texto MOSTRADO segue com o nome puro de propósito — é o que a pessoa copia num
+    /// terminal normal. Quem tem de ser absoluto é o que roda.
+    #[test]
+    fn o_texto_e_para_ler_e_o_comando_e_para_executar() {
+        let texto = como_instalar_app("schematize-deployer");
+        assert_eq!(texto, "schematize-market install schematize-deployer");
+
+        // O executável, quando o gestor existe, vem com caminho — nunca com o nome puro.
+        if let Some(cmd) = comando_de_instalacao("schematize-deployer") {
+            assert!(cmd.contains("/"), "o comando executado tem de ser absoluto: {cmd}");
+            assert!(cmd.ends_with(" install schematize-deployer"), "{cmd}");
+            assert!(!cmd.starts_with("schematize-market "), "voltou ao nome puro: {cmd}");
+        }
+    }
+
+    /// Gestor ausente devolve `None` para o chamador dizer o que falta — em vez de mandar um
+    /// nome para o `bash` reclamar. É a diferença entre "instale o gestor com X" e uma linha
+    /// crua de shell.
+    #[test]
+    fn gestor_inexistente_nao_vira_comando() {
+        assert_eq!(comando_de_instalacao_com("nao-existe-mesmo-xyz", "app"), None);
+    }
     use super::*;
 
     /// `utilizavel` só é verdade no estado que de fato dá para usar. Sem esta distinção, um

@@ -167,7 +167,17 @@ pub(crate) fn apps_instalar(app: Option<String>, yes: bool) -> Result<(), String
         return Ok(());
     }
 
-    let cmd = deployerlink::como_instalar_app(a.bin);
+    // O texto MOSTRADO usa o nome puro (é o que a pessoa copia num terminal normal); o que
+    // EXECUTA usa o caminho absoluto, porque quem chama nem sempre tem `~/.cargo/bin` no PATH
+    // — a janela do lançador do desktop não tem. Ver `deployerlink::comando_de_instalacao`.
+    let Some(cmd) = deployerlink::comando_de_instalacao(a.bin) else {
+        return Err(format!(
+            "o gestor `{}` não está instalado — é ele que instala os apps da casa.\n\
+             Instale-o com:\n    curl -fsSL {} | bash",
+            deployerlink::GESTOR,
+            crate::upgrade::INSTALL_SH,
+        ));
+    };
     println!("Vou instalar o `{}` — {}", a.bin, a.sobre);
     println!();
     println!("  Isto COMPILA do fonte e leva minutos. Precisa de rede, e o instalador");

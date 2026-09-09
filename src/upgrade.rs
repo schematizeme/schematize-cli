@@ -8,7 +8,14 @@
 use crate::i18n::{t, tf};
 use std::process::Command;
 
-const INSTALL_SH: &str =
+/// O `install.sh` do `main` — a fonte ÚNICA desta URL no crate.
+///
+/// **Onde:** o fallback de recompilação do fonte ([`crate::selfupdate`]), este módulo, e a
+/// mensagem que diz como instalar o gestor quando ele falta (`cli::deployer`).
+///
+/// Era declarada duas vezes, privada, com o mesmo literal. Duas cópias de uma URL é uma URL
+/// que muda em um lugar só no dia em que mudar.
+pub const INSTALL_SH: &str =
     "https://raw.githubusercontent.com/schematizeme/schematize-cli/main/install.sh";
 
 /// Repo GitHub do PRÓPRIO app (a CLI/GUI) — usado pra resolver a versão mais nova do app.

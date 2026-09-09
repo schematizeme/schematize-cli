@@ -19,9 +19,9 @@ const REPO: &str = "schematize-cli";
 
 /// install.sh do main — usado pelo fallback de recompilação do fonte (source-first) quando
 /// não há binário pré-compilado compatível pra plataforma (ex.: openSUSE, glibc diferente).
+/// A URL tem um dono só (`upgrade`); aqui é só o apelido local.
 #[cfg(unix)]
-const INSTALL_SH: &str =
-    "https://raw.githubusercontent.com/schematizeme/schematize-cli/main/install.sh";
+use crate::upgrade::INSTALL_SH;
 
 /// Nomes dos assets por plataforma (batem com o que o CI publica).
 #[cfg(unix)]
