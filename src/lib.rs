@@ -18,6 +18,7 @@ pub mod diagnostics;
 pub mod disco;
 pub mod doctor;
 pub mod environments;
+pub mod envlink;
 pub mod gestorboot;
 pub mod gitcontas;
 pub mod githist;

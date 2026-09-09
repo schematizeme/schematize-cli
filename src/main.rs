@@ -20,7 +20,7 @@ use cli::ssh::*;
 use clap::Parser;
 use schematize::i18n::tf;
 use schematize::{
-    agent, autostart, doctor, environments, links, news, overdev, panel, status, upgrade, util,
+    agent, autostart, doctor, envlink, links, news, overdev, panel, status, upgrade, util,
 };
 
 /// Um alvo de item humano digitado na linha de comando.
@@ -188,21 +188,37 @@ fn main() {
             Auto::Enable => autostart::enable(&util::self_exe()),
             Auto::Disable => autostart::disable(),
         },
-        Cmd::Env { sub } => match sub {
-            EnvCmd::Switch { lang, to, dry_run, yes } => {
-                schematize::environments::switch(&lang, &to, dry_run, yes)
-            }
-            EnvCmd::List => {
-                environments::list();
-                Ok(())
-            }
-            EnvCmd::Install { lang, method, dry_run, yes } => {
-                environments::install(&lang, method, dry_run, yes)
-            }
-            EnvCmd::Remove { lang, method, dry_run } => {
-                environments::remove(&lang, method, dry_run)
-            }
-        },
+        // `env` ENCAMINHA ao `schematize-market` (ADR-0015). O hub tinha uma cópia de
+        // `environments/`, e ela já divergia da do market: o `install csharp --method distro`
+        // ganhou lá a capacidade de adicionar o repo do fornecedor, e aqui seguia recusando.
+        // Corrigir nos dois lugares seria pagar o preço da duplicação de novo, e no próximo.
+        //
+        // O comando NÃO some: superfície de CLI é contrato, e há snapshot que a trava.
+        Cmd::Env { sub } => {
+            let args = match &sub {
+                EnvCmd::Switch { lang, to, dry_run, yes } => {
+                    envlink::args_de_env("switch", lang, None, Some(to), *dry_run, *yes)
+                }
+                EnvCmd::List => envlink::args_de_env("list", "", None, None, false, false),
+                EnvCmd::Install { lang, method, dry_run, yes } => envlink::args_de_env(
+                    "install",
+                    lang,
+                    method.as_deref(),
+                    None,
+                    *dry_run,
+                    *yes,
+                ),
+                EnvCmd::Remove { lang, method, dry_run } => envlink::args_de_env(
+                    "remove",
+                    lang,
+                    method.as_deref(),
+                    None,
+                    *dry_run,
+                    false,
+                ),
+            };
+            envlink::encaminhar(&args)
+        }
         Cmd::Gui => {
             // Mesma aplicação, outra face. A face gráfica DEFAULT é o binário
             // `schematize-gui` (Slint), instalado à parte pelo install.sh; executa-o.
