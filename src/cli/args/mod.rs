@@ -30,21 +30,33 @@
 
 pub(crate) mod maquina;
 pub(crate) mod overdev;
-pub(crate) mod remoto;
 pub(crate) mod skills;
 
-pub(crate) use maquina::{DbCmd, DiscoCmd, EnvCmd, GitCmd, SshCmd};
+pub(crate) use maquina::{DbCmd, DiscoCmd, GitCmd};
 pub(crate) use overdev::{Auto, CaixaCmd, GraphCmd, Over, ProjectsCmd};
-pub(crate) use remoto::{McpCmd, VpsCmd};
 pub(crate) use skills::SkillsCmd;
 
 use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
+// O `after_help` existe porque `ssh`, `vps`, `mcp` e `env` deixaram de ser comandos DESTE
+// binário (ADR-0010/0012, enfim cumpridos): eles são interceptados antes do clap e vão para os
+// apps donos. Continuam funcionando digitados aqui — o que se perderia sem esta nota é a
+// DESCOBERTA, porque o `--help` só lista o que o clap conhece.
+//
+// Um comando que funciona mas não aparece em lugar nenhum é pior que um comando removido: a
+// pessoa conclui que a funcionalidade sumiu.
 #[command(
     name = "schematize",
     version,
-    about = "Ecosystem manager for Claude — skills, overdev, and more (Linux-first)."
+    about = "Ecosystem manager for Claude — skills, overdev, and more (Linux-first).",
+    after_help = concat!(
+        "DELEGATED TO THE HOUSE APPS (still work when typed here):\n",
+        "  ssh, vps, mcp   ->  schematize-deployer\n",
+        "  env             ->  schematize-market\n",
+        "\n",
+        "Run `schematize-deployer --help` or `schematize-market --help` for their commands."
+    )
 )]
 pub(crate) struct Cli {
     #[command(subcommand)]
@@ -216,29 +228,8 @@ pub(crate) enum Cmd {
         #[command(subcommand)]
         sub: Auto,
     },
-    /// Dev environments: language runtimes (docker|mise|distro|official) + dev tools (claude|code|codex).
-    Env {
-        #[command(subcommand)]
-        sub: EnvCmd,
-    },
     /// Open the graphical window (same software as the CLI — just the GUI face).
     Gui,
-    /// SSH keys: generate, list, export and manage keys in ~/.ssh (never leaks the private key).
-    Ssh {
-        #[command(subcommand)]
-        sub: SshCmd,
-    },
-    /// VPS: registro de hosts + execução remota AUDITADA (o agente nunca vê a chave).
-    /// A política do cliente é UX; a fronteira é o forced command no servidor (ADR-0005).
-    Vps {
-        #[command(subcommand)]
-        sub: VpsCmd,
-    },
-    /// MCP: expõe o gestor de VPS ao agente como tools tipadas (`mcp__schematize-vps__*`).
-    Mcp {
-        #[command(subcommand)]
-        sub: McpCmd,
-    },
     /// Projects: list detected/pinned projects, pin/unpin, or drop a `.schematize` marker.
     Projects {
         #[command(subcommand)]

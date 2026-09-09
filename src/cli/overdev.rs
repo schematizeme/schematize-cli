@@ -1,7 +1,7 @@
 //! Subcomandos do OVERDEV: rodar, dividir em K agentes, snapshot/histórico/restore
 //! do DB local e o log de conclusões.
 
-use crate::cli::ssh::confirm;
+use crate::cli::prompt::confirm;
 use schematize::agentrun;
 use schematize::agentrun::AgentRunner;
 use schematize::{overdev, overdevdb};

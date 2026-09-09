@@ -15,13 +15,10 @@ use cli::diversos::*;
 use cli::git::*;
 use cli::overdev::*;
 use cli::skills::*;
-use cli::ssh::*;
 
 use clap::Parser;
 use schematize::i18n::tf;
-use schematize::{
-    agent, autostart, doctor, envlink, links, news, overdev, panel, status, upgrade, util,
-};
+use schematize::{agent, autostart, doctor, links, news, overdev, panel, status, upgrade, util};
 
 /// Um alvo de item humano digitado na linha de comando.
 ///
@@ -37,6 +34,14 @@ fn alvo_humano(s: &str) -> schematize::overdev::resposta::Alvo {
 }
 
 fn main() {
+    // ANTES do clap: `ssh`, `vps`, `mcp` e `env` são dos apps da casa, e os argumentos vão
+    // CRUS para eles. Se o hub parseasse, precisaria conhecer cada flag dos apps — e foi
+    // exatamente essa sincronia que falhou duas vezes num dia só (`--method distro` do csharp
+    // e `--paste` do ssh import, ambos existindo no app e não aqui). Ver `applink`.
+    let argv: Vec<String> = std::env::args().skip(1).collect();
+    if let Some(code) = schematize::applink::interceptar(&argv) {
+        std::process::exit(code);
+    }
     let cli = Cli::parse();
     let r: Result<(), String> = match cli.cmd {
         // Feature SKILLS, agrupada. O app é uma coisa; skills são uma funcionalidade.
@@ -188,37 +193,6 @@ fn main() {
             Auto::Enable => autostart::enable(&util::self_exe()),
             Auto::Disable => autostart::disable(),
         },
-        // `env` ENCAMINHA ao `schematize-market` (ADR-0015). O hub tinha uma cópia de
-        // `environments/`, e ela já divergia da do market: o `install csharp --method distro`
-        // ganhou lá a capacidade de adicionar o repo do fornecedor, e aqui seguia recusando.
-        // Corrigir nos dois lugares seria pagar o preço da duplicação de novo, e no próximo.
-        //
-        // O comando NÃO some: superfície de CLI é contrato, e há snapshot que a trava.
-        Cmd::Env { sub } => {
-            let args = match &sub {
-                EnvCmd::Switch { lang, to, dry_run, yes } => {
-                    envlink::args_de_env("switch", lang, None, Some(to), *dry_run, *yes)
-                }
-                EnvCmd::List => envlink::args_de_env("list", "", None, None, false, false),
-                EnvCmd::Install { lang, method, dry_run, yes } => envlink::args_de_env(
-                    "install",
-                    lang,
-                    method.as_deref(),
-                    None,
-                    *dry_run,
-                    *yes,
-                ),
-                EnvCmd::Remove { lang, method, dry_run } => envlink::args_de_env(
-                    "remove",
-                    lang,
-                    method.as_deref(),
-                    None,
-                    *dry_run,
-                    false,
-                ),
-            };
-            envlink::encaminhar(&args)
-        }
         Cmd::Gui => {
             // Mesma aplicação, outra face. A face gráfica DEFAULT é o binário
             // `schematize-gui` (Slint), instalado à parte pelo install.sh; executa-o.
@@ -243,9 +217,6 @@ fn main() {
             let cwd = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
             schematize::archive::sync(&cwd).map(|msg| println!("{msg}"))
         }
-        Cmd::Ssh { sub } => ssh_cmd(sub),
-        Cmd::Vps { sub } => crate::cli::vps::vps_cmd(sub),
-        Cmd::Mcp { sub } => crate::cli::mcp::mcp_cmd(sub),
         Cmd::Apps { sub } => match sub {
             None => crate::cli::deployer::apps_cmd(),
             Some(crate::cli::args::AppsCmd::Install { app, yes }) => {

@@ -83,27 +83,6 @@ CMD schematize disco list
 CMD schematize doctor
   SOBRE Diagnose the environment (add --fix to repair what's safe)
   ARG fix                  --fix
-CMD schematize env
-  SOBRE Dev environments: language runtimes (docker|mise|distro|official) + dev tools (claude|code|codex)
-CMD schematize env install
-  SOBRE Install a language runtime (via a method) OR a dev tool (claude|code|codex; --method ignored)
-  ARG dry_run              --dry-run
-  ARG lang                  OBRIGATORIO
-  ARG method               --method
-  ARG yes                  --yes
-CMD schematize env list
-  SOBRE List languages and dev tools, install paths available here, and install status
-CMD schematize env remove
-  SOBRE Remove a language environment (auto-detects the method) OR a dev tool (--method ignored)
-  ARG dry_run              --dry-run
-  ARG lang                  OBRIGATORIO
-  ARG method               --method
-CMD schematize env switch
-  SOBRE Switch how a language is installed (docker|mise|distro|official). Installs the new method FIRST, then removes the old one — a failure never leaves you without the language
-  ARG dry_run              --dry-run
-  ARG lang                  OBRIGATORIO
-  ARG to                   --to OBRIGATORIO
-  ARG yes                  --yes -y
 CMD schematize git
   SOBRE Contas de git/GitHub, repositórios e o que ainda não saiu da máquina
 CMD schematize git accounts
@@ -167,17 +146,6 @@ CMD schematize login
   SOBRE Log in to the schematize platform via the browser (OAuth device flow)
 CMD schematize logout
   SOBRE Log out (delete the local session)
-CMD schematize mcp
-  SOBRE MCP: expõe o gestor de VPS ao agente como tools tipadas (`mcp__schematize-vps__*`)
-CMD schematize mcp install
-  SOBRE Registra o servidor no `.mcp.json` do projeto e libera as tools no settings.json
-  ARG dry_run              --dry-run
-CMD schematize mcp serve
-  SOBRE Roda o servidor (stdio, JSON-RPC). É o que o Claude Code invoca; raramente à mão
-CMD schematize mcp status
-  SOBRE Mostra o estado: servidor registrado? tools liberadas?
-CMD schematize mcp uninstall
-  SOBRE Remove o servidor do `.mcp.json` e as permissões do settings.json
 CMD schematize news
   SOBRE Show the latest posts from blog.schematize.net
 CMD schematize notifications
@@ -334,46 +302,6 @@ CMD schematize skills update
   SOBRE Update installed skills to latest (all if no name/--all)
   ARG all                  --all
   ARG names                 <valor>
-CMD schematize ssh
-  SOBRE SSH keys: generate, list, export and manage keys in ~/.ssh (never leaks the private key)
-CMD schematize ssh authorize
-  SOBRE Install the PUBLIC key into the remote host's ~/.ssh/authorized_keys (bootstrap access). Requires you already have access to the host (another key/agent/password)
-  ARG name                  OBRIGATORIO
-  ARG target                OBRIGATORIO
-CMD schematize ssh export
-  SOBRE Print the PUBLIC key (paste it on GitHub/servers); --copy sends it to the clipboard. With --bitwarden, export the key to Bitwarden instead (item in the vault if `bw` is unlocked, else a mode-600 import JSON) — the PRIVATE key never hits stdout
-  ARG bitwarden            --bitwarden
-  ARG copy                 --copy
-  ARG name                  OBRIGATORIO
-  ARG out                  --out
-CMD schematize ssh gen
-  SOBRE Generate a key pair (ed25519 by default; --rsa = rsa 4096) into ~/.ssh/<name>
-  ARG agent                --agent
-  ARG comment              --comment
-  ARG force                --force
-  ARG github               --github
-  ARG name                  OBRIGATORIO
-  ARG rsa                  --rsa
-CMD schematize ssh github
-  SOBRE Add an existing PUBLIC key to your GitHub account (gh must be authenticated)
-  ARG name                  OBRIGATORIO
-CMD schematize ssh import
-  SOBRE Import an EXISTING key pair into ~/.ssh/<name> (another machine, a backup, a vault). Derives the public key from the private one; the private key is copied byte for byte and keeps its passphrase. Use --passphrase if the key is encrypted
-  ARG comment              --comment
-  ARG file                  OBRIGATORIO
-  ARG force                --force
-  ARG name                 --name
-  ARG passphrase           --passphrase
-CMD schematize ssh list
-  SOBRE List keys in ~/.ssh (name, type, fingerprint, comment). Never reads the private key
-CMD schematize ssh rm
-  SOBRE Remove a key pair (private + public) with confirmation
-  ARG name                  OBRIGATORIO
-CMD schematize ssh run
-  SOBRE Deploy WITHOUT pasting the key: `ssh -i <managed key> user@host [-- <remote cmd...>]`. Inherits the terminal, never prints the private key. No command = interactive session. Ex.: schematize ssh run deploy root@host -- 'cd /srv/app && git pull && ./deploy.sh'
-  ARG command               <valor>
-  ARG name                  OBRIGATORIO
-  ARG target                OBRIGATORIO
 CMD schematize status
   SOBRE Overview dashboard: versions, agent, overdev, language, links
 CMD schematize update (oculto)
@@ -383,62 +311,5 @@ CMD schematize update (oculto)
 CMD schematize upgrade
   SOBRE Update schematize itself — atualiza o próprio schematize (o APP, o binário), não as skills
   ARG force                --force
-CMD schematize vps
-  SOBRE VPS: registro de hosts + execução remota AUDITADA (o agente nunca vê a chave). A política do cliente é UX; a fronteira é o forced command no servidor (ADR-0005)
-CMD schematize vps add
-  SOBRE Registra um host. Nasce em `prd` + `readonly` (o mais restritivo) — ajuste com `policy`
-  ARG alias                 OBRIGATORIO
-  ARG env                  --env
-  ARG host                 --host OBRIGATORIO
-  ARG jump                 --jump
-  ARG key                  --key OBRIGATORIO
-  ARG port                 --port
-  ARG user                 --user OBRIGATORIO
-CMD schematize vps authorize
-  SOBRE Instala a chave PÚBLICA do perfil no authorized_keys do host (bootstrap de acesso)
-  ARG alias                 OBRIGATORIO
-CMD schematize vps bootstrap
-  SOBRE Instala a MELHOR fronteira que o host aguentar (com sudo: shim do sistema; sem sudo: shim no home; host gerenciado: explica por que não dá e segue com a política do cliente)
-  ARG alias                 OBRIGATORIO
-CMD schematize vps exec
-  SOBRE Roda um comando no host, com política e auditoria. Ex.: schematize vps exec srv-01 -- systemctl status app
-  ARG alias                 OBRIGATORIO
-  ARG comando               <valor>
-  ARG confirmar            --confirmar
-CMD schematize vps guard (oculto)
-  SOBRE (hook PreToolUse) veredito sobre uma tool use — lê o evento no stdin
-CMD schematize vps hooks
-  SOBRE Liga/desliga o hook que barra SSH cru e leitura de chave privada no agente
-  ARG off                  --off
-  ARG on                   --on
-CMD schematize vps list
-  SOBRE Lista os hosts registrados, com ambiente, modo e se têm fronteira server-side
-CMD schematize vps logs
-  SOBRE Mostra o que já rodou (alias vazio = todos os hosts)
-  ARG alias                
-  ARG n                    --n
-  ARG transcript           --transcript
-CMD schematize vps policy
-  SOBRE Ajusta a política de um host: modo e ambiente
-  ARG alias                 OBRIGATORIO
-  ARG env                  --env
-  ARG modo                 --modo
-CMD schematize vps probe
-  SOBRE Pergunta ao host que nível de fronteira ele aguenta (somente leitura, nada é instalado)
-  ARG alias                 OBRIGATORIO
-CMD schematize vps rm
-  SOBRE Remove um host do registro. A trilha de auditoria dele PERMANECE
-  ARG alias                 OBRIGATORIO
-CMD schematize vps trust
-  SOBRE Mostra a fingerprint da host key e, com --sim, passa a confiar nela (fim do TOFU cego)
-  ARG alias                 OBRIGATORIO
-  ARG sim                  --sim
-CMD schematize vps verbs
-  SOBRE Catálogo de verbos do host — o vocabulário que o agente pode falar
-  ARG add                  --add
-  ARG alias                 OBRIGATORIO
-  ARG cmd                  --cmd
-  ARG rm                   --rm
-  ARG seed                 --seed
 CMD schematize whoami
   SOBRE Show who is logged in (the account subject)

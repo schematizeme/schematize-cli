@@ -173,8 +173,9 @@ fn piso_nenhum_unwrap_em_producao() {
         "src/mcp/mod.rs",
         "src/mcp/protocolo.rs",
         "src/mcp/tools.rs",
-        "src/cli/vps.rs",
-        "src/cli/mcp.rs",
+        // `src/cli/vps.rs` e `src/cli/mcp.rs` saíram: a camada de CLI desses domínios é do
+        // `schematize-deployer` (ADR-0010, enfim cumprido). Os MÓDULOS seguem aqui enquanto
+        // a GUI os consome, e é por isso que eles continuam na lista abaixo.
     ];
     let mut culpados = Vec::new();
     for f in modulos {

@@ -2,7 +2,7 @@
 //! projetos e o log do git.
 
 use crate::cli::args::*;
-use crate::cli::ssh::canon_or;
+use crate::cli::prompt::canon_or;
 use schematize::debug;
 use schematize::i18n;
 use schematize::i18n::{t, tf};

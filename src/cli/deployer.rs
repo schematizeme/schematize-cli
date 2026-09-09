@@ -183,7 +183,7 @@ pub(crate) fn apps_instalar(app: Option<String>, yes: bool) -> Result<(), String
     println!("  Isto COMPILA do fonte e leva minutos. Precisa de rede, e o instalador");
     println!("  pode pedir sudo para as bibliotecas de build do sistema.");
     println!("  Comando: {cmd}");
-    if !yes && !crate::cli::ssh::confirm("\n  Seguir? (s/N)") {
+    if !yes && !crate::cli::prompt::confirm("\n  Seguir? (s/N)") {
         println!("cancelado — nada foi feito.");
         return Ok(());
     }
