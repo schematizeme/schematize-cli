@@ -48,6 +48,15 @@ pub struct Project {
 
 /// Se `dir` contém um marcador de projeto, devolve qual (ordem de prioridade).
 /// None = não é um projeto (candidato a guarda-chuva → continuar descendo).
+/// **O quê:** o marcador de projeto deste diretório, se houver. Público para o `overdev`.
+///
+/// **Cuidado ao usar:** em `$HOME` isto dá FALSO POSITIVO — `~/.schematize` é o diretório de
+/// dados do app, não marcador. Quem chama tem de descartar a home ANTES (ver
+/// `overdev::pode_ser_projeto`).
+pub fn marker_of_pub(dir: &Path) -> Option<&'static str> {
+    marker_of(dir)
+}
+
 fn marker_of(dir: &Path) -> Option<&'static str> {
     if dir.join(".overdev").is_dir() {
         return Some(".overdev");

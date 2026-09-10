@@ -101,8 +101,78 @@ fn save(st: &OverState) -> Result<(), String> {
         .map_err(|e| e.to_string())
 }
 
+/// **O quê:** o diretório atual pode receber um run de overdev? PURA — recebe o que precisa.
+///
+/// **Onde:** [`start`], antes de criar qualquer coisa.
+///
+/// ## O que isto fecha, e por que é bug e não erro de quem digitou
+///
+/// `overdev start` rodado em `$HOME` **criou um run vazio ali, em silêncio**. O agente abriu,
+/// leu um `CHECKLIST.md` de 8 linhas de template, concluiu que não sabia o que fazer e foi
+/// vasculhar o `.bash_history` atrás do objetivo — enquanto o checklist real, com 94 linhas,
+/// estava no diretório do projeto.
+///
+/// E `$HOME` é o pior caso possível, não um caso qualquer: **`~/.schematize` é o diretório de
+/// DADOS do app** (`util::dados_dir`). O control-plane do overdev, que vive em
+/// `./.schematize/overdev/`, foi criado por cima dele. O `.gitignore` da home também foi
+/// tocado.
+///
+/// A detecção de projeto que já existia (`projects::marker_of`) não salvava: ela vê
+/// `~/.schematize` e responde "é projeto" — **falso positivo**, porque ali aquele diretório
+/// significa outra coisa.
+///
+/// §37.48: edge case que um leigo atinge é bug do software. Aqui o software tinha todos os
+/// dados para saber que aquilo estava errado, e mesmo assim deixou seguir.
+pub fn pode_ser_projeto(cwd: &Path, home: &Path, tem_marcador: bool) -> Result<(), String> {
+    // A home NUNCA é projeto, e a checagem vem ANTES do marcador de propósito: é lá que o
+    // marcador mente.
+    if cwd == home {
+        return Err(String::from(
+            "a sua HOME não é um projeto — e aqui `.schematize/` é o diretório de dados do \
+             app, não o control-plane de um run.\n  \
+             Entre na pasta do projeto e rode de novo.",
+        ));
+    }
+    if !tem_marcador {
+        return Err(format!(
+            "`{}` não parece um projeto (sem `.git`, sem `.schematize`, sem `<algo>_archive/`).\n  \
+             Entre na pasta do projeto, ou marque esta com: schematize projects mark",
+            cwd.display()
+        ));
+    }
+    Ok(())
+}
+
+/// **O quê:** a mensagem de recusa, já com os projetos conhecidos listados.
+/// **Onde:** [`start`], quando [`pode_ser_projeto`] recusa.
+///
+/// **Recusar sem dizer para onde ir é meio conserto.** Quem errou o diretório não sabe o
+/// caminho de cor — e o app tem a lista.
+pub fn recusa_com_sugestoes(motivo: &str, conhecidos: &[String]) -> String {
+    let mut s = motivo.to_string();
+    if !conhecidos.is_empty() {
+        s.push_str("\n\n  Projetos que eu conheço:");
+        for p in conhecidos.iter().take(8) {
+            s.push_str(&format!("\n    cd {p}"));
+        }
+    }
+    s
+}
+
 /// Inicia um run de overdev no diretório atual.
 pub fn start(objetivo: &str, max_iters: Option<u64>) -> Result<(), String> {
+    // ANTES de criar qualquer coisa: este diretório pode receber um run?
+    //
+    // Sem isto, `overdev start` na HOME criava um run VAZIO em silêncio, por cima do diretório
+    // de dados do app — e o agente ia vasculhar o `.bash_history` atrás do objetivo enquanto o
+    // checklist real estava no projeto. Ver `pode_ser_projeto`.
+    let cwd =
+        std::env::current_dir().map_err(|e| format!("não sei em que diretório estou: {e}"))?;
+    let tem_marcador = crate::projects::marker_of_pub(&cwd).is_some();
+    if let Err(motivo) = pode_ser_projeto(&cwd, &util::home(), tem_marcador) {
+        return Err(recusa_com_sugestoes(&motivo, &crate::config::projects()));
+    }
+
     // Auto-migração do layout legado: se existir `.overdev/` e ainda não `.schematize/overdev/`,
     // move o control-plane pro layout novo (o run passa a operar em `.schematize/overdev/`).
     match crate::paths::migrate_legacy_overdev(Path::new(".")) {
@@ -418,5 +488,53 @@ mod archive_name_tests {
         assert_eq!(project_name(&tmp), "schematize");
         assert_eq!(archive_dir(&tmp).unwrap(), tmp.join("schematize_archive"));
         let _ = std::fs::remove_dir_all(&tmp);
+    }
+}
+
+#[cfg(test)]
+mod tests_guard_projeto {
+    use super::*;
+
+    /// **O caso de campo.** `overdev start` na HOME criou um run VAZIO em silêncio; o agente
+    /// leu um template de 8 linhas e foi vasculhar o `.bash_history` atrás do objetivo, com o
+    /// checklist real de 94 linhas no diretório do projeto.
+    ///
+    /// A home é recusada MESMO COM MARCADOR — é exatamente lá que o marcador mente, porque
+    /// `~/.schematize` é o diretório de DADOS do app.
+    #[test]
+    fn a_home_e_recusada_mesmo_parecendo_projeto() {
+        let home = Path::new("/home/u");
+        let e = pode_ser_projeto(home, home, true).unwrap_err();
+        assert!(e.contains("HOME"), "{e}");
+        assert!(e.contains("diretório de dados"), "tem de dizer POR QUE: {e}");
+    }
+
+    /// Diretório sem marcador nenhum também é recusado — e a mensagem diz como marcar, em vez
+    /// de só dizer não.
+    #[test]
+    fn sem_marcador_recusa_e_ensina_o_proximo_passo() {
+        let e = pode_ser_projeto(Path::new("/tmp/x"), Path::new("/home/u"), false).unwrap_err();
+        assert!(e.contains("projects mark"), "tem de ensinar a saída: {e}");
+    }
+
+    /// O caminho feliz: projeto de verdade, fora da home, com marcador.
+    #[test]
+    fn projeto_de_verdade_passa() {
+        assert!(pode_ser_projeto(Path::new("/home/u/proj"), Path::new("/home/u"), true).is_ok());
+    }
+
+    /// **Recusar sem dizer para onde ir é meio conserto.** Quem errou o diretório não sabe o
+    /// caminho de cor, e o app tem a lista.
+    #[test]
+    fn a_recusa_lista_os_projetos_conhecidos() {
+        let s = recusa_com_sugestoes("nao rola", &["/a/b".into(), "/c/d".into()]);
+        assert!(s.contains("cd /a/b") && s.contains("cd /c/d"), "{s}");
+    }
+
+    /// Sem projeto conhecido a mensagem não ganha uma seção vazia pendurada.
+    #[test]
+    fn sem_conhecidos_nao_sobra_secao_vazia() {
+        let s = recusa_com_sugestoes("nao rola", &[]);
+        assert!(!s.contains("Projetos que eu conheço"), "{s}");
     }
 }
