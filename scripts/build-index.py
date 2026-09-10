@@ -50,9 +50,60 @@ REPOS = {
     "schematize_market_rs": dict(
         what="App schematize Market: DONO de instalar e atualizar (ADR-0013) — runtimes, ferramentas de dev, os apps da casa, o app e ele mesmo.",
         stack="Rust/clap", runs="binário local"),
+    # As JANELAS dos apps que ganharam uma. Cada uma vive em repo próprio e NÃO depende do
+    # crate do app: fala só com o binário headless, pelo `--json`. Depender do crate as faria
+    # embutir a versão via git-dep — o bug que fez a janela do market "abrir a versão antiga".
+    "schematize_optimizer_gui_rs": dict(
+        what="Janela (Slint) do Optimizer: diagnóstico da máquina e tetos por software, lendo `diag/limits/services --json`. Mostra o que MUDA antes de aplicar.",
+        stack="Rust/Slint", runs="app desktop"),
+    "schematize_deployer_gui_rs": dict(
+        what="Janela (Slint) do Deployer: chaves SSH, hosts e estado do cofre, lendo `ssh list/vps list/vault status --json`. Segredo NUNCA aparece; passphrase vai para o terminal.",
+        stack="Rust/Slint", runs="app desktop"),
 }
 
 # ---------------------------------------------------------------- limpeza lexica
+
+def strip_comments(src: str) -> str:
+    """Substitui SO os comentarios por espaco, PRESERVANDO os literais e os offsets.
+
+    Por que existe, separado do [`strip_noise`]: a deteccao de fronteira precisa VER o nome do
+    binario, que e um literal — entao nao pode usar o `strip_noise`, que apaga literais. Mas
+    usar o corpo CRU faz um nome citado num COMENTARIO virar aresta, e foi exatamente isso que
+    pos 46 nos do CLI apontando para o `schematize_updater_rs`: um servico APOSENTADO, que o
+    CLI so procura no disco e nunca executa. Os comentarios que explicam a aposentadoria eram a
+    "prova" da dependencia.
+
+    Citar o nome num comentario nao e fronteira. So produz saida quem dispara.
+    """
+    out = list(src)
+    i, n = 0, len(src)
+    while i < n:
+        c = src[i]
+        if c == '/' and i + 1 < n and src[i + 1] == '/':
+            j = src.find('\n', i)
+            j = n if j < 0 else j
+            for k in range(i, j):
+                out[k] = ' '
+            i = j
+            continue
+        if c == '/' and i + 1 < n and src[i + 1] == '*':
+            j = src.find('*/', i + 2)
+            j = n if j < 0 else j + 2
+            for k in range(i, j):
+                if out[k] != '\n':
+                    out[k] = ' '
+            i = j
+            continue
+        # Dentro de literal: pula ate fechar, para nao confundir um `//` de URL com comentario.
+        if c == '"':
+            i += 1
+            while i < n and src[i] != '"':
+                i += 2 if src[i] == '\\' else 1
+            i += 1
+            continue
+        i += 1
+    return ''.join(out)
+
 
 def strip_noise(src: str) -> str:
     """Substitui comentarios e literais de string por espaco, PRESERVANDO offsets.
@@ -406,11 +457,24 @@ def own_text(u, units_in_file):
 # `schematize-market`, e a aresta simplesmente NAO APARECIA no grafo. Um grafo que omite a
 # dependencia mais nova e um grafo que se consulta e engana; o proposito dele e justamente
 # responder "quem chama quem" ANTES de alguem mexer.
+#
+# ESTAVA INCOMPLETA DE NOVO (2026-09-10): faltavam as JANELAS dos tres apps. O hub passou a
+# abrir `schematize-market-gui` e `schematize-deployer-gui`, e as arestas nao apareciam — o
+# mesmo modo de falha silencioso descrito acima, um ciclo depois. A licao que fica e sobre a
+# ORDEM: `schematize-deployer-gui` CONTEM `schematize-deployer`, entao a janela precisa vir
+# antes, ou todo spawn dela seria atribuido ao CLI e nada reprovaria.
 BOUNDARY_BIN = {
     'schematize-updater-gui': 'schematize_updater_gui_rs',
     'schematize-updater': 'schematize_updater_rs',
+    # As janelas ANTES dos CLIs de mesmo prefixo — ver a nota sobre ordem, acima.
+    'schematize-deployer-gui': 'schematize_deployer_gui_rs',
     'schematize-deployer': 'schematize_deployer_rs',
+    'schematize-optimizer-gui': 'schematize_optimizer_gui_rs',
     'schematize-optimizer': 'schematize_optimizer_rs',
+    # A janela do market vive no repo `schematize_updater_gui_rs` (o repo manteve o nome
+    # historico; o binario, nao). Apontar para o repo, e nao para o nome do binario, e o que
+    # mantem o grafo falando de SERVICOS.
+    'schematize-market-gui': 'schematize_updater_gui_rs',
     'schematize-market': 'schematize_market_rs',
     'schematize-gui': 'schematize_gui_slint',
 }
@@ -444,27 +508,210 @@ def imported_symbols(clean: str):
     return syms
 
 
-def resolver_units(units, raw, repo):
-    """Unidades que RESOLVEM o caminho de um binario de outro sub-repo.
+CONST_BIN_RE = re.compile(
+    r'const\s+([A-Z_][A-Z0-9_]*)\s*:[^=]*=\s*[\[&"]([^;]*);', re.S)
 
-    Por que existe: quem dispara escreve `Command::new(updater_bin())` — o nome do
-    binario mora no resolver, nao no corpo do chamador. Sem seguir essa indirecao de
-    um nivel, a fronteira real (o spawn) passaria despercebida.
+
+def nomeia_binario(texto: str, binname: str) -> bool:
+    """O texto contem o nome do binario COMO NOME, e nao dentro de uma frase?
+
+    **Onde:** [`resolver_units`] e [`boundary_for`].
+
+    **Por que a distincao decide a aresta.** O `doctor` tem a mensagem
+    `"gestor ANTIGO ainda instalado (schematize-updater)"` — uma FRASE que cita o binario para
+    avisar que ele sobrou na maquina. Com uma busca de substring, essa frase marcava a funcao
+    como "resolve o caminho do updater", e daí todo `run(` do mesmo arquivo virava fronteira
+    para um servico que o CLI nunca executa.
+    
+    A regra: o nome tem de terminar o literal, ou ser seguido de `.` (extensao), `/` (caminho)
+    ou `{` (o sufixo `.exe` interpolado — `format!("schematize-gui{s}")`, que e como a casa
+    escreve o nome por plataforma). Antes dele, aspa ou barra.
+
+    Isso aceita `"schematize-updater"`, `"~/.cargo/bin/schematize-updater"`,
+    `"schematize-updater.exe"` e `format!("schematize-gui{s}")`; e recusa tanto o nome no meio
+    de uma frase quanto `"schematize-gui-linux-x86_64"`, que e nome de ASSET de download e nao
+    de binario a executar.
+    """
+    for m in re.finditer(re.escape(binname), texto):
+        antes = texto[m.start() - 1] if m.start() > 0 else '"'
+        depois = texto[m.end()] if m.end() < len(texto) else '"'
+        if antes in '"\'/' and depois in '"\'/.{':
+            return True
+    return False
+
+
+def const_resolvers(raw_por_arquivo, repo):
+    """Constantes que GUARDAM o nome de um binario de outro sub-repo -> (destino, nome).
+
+    Por que existe: o nome do binario raramente esta no corpo de quem dispara. As janelas
+    escrevem `const DEPLOYER_GUI_BINS: [&str; 1] = ["schematize-deployer-gui"]`, e a funcao
+    que resolve o caminho menciona a CONSTANTE, nao a string. Sem este passo, a cadeia
+    quebra logo no primeiro elo.
     """
     out = {}
-    for u in units:
-        if not u.get('own_raw'):
-            continue
-        body_raw = u['own_raw']
-        for binname, dest in BOUNDARY_BIN.items():
-            if dest == repo:
-                continue
-            if binname in body_raw:
-                out[u['name']] = (dest, binname)
+    for src in raw_por_arquivo:
+        for m in CONST_BIN_RE.finditer(src):
+            nome, corpo = m.group(1), m.group(2)
+            for binname, dest in BOUNDARY_BIN.items():
+                if dest != repo and nomeia_binario(corpo, binname):
+                    out[nome] = (dest, binname)
+                    break
     return out
 
 
-def boundary_for(u, repo, resolvers, imported=frozenset()):
+def nomes_ambiguos(units):
+    """Nomes de unidade que se repetem no repo — os que NAO podem ter alcance global.
+
+    **Onde:** [`escolher_no_escopo`]. Um `run` existe em varios modulos deste workspace, e foi
+    um deles que pos 46 nos apontando para um servico aposentado.
+    """
+    vistos, repetidos = set(), set()
+    for u in units:
+        if u['name'] in vistos:
+            repetidos.add(u['name'])
+        vistos.add(u['name'])
+    return repetidos
+
+
+def resolver_units(units, raw, repo, consts=None):
+    """Unidades que RESOLVEM o caminho de um binario de outro sub-repo.
+
+    Por que existe: quem dispara escreve `Command::new(updater_bin())` — o nome do
+    binario mora no resolver, nao no corpo do chamador. Sem seguir essa indirecao, a
+    fronteira real (o spawn) passaria despercebida.
+
+    ## Por que a resolucao e TRANSITIVA, e nao de um nivel so
+    
+    Um nivel bastava quando a cadeia era `bin() -> "nome"`. As janelas novas tem tres elos:
+    `const NOMES = [...]` -> `gui_de_app(&NOMES)` -> `deployer_gui_bin()` -> quem dispara.
+    Com um nivel, as tres janelas apareciam no grafo SEM aresta nenhuma para a CLI que elas
+    disparam — e a aresta de uma janela para o binario dela e a coisa mais importante que o
+    grafo tem a dizer sobre ela.
+    
+    O laco roda ate estabilizar. Ele para porque cada volta so ACRESCENTA, e o conjunto de
+    unidades e finito — nao ha como oscilar.
+    """
+    # nome -> [(arquivo, modulo, destino, binario)]. Uma LISTA, e com o escopo junto, porque
+    # nome de funcao colide: ha varios `run` neste workspace, e um deles — em `selfupdate.rs` —
+    # menciona o gestor aposentado. Com a chave sendo so o nome, TODA chamada a `run(` no repo
+    # virava fronteira para um servico que o CLI nunca executa: 46 nos de uma vez.
+    ambiguos = nomes_ambiguos(units)
+    out = {}
+    for nome, (dest, binname) in (consts or {}).items():
+        # Constante: vale no repo inteiro (o escopo dela e o modulo, mas o nome e unico o
+        # bastante — sao SCREAMING_CASE e nomeiam o binario).
+        out[nome] = [(None, None, dest, binname)]
+    for u in units:
+        if not u.get('own_raw'):
+            continue
+        body_raw = strip_comments(u['own_raw'])
+        for binname, dest in BOUNDARY_BIN.items():
+            if dest == repo:
+                continue
+            if nomeia_binario(body_raw, binname):
+                out.setdefault(u['name'], []).append((u['file'], u['mod'], dest, binname))
+                break
+
+    # Fecho transitivo: quem CHAMA um resolver tambem resolve.
+    #
+    # ## Por que ha um TETO de profundidade, e por que ele e 3
+    #
+    # Sem teto, o fecho vira contagio. A primeira versao rodava ate estabilizar e produziu 46
+    # nos de fronteira do CLI para o `schematize_updater_rs` — um servico APOSENTADO, que o CLI
+    # so PROCURA no disco (`updater_aposentado_presente`) e nunca executa. A funcao que le o
+    # nome virou resolver, quem a chama virou resolver, e daí em diante metade do repo.
+    #
+    # A CAUSA do contagio era outra, e foi consertada na raiz: a deteccao lia o corpo CRU, e um
+    # binario citado em COMENTARIO virava elo. Agora ela le o corpo sem comentario, e a cadeia
+    # so anda por quem de fato nomeia o binario ou CHAMA quem o nomeia.
+    #
+    # O teto fica assim mesmo, como cinto: cadeia real mais longa da casa tem quatro elos
+    # (`const NOMES` -> `gui_de_app(&NOMES)` -> `deployer_gui_bin()` -> o callback -> quem
+    # dispara), e um numero fixo torna impossivel um laco patologico num repo futuro.
+    MAX_ELOS = 6
+    fronteira = {k: list(v) for k, v in out.items()}
+    for _ in range(MAX_ELOS):
+        novos = {}
+        for u in units:
+            if u['name'] in out or u['name'] in novos or not u.get('own_clean'):
+                continue
+            corpo = u['own_clean']
+            achou = None
+            for alvo, entradas in fronteira.items():
+                # FUNCAO: `alvo(` e nao `alvo` — CHAMAR o resolver e a cadeia; citar nao e.
+                # CONSTANTE: o nome nu, porque constante nao se chama. A primeira versao do
+                # fecho exigia `(` para tudo, e com isso a cadeia das janelas quebrava no
+                # PRIMEIRO elo — `gui_de_app(&DEPLOYER_GUI_BINS)` nunca era reconhecido — e o
+                # hub ficava sem aresta nenhuma para as janelas que ele abre.
+                e_const = any(arq is None for arq, _, _, _ in entradas)
+                padrao = r'\b' + re.escape(alvo) + (r'\b' if e_const else r'\s*\(')
+                if not re.search(padrao, corpo):
+                    continue
+                achou = escolher_no_escopo(alvo, entradas, u, ambiguos)
+                if achou:
+                    break
+            if achou:
+                novos[u['name']] = [(u['file'], u['mod'], achou[0], achou[1])]
+        if not novos:
+            break
+        out.update(novos)
+        fronteira = novos
+    return out
+
+
+def escolher_no_escopo(nome, entradas, u, ambiguos=frozenset()):
+    """A entrada de resolver que vale PARA ESTA unidade -> (destino, binario) ou None.
+
+    **Onde:** o fecho de [`resolver_units`] e a deteccao de fronteira.
+
+    **Por que o escopo importa.** Nome de funcao colide: ha varios `run` neste workspace, e um
+    deles menciona o gestor aposentado. Sem escopo, toda chamada a `run(` virava fronteira para
+    um servico que o CLI nunca executa — 46 nos de uma vez, e uma dependencia inventada no
+    grafo. Aresta falsa e pior que aresta faltando: quem consulta passa a evitar o que nao ha.
+
+    A ordem e a mesma que a resolucao de chamadas ja usa: mesmo ARQUIVO, depois mesmo MODULO, e
+    so entao alcance global — e o global exige que o nome NAO seja ambiguo no repo. Um `run`
+    precisa de escopo; um `market_gui_bin` nao precisa, e e por isso que a cadeia longa das
+    janelas continua fechando.
+    """
+    if not entradas:
+        return None
+    for arq, mod, dest, binname in entradas:
+        if arq is None or arq == u['file']:
+            return (dest, binname)
+    for arq, mod, dest, binname in entradas:
+        if mod == u['mod']:
+            return (dest, binname)
+    if len(entradas) == 1 and nome not in ambiguos:
+        _, _, dest, binname = entradas[0]
+        return (dest, binname)
+    return None
+
+
+def assinatura_de(u):
+    """Os NOMES dos parametros de uma unidade. Vazio quando nao da para ler.
+
+    **Onde:** a deteccao de lancador generico. Sem isto, "recebe o binario por parametro" seria
+    adivinhacao — e a versao que adivinhava produziu dez arestas falsas.
+    """
+    clean = u.get('clean') or ''
+    i = clean.find('(', clean.find(u['name']))
+    if i < 0:
+        return set()
+    prof, j = 0, i
+    while j < len(clean):
+        if clean[j] == '(':
+            prof += 1
+        elif clean[j] == ')':
+            prof -= 1
+            if prof == 0:
+                break
+        j += 1
+    params = clean[i + 1:j]
+    return {m.group(1) for m in re.finditer(r'(?:^|,)\s*(?:mut\s+)?([a-z_][a-z0-9_]*)\s*:', params)}
+
+
+def boundary_for(u, repo, resolvers, imported=frozenset(), ambiguos=frozenset()):
     """Detecta saida que CRUZA a fronteira do repo -> (destino, contrato) ou None.
 
     Duas formas: (a) SPAWN do binario de outro sub-repo — direto pelo nome ou via
@@ -472,17 +719,43 @@ def boundary_for(u, repo, resolvers, imported=frozenset()):
     do CLI). Citar o nome num rotulo NAO e fronteira: so produz saida quem dispara.
     """
     body_clean = u.get('own_clean') or ''
-    body_raw = u.get('own_raw') or ''
+    # O corpo sem COMENTARIO, mas com os literais: e o unico que pode responder "este corpo
+    # nomeia o binario de outro servico?" sem contar mencao em prosa como dependencia.
+    body_sem_comentario = strip_comments(u.get('own_raw') or '')
     if not body_clean:
         return None
     if re.search(r'Command::new|process::Command', body_clean):
-        for binname, dest in BOUNDARY_BIN.items():
-            if dest != repo and binname in body_raw:
-                return (dest, f'spawn `{binname}` (processo externo)')
-        for m in re.finditer(r'Command::new\(\s*([A-Za-z_][A-Za-z0-9_]*)\s*\(', body_clean):
-            hit = resolvers.get(m.group(1))
+        # (a) O nome do binario NO ARGUMENTO do spawn.
+        #
+        # A versao anterior aceitava o nome em QUALQUER lugar do corpo, desde que houvesse um
+        # `Command::new` em algum ponto. Isso pos cinco nos do `doctor` apontando para o gestor
+        # APOSENTADO: eles listam o nome dele para PROCURA-LO no disco (e avisar que sobrou), e
+        # spawnam outra coisa. Nomear nao e disparar — a diferenca e a aresta inteira.
+        for m in re.finditer(r'(?:process::)?Command::new\s*\(', body_sem_comentario):
+            arg = body_sem_comentario[m.end(): m.end() + 200]
+            for binname, dest in BOUNDARY_BIN.items():
+                if dest != repo and nomeia_binario(arg.split(')')[0], binname):
+                    return (dest, f'spawn `{binname}` (processo externo)')
+        # (b.1) `Command::new(resolver())` — a indirecao direta.
+        for m in re.finditer(r'Command::new\(\s*&?\s*([A-Za-z_][A-Za-z0-9_]*)\s*\(', body_clean):
+            hit = escolher_no_escopo(m.group(1), resolvers.get(m.group(1), []), u, ambiguos)
             if hit:
                 return (hit[0], f'spawn `{hit[1]}` via `{m.group(1)}()` (processo externo)')
+        # (b.2) `let b = resolver(); ... Command::new(&b)` — a MESMA indirecao com uma
+        # variavel no meio, que e como as janelas novas escrevem (o caminho e reusado na
+        # mensagem de erro, entao vale a pena guarda-lo).
+        #
+        # Sem este caso, as tres janelas apareciam no grafo SEM aresta nenhuma para a CLI que
+        # elas disparam — e um grafo que omite a dependencia central de um servico e um grafo
+        # que se consulta e engana.
+        for m in re.finditer(
+            r'let\s+(?:mut\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*([A-Za-z_][A-Za-z0-9_]*)\s*\(\s*\)',
+            body_clean,
+        ):
+            var, fn = m.group(1), m.group(2)
+            hit = escolher_no_escopo(fn, resolvers.get(fn, []), u, ambiguos)
+            if hit and re.search(r'Command::new\(\s*&?\s*' + re.escape(var) + r'\b', body_clean):
+                return (hit[0], f'spawn `{hit[1]}` via `{fn}()` (processo externo)')
     if repo != 'schematize_cli_rs':
         api = sorted(set(re.findall(r'\bschematize::([a-z_]+)', body_clean)))
         hits = sorted({s for s in imported if re.search(r'\b' + re.escape(s) + r'\b', body_clean)})
@@ -573,10 +846,63 @@ def build_graph(repo):
             if pick and pick is not u:
                 edges.add((u['display'], pick['display']))
 
-    resolvers = resolver_units(units, raw, repo)
+    ambiguos = nomes_ambiguos(units)
+    resolvers = resolver_units(units, raw, repo, const_resolvers(raw.values(), repo))
     imports = {f: imported_symbols(strip_noise(raw[f])) for f in raw}
     for u in units:
-        u['boundary'] = boundary_for(u, repo, resolvers, imports.get(u['file'], frozenset()))
+        u['boundary'] = boundary_for(
+            u, repo, resolvers, imports.get(u['file'], frozenset()), ambiguos)
+
+    # LANCADORES GENERICOS, e a aresta que so existe em quem os CHAMA.
+    #
+    # `abrir_gui(bin, aba)` dispara um `Command::new(bin)` — e nao sabe de qual app: o binario
+    # chega por PARAMETRO. A fronteira nao esta nele, esta em quem escolhe o parametro. Sem
+    # este passo, o hub aparecia no grafo sem nenhuma aresta para as janelas que ele abre, e a
+    # unica funcao com `Command::new` era justamente a que nao tem destino.
+    #
+    # A regra e estreita de proposito: so conta quem chama um lancador generico E um resolver
+    # de binario de outro servico. Citar o nome num rotulo continua nao sendo fronteira.
+    # A regra e ESTREITA de proposito, e a primeira versao dela nao era — ela contava como
+    # generico qualquer unidade com `Command::new`, e o grafo ganhou dez arestas falsas, entre
+    # elas um `deployer -> deployer-gui` que nunca existiu (a CLI escreve o caminho da janela
+    # num `.desktop`; nao a executa). Aresta falsa e pior que aresta faltando: quem consulta o
+    # grafo passa a evitar uma dependencia que nao ha.
+    #
+    # Generico e so quem recebe o binario por PARAMETRO: `Command::new(x)` com `x` na
+    # assinatura e sem `let x` no corpo. Quem monta o proprio caminho ja e pego pelas regras
+    # anteriores, e tem destino conhecido.
+    genericos = set()
+    for u in units:
+        corpo = u.get('own_clean') or ''
+        if u.get('boundary') or not re.search(r'Command::new', corpo):
+            continue
+        assinatura = assinatura_de(u)
+        for m in re.finditer(r'Command::new\(\s*&?\s*([A-Za-z_][A-Za-z0-9_]*)\s*\)', corpo):
+            arg = m.group(1)
+            # A exclusao e `let x =` (uma ligacao NOVA), e nao `let` seguido do nome em
+            # qualquer forma. O idioma `let Some(bin) = bin else { return }` — desembrulhar um
+            # `Option` sombreando o parametro — casava a versao anterior e escondia o unico
+            # lancador generico da casa, deixando o hub sem aresta nenhuma para as janelas que
+            # ele abre.
+            if arg in assinatura and not re.search(
+                r'\blet\s+(?:mut\s+)?' + re.escape(arg) + r'\s*=', corpo
+            ):
+                genericos.add(u['name'])
+                break
+    if genericos:
+        for u in units:
+            if u.get('boundary') or not u.get('own_clean'):
+                continue
+            corpo = u['own_clean']
+            if not any(re.search(r'\b' + re.escape(g) + r'\s*\(', corpo) for g in genericos):
+                continue
+            for alvo, entradas in resolvers.items():
+                if not re.search(r'\b' + re.escape(alvo) + r'\s*\(', corpo):
+                    continue
+                hit = escolher_no_escopo(alvo, entradas, u, ambiguos)
+                if hit and hit[0] != repo:
+                    u['boundary'] = (hit[0], f'spawn `{hit[1]}` via `{alvo}()` (processo externo)')
+                    break
 
     called = {b for _, b in edges}
     externals = [u for u in units if u['display'] not in called]
