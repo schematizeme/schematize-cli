@@ -58,6 +58,12 @@ etapa shellcheck sh scripts/shellcheck-shim.sh
 if [ -d ../schematize_market_rs ]; then
   etapa assets python3 scripts/assets-esperados.py
 fi
+# Os PINOS entre repos: a GUI compila contra o CLI de hoje, ou contra um de meses atras? O
+# release conserta o pino na hora de publicar, e e por isso que ninguem ve a defasagem — ela so
+# aparece para quem CLONA e compila do fonte.
+if [ -d ../schematize_gui_slint ]; then
+  etapa pinos python3 scripts/pins-em-dia.py
+fi
 etapa shim    sh scripts/shim-portabilidade.sh
 etapa clippy  cargo clippy --all-targets -- -D warnings
 etapa testes  cargo test --all-targets --quiet
