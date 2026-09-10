@@ -51,6 +51,13 @@ etapa fmt     cargo fmt --check
 # reprovou la. Gate local que nao cobre o que o CI cobre e gate que ensina a confiar em
 # verde falso.
 etapa shellcheck sh scripts/shellcheck-shim.sh
+# A MATRIZ DE ASSETS: o que o install.sh baixa e o que os release.yml publicam sao dois lados
+# de uma ponte que morava em arquivos diferentes, em repos diferentes, sem nada os casando.
+# Divergir da em 404 na maquina de quem instalou, e nao no CI. Roda so quando os repos irmaos
+# estao ao lado — num checkout isolado deste repo nao ha o que comparar.
+if [ -d ../schematize_market_rs ]; then
+  etapa assets python3 scripts/assets-esperados.py
+fi
 etapa shim    sh scripts/shim-portabilidade.sh
 etapa clippy  cargo clippy --all-targets -- -D warnings
 etapa testes  cargo test --all-targets --quiet

@@ -400,8 +400,15 @@ install_app_icons() {
 #
 # Trocar um pelo outro erra nos dois sentidos: nome vivo na lista de aposentados DESINSTALA
 # o app de alguém; nome morto na lista de vivos é o que NÃO é apagado, e vira o fantasma.
+# As TRES janelas entram aqui, e os BINARIOS headless dos tres apps NAO — ver a nota acima
+# sobre `schematize-deployer`/`schematize-optimizer`. A assimetria e deliberada e tem o mesmo
+# motivo dos dois lados: a purga poupa o DESTINO dos nomes vivos, e as janelas sao instaladas
+# por download em `~/.cargo/bin`, sobrescrevendo — mas os nomes precisam estar aqui para o
+# `pkill` alcancar uma janela ABERTA. Uma janela em execucao segura o inode e reabre a versao
+# velha, que e o bug que criou esta funcao.
 BINS="overflow overflow-gui overflow-updater overflow-updater-gui \
-schematize schematize-gui schematize-market-gui"
+schematize schematize-gui \
+schematize-market-gui schematize-optimizer-gui schematize-deployer-gui"
 
 purge_previous() {
   log "removendo instalações anteriores (binário, pacote, lançador) — dados e deps ficam"
@@ -587,10 +594,10 @@ install_market_do_fonte() {
 }
 
 # ---------------------------------------------------------------------------
-# install_janela_do_gestor — a interface amigavel, por BINARIO PRONTO (ADR-0014 D5).
+# instala_janela <app> <repo> — a interface amigavel de um app, por BINARIO PRONTO.
 #
-# O QUE: poe o `schematize-market-gui` na maquina, baixando o asset do release do market.
-# ONDE: `install_source`, depois do gestor. Best-effort: nunca falha a instalacao.
+# O QUE: poe `schematize-<app>-gui` na maquina, baixando o asset do release de <repo>.
+# ONDE: `instala_as_janelas`, chamada pelo `install_source`. Best-effort: nunca falha.
 #
 # A VOLTA POR CIMA QUE ESTE BLOCO DEU, e por que ela e a decisao certa nas duas pontas
 #
@@ -600,42 +607,95 @@ install_market_do_fonte() {
 # nao e descontinuada, vira a janela do market; o D5 a publica como asset do release dele. Com
 # dono e com asset, ela volta — e volta MELHOR, porque deixou de compilar.
 #
-# POR QUE SO O BINARIO PRONTO, sem fallback para o fonte: ela e chrome. Quem nao tem o asset
-# (plataforma fora da matriz, release ainda nao cortado) fica sem a janela e com TODO o resto
-# funcionando — `schematize-market` no terminal faz tudo que ela faz. Gastar minutos de build
-# num item opcional, numa instalacao que ja levou minutos, e o oposto de respeitar o tempo de
-# quem instalou.
+# POR QUE UMA FUNCAO PARA OS TRES, E NAO TRES FUNCOES
+#
+# Os tres apps ganharam janela, e as tres seguem exatamente o mesmo desenho: asset do release
+# do proprio app, mesma matriz de plataformas, mesmo destino, mesmo fallback. Com tres funcoes
+# parecidas, um conserto numa delas deixa as outras duas para tras — que e a forma exata de um
+# bug que este repo ja teve: o `run_app_install` da GUI cravava o nome puro do gestor enquanto
+# o caminho de linguagem, ao lado, ja resolvia o binario; consertaram um dos dois.
+#
+# POR QUE SO O BINARIO PRONTO, sem fallback para o fonte: a janela e chrome. Quem nao tem o
+# asset (plataforma fora da matriz, release ainda nao cortado) fica sem ela e com TODO o resto
+# funcionando — a CLI no terminal faz tudo que ela faz. Gastar minutos de build num item
+# opcional, numa instalacao que ja levou minutos, e o oposto de respeitar o tempo de quem
+# instalou.
 # ---------------------------------------------------------------------------
-install_janela_do_gestor() {
+instala_janela() {
+  local app="$1" repo="$2"
   local bin="$TARGET_HOME/.cargo/bin" dst asset os arch url
-  dst="$bin/schematize-market-gui"
+  dst="$bin/schematize-$app-gui"
   as_user mkdir -p "$bin"
 
-  [ -x "$dst" ] && { ok "janela do gestor ja instalada."; return 0; }
+  [ -x "$dst" ] && { ok "janela do $app ja instalada."; return 0; }
 
   os="$(uname -s)"; arch="$(uname -m)"
   case "$os/$arch" in
-    Linux/x86_64)  asset="schematize-market-gui-linux-x86_64" ;;
-    Darwin/arm64)  asset="schematize-market-gui-macos-arm64" ;;
-    Darwin/x86_64) asset="schematize-market-gui-macos-x86_64" ;;
-    *) log "sem janela do gestor pronta pra $os/$arch — seguindo sem ela (o terminal faz tudo)."
+    Linux/x86_64)  asset="schematize-$app-gui-linux-x86_64" ;;
+    Darwin/arm64)  asset="schematize-$app-gui-macos-arm64" ;;
+    Darwin/x86_64) asset="schematize-$app-gui-macos-x86_64" ;;
+    *) log "sem janela do $app pronta pra $os/$arch — seguindo sem ela (o terminal faz tudo)."
        return 0 ;;
   esac
 
-  url="https://github.com/schematizeme/schematize_market_rs/releases/latest/download/$asset"
-  log "baixando a janela do gestor ($asset)"
+  url="https://github.com/schematizeme/$repo/releases/latest/download/$asset"
+  log "baixando a janela do $app ($asset)"
   if as_user sh -c "curl -fsSL -o '$dst' '$url'" 2>/dev/null && [ -s "$dst" ]; then
     as_user chmod +x "$dst" 2>/dev/null || true
-    ok "janela do gestor instalada ($dst)."
+    ok "janela do $app instalada ($dst)."
     return 0
   fi
   # Best-effort NAO E MUDO (piso 4): a pessoa fica sem a janela e precisa saber por que, e
   # que nada mais se perdeu com isso.
   as_user rm -f "$dst" 2>/dev/null || true
-  warn "nao consegui baixar a janela do gestor (rede? release ainda nao cortado?)."
+  warn "nao consegui baixar a janela do $app (rede? release ainda nao cortado?)."
   warn "  tentei: $url"
-  warn "  seguindo sem ela — o \`schematize-market\` no terminal faz tudo que ela faz."
+  warn "  seguindo sem ela — o \`schematize-$app\` no terminal faz tudo que ela faz."
   return 0
+}
+
+# ---------------------------------------------------------------------------
+# instala_as_janelas — as tres janelas, e os icones que passam a apontar para elas.
+#
+# O QUE: chama `instala_janela` para market, optimizer e deployer, e depois REGISTRA o menu de
+# cada app que estiver instalado.
+#
+# ONDE: `install_source`, depois do gestor.
+#
+# POR QUE O `desktop --install` VEM DEPOIS, e nao antes
+#
+# Cada app escolhe entre duas formas de `.desktop` NA HORA DE GRAVAR: com a janela ao lado,
+# `Exec=` aponta para ela e `Terminal=false`; sem ela, cai no `--wait` em terminal. A escolha
+# e feita ao gravar porque um `Exec=` que decidisse no clique precisaria de um `Terminal=`
+# fixo, e nenhum dos dois valores serve aos dois caminhos.
+#
+# Consequencia: gravar o icone ANTES de baixar a janela deixaria a entrada presa na forma de
+# terminal ate o proximo `desktop --install`. A ordem aqui e o que faz o icone abrir a janela
+# na primeira instalacao, e nao so na segunda.
+#
+# Cada app so e tocado se ESTIVER instalado: `desktop --install` de um app ausente e um
+# comando que nao existe, e o erro nao ensinaria nada.
+# ---------------------------------------------------------------------------
+instala_as_janelas() {
+  instala_janela market    schematize_market_rs
+  instala_janela optimizer schematize_optimizer_rs
+  instala_janela deployer  schematize_deployer_rs
+
+  local bin="$TARGET_HOME/.cargo/bin" app exe
+  for app in market optimizer deployer; do
+    exe="$bin/schematize-$app"
+    [ -x "$exe" ] || continue
+    if saida="$(as_user "$exe" desktop --install 2>&1)"; then
+      ok "icone do $app aponta para a janela (ou para o terminal, se ela nao veio)."
+    else
+      # Best-effort falante (piso 4): o `install.sh` ja chamou `desktop --instalar` com a flag
+      # em portugues depois de a CLI ser traduzida, e as chamadas passaram a falhar EM
+      # SILENCIO — dois apps sumiram do menu sem uma linha de erro.
+      warn "nao consegui registrar o icone do $app."
+      warn "  o que falhou: $exe desktop --install"
+      warn "  disse: $(printf '%s' "$saida" | head -1)"
+    fi
+  done
 }
 
 # ---------------------------------------------------------------------------
@@ -948,7 +1008,7 @@ install_source() {
   # APOSENTADOS da `purge_previous`, que o apaga INCLUSIVE no diretorio de destino, dizendo
   # o que removeu. Ver a nota das duas listas la em cima.
 
-  install_janela_do_gestor
+  instala_as_janelas
 
 # -----------------------------------------------------------------------------
 # registrar_no_menu <caminho-do-binario> <nome>
