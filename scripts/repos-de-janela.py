@@ -63,22 +63,37 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-# app → repo do release. O mesmo conjunto do `assets-esperados.py`, pela mesma razão: são os
-# três apps que o `install.sh` instala janela para.
-APPS = {
+# Os apps com janela, que o `install.sh` instala — o mesmo conjunto do `assets-esperados.py`.
+APPS_COM_JANELA = {
     "market": "schematize_market_rs",
     "optimizer": "schematize_optimizer_rs",
     "deployer": "schematize_deployer_rs",
 }
 
-# Os outros dois apps, para a checagem de nome trocado. Um `release.yml` que fala do irmão é
-# copia-e-cola não revisada — aconteceu: a nota do release do optimizer dizia
-# "schematize deployer", e ficaria na página do release para sempre.
-IRMAOS = {
-    "market": ("optimizer", "deployer"),
-    "optimizer": ("market", "deployer"),
-    "deployer": ("market", "optimizer"),
-}
+
+def apps_com_release(raiz):
+    """Todo repo irmão que TEM um `release.yml`, descoberto pelo disco.
+
+    ONDE: `main`, para a checagem de nome de irmão na prosa.
+
+    **Era uma lista fixa de três, e a lista fixa deixou o bug passar.** A fase E2 do ADR-0018
+    criou `schematize_database_rs` e `schematize_git_rs` copiando o workflow do optimizer — e as
+    notas de release dos DOIS saíram dizendo *"schematize optimizer"*. O guard não viu, porque os
+    repos novos não estavam na lista. O defeito é o mesmo que ele existe para pegar, e ele foi
+    cego para a própria classe por causa de um literal.
+
+    Descobrir pelo disco não tem esse modo de falha: um app novo entra no guard no instante em
+    que ganha um `release.yml`, sem ninguém lembrar de nada.
+    """
+    achados = {}
+    for d in sorted(raiz.iterdir()):
+        if not (d / ".github" / "workflows" / "release.yml").is_file():
+            continue
+        # `schematize_market_rs` → `market`; `schematize_cli_rs` → `cli`.
+        nome = d.name.removeprefix("schematize_").removesuffix("_rs")
+        if nome and nome != d.name:
+            achados[nome] = d.name
+    return achados
 
 PENDENTES = Path("packaging/repos-pendentes.txt")
 
@@ -93,7 +108,7 @@ def clones_do_workflow(texto: str) -> list[str]:
     return re.findall(r"git clone[^\n]*?(https://github\.com/[\w.\-]+/[\w.\-]+?)(?:\.git)?\s", texto)
 
 
-def nome_de_irmao_na_prosa(texto: str, app: str) -> list[str]:
+def nome_de_irmao_na_prosa(texto: str, app: str, irmaos: list[str] | None = None) -> list[str]:
     """Os irmãos citados como se fossem o dono — `schematize <irmao>` na nota do release.
 
     Procura só onde o nome é AFIRMADO sobre o artefato (`--notes`, `--title`), nunca em
@@ -107,7 +122,7 @@ def nome_de_irmao_na_prosa(texto: str, app: str) -> list[str]:
             continue
         if "--notes" not in nu and "--title" not in nu:
             continue
-        for irmao in IRMAOS[app]:
+        for irmao in irmaos if irmaos is not None else []:
             if f"schematize {irmao}" in nu or f"schematize-{irmao} " in nu:
                 achados.append(f"{irmao}: {nu[:90]}")
     return achados
@@ -190,6 +205,10 @@ def main() -> int:
               "Nada foi verificado, e isto NÃO é um verde.")
         return 0
 
+    # Os apps com `release.yml`, descobertos pelo disco — a checagem de nome de irmão vale para
+    # TODOS eles, não só para os três que instalam janela.
+    todos_apps = apps_com_release(raiz)
+
     problemas = []
 
     # AS PENDÊNCIAS PRIMEIRO, E INDEPENDENTES DO QUE OS WORKFLOWS CLONAM.
@@ -207,14 +226,20 @@ def main() -> int:
         if not ok:
             problemas.append(f"`packaging/repos-pendentes.txt` declara `{slug}` — {motivo}")
 
-    for app, repo in APPS.items():
-        wf = raiz / repo / ".github" / "workflows" / "release.yml"
-        if not wf.is_file():
-            problemas.append(f"{repo}: sem release.yml — a janela do `{app}` não é publicada por ninguém")
-            continue
-        texto = wf.read_text(encoding="utf-8")
+    # 1) Os apps COM JANELA precisam de `release.yml` — é ele que publica a janela.
+    for app, repo in APPS_COM_JANELA.items():
+        if not (raiz / repo / ".github" / "workflows" / "release.yml").is_file():
+            problemas.append(
+                f"{repo}: sem release.yml — a janela do `{app}` não é publicada por ninguém"
+            )
 
-        for trocado in nome_de_irmao_na_prosa(texto, app):
+    # 2) A prosa e os clones, em TODO app que tem release.
+    for app, repo in todos_apps.items():
+        wf = raiz / repo / ".github" / "workflows" / "release.yml"
+        texto = wf.read_text(encoding="utf-8")
+        irmaos = [a for a in todos_apps if a != app]
+
+        for trocado in nome_de_irmao_na_prosa(texto, app, irmaos):
             problemas.append(
                 f"{repo}/release.yml afirma o nome de um IRMÃO no texto do release → {trocado}\n"
                 f"    Esse texto fica na página do release para sempre."
