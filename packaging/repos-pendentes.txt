@@ -15,8 +15,14 @@
 #
 # ENQUANTO UMA LINHA ESTIVER AQUI, a janela daquele app só chega a quem compila do fonte.
 
-# Criados nas F4/F5 do overdev "os três apps ganham GUI de verdade" (ADR-0016): têm CI
-# commitado, gate verde e binário que abre — e nunca foram empurrados. Declarados no
-# `.schematize/overdev/BLOCKED` como ato humano, com o `gh repo create` pronto.
-schematizeme/schematize_optimizer_gui_rs   # F4 — nunca empurrado; `gh repo create … --push`
-schematizeme/schematize_deployer_gui_rs    # F5 — nunca empurrado; `gh repo create … --push`
+# LISTA VAZIA em 2026-09-25 — e foi o guard que cobrou.
+#
+# `schematize_optimizer_gui_rs` e `schematize_deployer_gui_rs` foram publicados. No instante em
+# que passaram a resolver, o `repos-de-janela.py` REPROVOU as duas linhas que os declaravam:
+# *"esta em `packaging/repos-pendentes.txt` e JA RESOLVE — saiu da pendencia, tire da lista"*.
+#
+# Era exatamente para isso que a regra existia. Uma lista de pendencias sem prazo apodrece em
+# silencio: a entrada fica la, ninguem revisa, e o arquivo passa a afirmar um estado que deixou
+# de ser verdade. Aqui a saida e cobrada pelo gate, no primeiro run depois da publicacao.
+#
+# Vazio e o estado correto: nenhum `release.yml` clona um repo que nao existe.
