@@ -131,6 +131,15 @@ jobs:
   macos:
     needs: create_release
     strategy:
+      # SEM fail-fast: um alvo que falha NÃO cancela o irmão que ia dar certo.
+      #
+      # Aconteceu na `v0.65.1`: o upload do macOS x86_64 bateu num `error connecting to
+      # api.github.com` — erro TRANSITÓRIO de rede, com o binário já compilado — e o GitHub
+      # cancelou o job do arm64, que estava a caminho de publicar. Um release perdeu DOIS assets
+      # por causa de um, e a retentativa teve de refazer os dois.
+      #
+      # Os irmãos (market, optimizer, deployer) já têm isto; aqui faltava.
+      fail-fast: false
       matrix:
         include:
           - runner: macos-15   # Apple Silicon
