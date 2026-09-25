@@ -66,6 +66,9 @@ REPOS = {
     "schematize_database_rs": dict(
         what="App schematize Database (E1 do ADR-0018): modela o schema relacional, introspecta SQLite/Postgres e gera SQL e migration expand-contract. Le e emite `--json`.",
         stack="Rust/clap", runs="binário local"),
+    "schematize_git_rs": dict(
+        what="App schematize Git (E2 do ADR-0018): mais de uma identidade git na mesma maquina, sem commitar com a errada. Contas, alias SSH por conta, e o que ainda nao saiu da maquina.",
+        stack="Rust/clap", runs="binário local"),
 }
 
 # ---------------------------------------------------------------- limpeza lexica
@@ -484,6 +487,7 @@ BOUNDARY_BIN = {
     'schematize-market-gui': 'schematize_updater_gui_rs',
     'schematize-market': 'schematize_market_rs',
     'schematize-database': 'schematize_database_rs',
+    'schematize-git': 'schematize_git_rs',
     'schematize-gui': 'schematize_gui_slint',
 }
 

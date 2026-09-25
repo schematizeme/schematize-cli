@@ -50,14 +50,14 @@ C = {
 "src/cli/skillsproj.rs":     ("skills", "os subcomandos de skill por projeto"),
 "src/guiactions.rs":         ("skills", "contrato skill -> botao na GUI; o dono do contrato e a skill"),
 # ---- CLI: disco e capacidade da maquina -> optimizer ------------------------
-"src/disco/mod.rs":          ("optimizer", "inventario e limpeza de lixo recriavel = dominio da maquina"),
-"src/disco/docker.rs":       ("optimizer", "camadas de Docker ocupando disco"),
-"src/disco/artefatos.rs":    ("optimizer", "artefato de build recriavel"),
-"src/disco/caches.rs":       ("optimizer", "cache de toolchain"),
-"src/disco/tamanho.rs":      ("optimizer", "medicao de tamanho em disco"),
-"src/disco/montagem.rs":     ("optimizer", "agrupamento por disco/montagem"),
-"src/cli/disco.rs":          ("optimizer", "os subcomandos `disco`"),
-"src/agents.rs":             ("optimizer", "governador de concorrencia por CPU/RAM/load = capacidade da maquina"),
+"src/disco/mod.rs":          ("optimizer", "JA MIGRADO (E3); a copia do hub morre no M5"),
+"src/disco/docker.rs":       ("optimizer", "JA MIGRADO (E3); a copia do hub morre no M5"),
+"src/disco/artefatos.rs":    ("optimizer", "JA MIGRADO (E3); a copia do hub morre no M5"),
+"src/disco/caches.rs":       ("optimizer", "JA MIGRADO (E3); a copia do hub morre no M5"),
+"src/disco/tamanho.rs":      ("optimizer", "JA MIGRADO (E3); a copia do hub morre no M5"),
+"src/disco/montagem.rs":     ("optimizer", "JA MIGRADO (E3); a copia do hub morre no M5"),
+"src/cli/disco.rs":          ("optimizer", "JA MIGRADO (E3); a copia do hub morre no M5"),
+"src/agents.rs":             ("optimizer", "JA MIGRADO (E3); a copia do hub morre no M5"),
 # ---- CLI: database builder -> app proprio ----------------------------------
 # E1 EM ANDAMENTO: estes dois JA EXISTEM em `schematize_database_rs`, com saida byte a byte
 # identica. Seguem classificados aqui porque a COPIA do hub ainda nao foi apagada — ela so morre
@@ -66,12 +66,12 @@ C = {
 "src/database.rs":           ("database", "JA MIGRADO (E1); a copia do hub morre no M5"),
 "src/cli/db.rs":             ("database", "JA MIGRADO (E1); a copia do hub morre no M5"),
 # ---- CLI: contas git -> app proprio ---------------------------------------
-"src/gitcontas/contas.rs":   ("git", "multiplas identidades git na maquina: dominio proprio"),
-"src/gitcontas/deteccao.rs": ("git", "deteccao de conta por repo"),
-"src/gitcontas/repos.rs":    ("git", "inventario de repos locais"),
-"src/gitcontas/aplicar.rs":  ("git", "aplicar identidade no repo"),
-"src/cli/git.rs":            ("git", "os subcomandos `git`"),
-"src/githist.rs":            ("git", "historico de commits para a tela de contas"),
+"src/gitcontas/contas.rs":   ("git", "JA MIGRADO (E2); a copia do hub morre no M5"),
+"src/gitcontas/deteccao.rs": ("git", "JA MIGRADO (E2); a copia do hub morre no M5"),
+"src/gitcontas/repos.rs":    ("git", "JA MIGRADO (E2); a copia do hub morre no M5"),
+"src/gitcontas/aplicar.rs":  ("git", "JA MIGRADO (E2); a copia do hub morre no M5"),
+"src/cli/git.rs":            ("git", "JA MIGRADO (E2); a copia do hub morre no M5"),
+"src/githist.rs":            ("git", "JA MIGRADO (E2); a copia do hub morre no M5"),
 # ---- CLI: instalar/atualizar -> market (ADR-0013) ---------------------------
 "src/selfupdate.rs":         ("market", "ADR-0013: o market e o dono de ATUALIZAR — isto e a copia que sobrou"),
 "src/upgrade.rs":            ("market", "`upgrade` recompila o CLI/GUI: instalar/atualizar e do market"),
