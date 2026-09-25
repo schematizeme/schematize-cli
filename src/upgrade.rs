@@ -6,7 +6,6 @@
 //! (selfupdate.rs) pra quando existir release pronto; este é o caminho de verdade.
 
 use crate::i18n::{t, tf};
-use std::process::Command;
 
 /// O `install.sh` do `main` — a fonte ÚNICA desta URL no crate.
 ///
@@ -42,21 +41,27 @@ pub fn app_update_available() -> Option<(String, String)> {
     }
 }
 
-/// Recompila do fonte (sempre pega o main). `force` é aceito por compat (upgrade já reconstrói).
+/// **O quê:** `schematize upgrade` — DELEGA ao `schematize-market`, que é o dono de atualizar.
+///
+/// **Onde:** `main`, no despacho do subcomando.
+///
+/// ## A recompilação do fonte SAIU daqui (E4 do ADR-0018)
+///
+/// Esta função rodava `curl … install.sh | bash -s -- --from-source`, que é **exatamente** o que
+/// o `schematize-market` faz no caminho de fonte dele. Duas lógicas para o mesmo ato, e a daqui
+/// não tinha nenhuma das camadas que o market tem na troca do próprio binário.
+///
+/// O ADR-0013 deu esse dono ao market em setembro. O que ficou aqui foi o antecessor.
+///
+/// **`force` continua na assinatura e continua ignorado**, como já era: quem digitou
+/// `schematize upgrade --force` não pode receber "flag desconhecida" porque a implementação
+/// mudou de dono. Remover a flag é mudança de superfície, e tem guard próprio para isso.
 pub fn run(_force: bool) -> Result<(), String> {
     println!("{}", t("upgrade.checking"));
-    println!("{}", tf("upgrade.current", &[("v", env!("CARGO_PKG_VERSION"))]));
-    println!("{}", t("upgrade.running"));
-    // stdio herdado: sudo (libs de build) e rustup podem pedir no terminal.
-    let status = Command::new("bash")
-        .arg("-c")
-        .arg(format!("curl -fsSL {INSTALL_SH} | bash -s -- --from-source"))
-        .status()
-        .map_err(|e| tf("upgrade.failed", &[("e", &e.to_string())]))?;
-    if status.success() {
-        println!("{}", t("upgrade.done"));
-        Ok(())
-    } else {
-        Err(tf("upgrade.failed", &[("e", "instalador do fonte falhou")]))
-    }
+    println!("{}", tf("upgrade.current", &[("v", app_version())]));
+    // O `selfupdate::run` já resolve o gestor (instalando-o se faltar) e falha com a mensagem
+    // que ensina o caminho quando nem isso dá. Um segundo tratamento aqui divergiria dele.
+    let msg = crate::selfupdate::run()?;
+    println!("{msg}");
+    Ok(())
 }
