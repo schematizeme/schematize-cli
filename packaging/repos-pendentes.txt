@@ -1,0 +1,22 @@
+# Repos que um `release.yml` clona e que AINDA NÃO EXISTEM no GitHub.
+#
+# O QUE: cada linha é um `<owner>/<repo>` cuja ausência está reconhecida, com o motivo ao lado.
+# ONDE: lido por `scripts/repos-de-janela.py`, chamado pelo `scripts/verificar.sh`.
+#
+# POR QUE ESTA LISTA EXISTE, E POR QUE ELA NÃO É ROTA DE FUGA
+#
+# Publicar um repo é ato humano — `git push` manda código para fora. Reprovar para sempre por
+# causa disso travaria a entrega inteira num item que o agente não pode fechar (livelock), e
+# passar de graça deixaria o 404 chegar em silêncio na máquina de quem instala.
+#
+# O meio é declarar. E a declaração se auto-cobra: **entrada que volta a resolver REPROVA**, com
+# a mensagem "saiu da pendência, tire da lista". Não há como esquecer uma linha aqui — no dia em
+# que o repo existir, o gate exige que ela saia.
+#
+# ENQUANTO UMA LINHA ESTIVER AQUI, a janela daquele app só chega a quem compila do fonte.
+
+# Criados nas F4/F5 do overdev "os três apps ganham GUI de verdade" (ADR-0016): têm CI
+# commitado, gate verde e binário que abre — e nunca foram empurrados. Declarados no
+# `.schematize/overdev/BLOCKED` como ato humano, com o `gh repo create` pronto.
+schematizeme/schematize_optimizer_gui_rs   # F4 — nunca empurrado; `gh repo create … --push`
+schematizeme/schematize_deployer_gui_rs    # F5 — nunca empurrado; `gh repo create … --push`

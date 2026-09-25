@@ -34,6 +34,7 @@ pub mod overdev;
 pub mod overdevdb;
 pub mod panel;
 pub mod paths;
+pub mod procedencia;
 pub mod projects;
 pub mod registry;
 pub mod selfupdate;

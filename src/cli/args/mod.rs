@@ -48,7 +48,10 @@ use clap::{Parser, Subcommand};
 // pessoa conclui que a funcionalidade sumiu.
 #[command(
     name = "schematize",
-    version,
+    // `version = <fn>` e nao `version` puro: o numero sozinho nao distingue dois
+    // binarios com o mesmo `Cargo.toml` e comportamento diferente — foi assim que um
+    // binario de 15 dias atras passou por novo e gravou o `.desktop` errado.
+    version = schematize::procedencia::rotulo_versao(),
     about = "Ecosystem manager for Claude — skills, overdev, and more (Linux-first).",
     after_help = concat!(
         "DELEGATED TO THE HOUSE APPS (still work when typed here):\n",

@@ -166,6 +166,14 @@ CMD schematize overdev answer
   SOBRE Answer a human item with text — this RELEASES the machine item it was blocking
   ARG alvo                  OBRIGATORIO
   ARG texto                 <valor>
+CMD schematize overdev ask
+  SOBRE Enqueue a QUIZ question for the human: clickable options, context, and what it unblocks
+  ARG auto                 --auto
+  ARG contexto             --contexto
+  ARG kind                 --kind
+  ARG linka                --linka
+  ARG opcoes               --opcao
+  ARG titulo                <valor>
 CMD schematize overdev caixa
   SOBRE Inbox: list, organize a demand into items, or merge them into the checklist
 CMD schematize overdev caixa agente
@@ -210,13 +218,25 @@ CMD schematize overdev park
   SOBRE Park a question (log it in the base txt) and mark the item on-hold
   ARG item                  OBRIGATORIO
   ARG pergunta              <valor>
+CMD schematize overdev questions
+  SOBRE The question queue: open, answered-awaiting-review, and reviewed
+  ARG json                 --json
 CMD schematize overdev refuse
   SOBRE Refuse a human item — the machine item it blocked is CANCELLED, not resumed
   ARG alvo                  OBRIGATORIO
   ARG texto                 <valor>
+CMD schematize overdev reply
+  SOBRE Answer a queued question by id: option ids and/or free text. Used by the GUI
+  ARG alvo                  OBRIGATORIO
+  ARG escolhas             --escolha
+  ARG texto                --texto
 CMD schematize overdev restore
   SOBRE Restore a snapshot (by id) back to its original path
   ARG id                    OBRIGATORIO
+CMD schematize overdev review
+  SOBRE Record the MACHINE's review of an answer — this, and not the answer, is what releases
+  ARG alvo                  OBRIGATORIO
+  ARG texto                 <valor>
 CMD schematize overdev run
   SOBRE Run overdev with an attached `claude` agent in a PTY (monitors + auto-continue)
   ARG max                  --max

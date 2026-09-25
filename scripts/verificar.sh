@@ -58,12 +58,30 @@ etapa shellcheck sh scripts/shellcheck-shim.sh
 if [ -d ../schematize_market_rs ]; then
   etapa assets python3 scripts/assets-esperados.py
 fi
+# O REPO CLONADO: o `release.yml` de cada app clona o repo da janela dele para publicar o asset.
+# O passo e `continue-on-error` de proposito (a janela e chrome), e por isso clonar uma URL que
+# NAO EXISTE nao reprova nada — o release sai verde sem o asset e o 404 chega na maquina de quem
+# instalou. O guard de assets nao alcanca isso: ele casa NOMES declarados, nao a existencia da
+# fonte. Depende de rede, e sem rede ele diz PULADO em voz alta em vez de fingir verde.
+if [ -d ../schematize_market_rs ]; then
+  etapa repos python3 scripts/repos-de-janela.py
+fi
 # Os PINOS entre repos: a GUI compila contra o CLI de hoje, ou contra um de meses atras? O
 # release conserta o pino na hora de publicar, e e por isso que ninguem ve a defasagem — ela so
 # aparece para quem CLONA e compila do fonte.
 if [ -d ../schematize_gui_slint ]; then
   etapa pinos python3 scripts/pins-em-dia.py
 fi
+# O BINARIO INSTALADO e o ICONE desta maquina — as duas unicas etapas que olham para FORA do
+# repo, e as duas nasceram do mesmo incidente (2026-09-24): os apps instalados eram de 15 dias
+# antes, com a MESMA versao, e o `desktop --install` gravava a forma de terminal dizendo `✓`.
+#
+# `instalado-em-dia` sai 2 (aviso) quando o binario esta atras do repo — o que e normal pra quem
+# acabou de commitar — e 1 so quando o binario nao sabe dizer de que commit e, que e o estado em
+# que a pergunta deixa de ter resposta. Como o `etapa` so olha zero/nao-zero, ele entra com
+# `|| [ $? = 2 ]`: defasagem local nao reprova o gate, mudez reprova.
+etapa instalado sh -c 'python3 scripts/instalado-em-dia.py; [ $? != 1 ]'
+etapa icone   python3 scripts/icone-aponta-janela.py
 etapa shim    sh scripts/shim-portabilidade.sh
 etapa clippy  cargo clippy --all-targets -- -D warnings
 etapa testes  cargo test --all-targets --quiet

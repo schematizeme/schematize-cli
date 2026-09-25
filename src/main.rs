@@ -145,6 +145,19 @@ fn main() {
             Over::Refuse { alvo, texto } => {
                 overdev::resolver(alvo_humano(&alvo), overdev::resposta::Acao::Recusar, &texto.join(" "))
             }
+            Over::Ask { titulo, kind, opcoes, contexto, auto, linka } => cli::perguntas::ask(
+                &titulo.join(" "),
+                &kind,
+                &opcoes,
+                &contexto,
+                &auto,
+                &linka,
+            ),
+            Over::Questions { json } => cli::perguntas::questions(json),
+            Over::Reply { alvo, escolhas, texto } => {
+                cli::perguntas::reply(&alvo, &escolhas, &texto)
+            }
+            Over::Review { alvo, texto } => cli::perguntas::review(&alvo, &texto.join(" ")),
             Over::Add { texto } => caixa_add(&texto.join(" ")),
             Over::Caixa { sub } => caixa_cmd(sub),
             Over::Stop => overdev::stop(),

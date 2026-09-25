@@ -18,6 +18,14 @@ Este guard não alcança o release publicado — alcança a INTENÇÃO declarada
 que é onde a divergência nasce. Um release que sai com menos assets do que declarou é outro
 problema, e o `continue-on-error` do workflow é quem o cria.
 
+# O irmão que cobre a outra metade
+
+`scripts/repos-de-janela.py` responde a pergunta que esta aqui NÃO responde: a FONTE do nome
+existe? Ele resolve as URLs que os `release.yml` clonam para produzir cada `asset_gui`, e reprova
+quem dá 404. A divisão é deliberada — este script aprova um `asset_gui:` perfeitamente escrito
+cuja janela nunca será compilada, porque o repo dela não foi publicado; o irmão é quem pega isso.
+Medido em 2026-09-24: duas das três janelas estavam nesse estado, e nada no ecossistema notava.
+
 # Como rodar
 
     python3 scripts/assets-esperados.py

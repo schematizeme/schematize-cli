@@ -86,6 +86,57 @@ pub(crate) enum Over {
         /// Why it is not applicable.
         texto: Vec<String>,
     },
+    /// Enqueue a QUIZ question for the human: clickable options, context, and what it unblocks.
+    ///
+    /// Use this instead of `park` whenever the question has a closed set of answers. A question
+    /// whose text contains "or" MUST be `--kind escolha`: asked as free text, it gets answered
+    /// with one word that does not resolve the "or" (it happened, 2026-09-24).
+    Ask {
+        /// The question, in one line.
+        titulo: Vec<String>,
+        /// aprovar | escolha | multipla | sim_nao_outro | livre
+        #[arg(long, default_value = "livre")]
+        kind: String,
+        /// An option, as `id:label` or `id:label:detail`. Repeat once per option.
+        #[arg(long = "opcao")]
+        opcoes: Vec<String>,
+        /// WHY you are asking, and what changes in each path. The human reads this hours later.
+        #[arg(long, default_value = "")]
+        contexto: String,
+        /// Suggested option id. A suggestion — never applied on its own.
+        #[arg(long, default_value = "")]
+        auto: String,
+        /// Checklist item id this answer unblocks. Repeat.
+        #[arg(long = "linka")]
+        linka: Vec<String>,
+    },
+    /// The question queue: open, answered-awaiting-review, and reviewed.
+    Questions {
+        /// Machine-readable output (the GUI reads this).
+        #[arg(long)]
+        json: bool,
+    },
+    /// Answer a queued question by id: option ids and/or free text. Used by the GUI.
+    Reply {
+        /// Question id, or a text fragment of its title.
+        alvo: String,
+        /// Chosen option id. Repeat for `multipla`.
+        #[arg(long = "escolha")]
+        escolhas: Vec<String>,
+        /// Free text (for `livre`, or the "other" of `sim_nao_outro`).
+        #[arg(long, default_value = "")]
+        texto: String,
+    },
+    /// Record the MACHINE's review of an answer — this, and not the answer, is what releases.
+    ///
+    /// The human asked for it in these words: "vc tem que revisar minha resposta, não passar
+    /// direto". An answer that does not resolve the question asked must be re-asked, not guessed.
+    Review {
+        /// Question id, or a text fragment of its title.
+        alvo: String,
+        /// What you concluded by READING the answer.
+        texto: Vec<String>,
+    },
     /// Add a demand to the inbox WITHOUT touching the checklist (safe while an agent runs).
     Add { texto: Vec<String> },
     /// Inbox: list, organize a demand into items, or merge them into the checklist.
