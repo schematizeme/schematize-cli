@@ -59,6 +59,13 @@ REPOS = {
     "schematize_deployer_gui_rs": dict(
         what="Janela (Slint) do Deployer: chaves SSH, hosts e estado do cofre, lendo `ssh list/vps list/vault status --json`. Segredo NUNCA aparece; passphrase vai para o terminal.",
         stack="Rust/Slint", runs="app desktop"),
+    # Os apps da EXTRADICAO (ADR-0018): o que saiu do app principal porque nao fala de skill,
+    # de overdev nem de instalacao. Entram aqui no MESMO commit em que nascem — um servico que
+    # existe e nao esta no grafo e um servico que alguem reimplementa sem saber que ja existe,
+    # e o grafo e justamente a fonte que se consulta ANTES de criar algo.
+    "schematize_database_rs": dict(
+        what="App schematize Database (E1 do ADR-0018): modela o schema relacional, introspecta SQLite/Postgres e gera SQL e migration expand-contract. Le e emite `--json`.",
+        stack="Rust/clap", runs="binário local"),
 }
 
 # ---------------------------------------------------------------- limpeza lexica
@@ -476,6 +483,7 @@ BOUNDARY_BIN = {
     # mantem o grafo falando de SERVICOS.
     'schematize-market-gui': 'schematize_updater_gui_rs',
     'schematize-market': 'schematize_market_rs',
+    'schematize-database': 'schematize_database_rs',
     'schematize-gui': 'schematize_gui_slint',
 }
 

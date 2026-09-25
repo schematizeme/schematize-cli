@@ -59,8 +59,12 @@ C = {
 "src/cli/disco.rs":          ("optimizer", "os subcomandos `disco`"),
 "src/agents.rs":             ("optimizer", "governador de concorrencia por CPU/RAM/load = capacidade da maquina"),
 # ---- CLI: database builder -> app proprio ----------------------------------
-"src/database.rs":           ("database", "modelo relacional, introspeccao, SQL e migration: produto proprio"),
-"src/cli/db.rs":             ("database", "os subcomandos `db`"),
+# E1 EM ANDAMENTO: estes dois JA EXISTEM em `schematize_database_rs`, com saida byte a byte
+# identica. Seguem classificados aqui porque a COPIA do hub ainda nao foi apagada — ela so morre
+# no M5, junto com a delegacao da aba. Enquanto as duas existem, o inventario conta as duas, que
+# e o estado real do sistema e nao o desejado.
+"src/database.rs":           ("database", "JA MIGRADO (E1); a copia do hub morre no M5"),
+"src/cli/db.rs":             ("database", "JA MIGRADO (E1); a copia do hub morre no M5"),
 # ---- CLI: contas git -> app proprio ---------------------------------------
 "src/gitcontas/contas.rs":   ("git", "multiplas identidades git na maquina: dominio proprio"),
 "src/gitcontas/deteccao.rs": ("git", "deteccao de conta por repo"),
