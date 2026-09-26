@@ -30,11 +30,9 @@
 
 pub(crate) mod maquina;
 pub(crate) mod overdev;
-pub(crate) mod skills;
 
 pub(crate) use maquina::DiscoCmd;
 pub(crate) use overdev::{Auto, CaixaCmd, GraphCmd, Over, ProjectsCmd};
-pub(crate) use skills::SkillsCmd;
 
 use clap::{Parser, Subcommand};
 
@@ -69,35 +67,14 @@ pub(crate) struct Cli {
 
 #[derive(Subcommand)]
 pub(crate) enum Cmd {
-    /// Manage skills (a FEATURE of the app): install | update | remove | list.
-    Skills {
-        #[command(subcommand)]
-        sub: SkillsCmd,
-    },
-    // --- Aliases de compat (ocultos): os antigos top-level de SKILLS agora vivem
-    // sob `schematize skills <sub>`. Mantidos válidos pra não quebrar scripts/hooks/docs.
-    /// (alias oculto de `skills install`)
-    #[command(hide = true)]
-    Install {
-        names: Vec<String>,
-        #[arg(long)]
-        all: bool,
-        #[arg(long)]
-        with_recommended: bool,
-    },
-    /// (alias oculto de `skills update`)
-    #[command(hide = true)]
-    Update {
-        names: Vec<String>,
-        #[arg(long)]
-        all: bool,
-    },
-    /// (alias oculto de `skills list`)
-    #[command(hide = true)]
-    List,
-    /// (alias oculto de `skills remove`)
-    #[command(hide = true)]
-    Remove { name: String },
+    // O `skills` e os quatro aliases ocultos (`install`, `update`, `list`, `remove`) saíram
+    // daqui na E5 (ADR-0012 F4). Eles NÃO foram removidos da superfície: o `applink` os
+    // intercepta antes do clap e repassa ao `schematize-skills`, com os argumentos crus.
+    //
+    // **Os aliases mantêm o prefixo e o `skills` não**, e é a diferença entre dois formatos:
+    // `schematize install rust` vira `schematize-skills install rust` (o verbo é o mesmo),
+    // enquanto `schematize skills install rust` vira `schematize-skills install rust` (o
+    // `skills` era só o agrupador, e some).
     /// Gera o ícone do app EM CÓDIGO (resiliente — sem rasterizar SVG). `--emit <png>` um tamanho;
     /// `--hicolor <dir>` a árvore freedesktop inteira (16..512). Usado pelo install.sh.
     #[command(hide = true)]

@@ -1,8 +1,8 @@
 //! Encaminhamento para os apps da casa — o hub delega em vez de ter cópia.
 //!
-//! **O quê:** `schematize ssh|vps|mcp …` vai para o `schematize-deployer`; `schematize env …`
-//! vai para o `schematize-market`; `schematize db …` vai para o `schematize-database`. Os
-//! argumentos são repassados **crus**.
+//! **O quê:** `ssh|vps|mcp` vão para o `schematize-deployer`; `env` para o `schematize-market`;
+//! `db` para o `schematize-database`; `git`/`git-log` para o `schematize-git`; `skills` para o
+//! `schematize-skills`. Os argumentos são repassados **crus**.
 //!
 //! **Onde:** interceptado no `main`, ANTES do `clap`.
 //!
@@ -111,6 +111,43 @@ const DELEGADOS: &[Delegado] = &[
         adr: "ADR-0019",
     },
     // `git-log` era comando de TOPO daqui; no app dono é `schematize-git log`.
+    Delegado {
+        prefixo: "skills",
+        bin: crate::deployerlink::SKILLS,
+        mantem_prefixo: false,
+        vira: None,
+        adr: "ADR-0012 F4",
+    },
+    // Os quatro aliases OCULTOS que existiam no topo desta CLI antes de `skills <sub>`.
+    // Mantêm o prefixo: lá eles são o próprio verbo.
+    Delegado {
+        prefixo: "install",
+        bin: crate::deployerlink::SKILLS,
+        mantem_prefixo: true,
+        vira: None,
+        adr: "ADR-0012 F4",
+    },
+    Delegado {
+        prefixo: "update",
+        bin: crate::deployerlink::SKILLS,
+        mantem_prefixo: true,
+        vira: None,
+        adr: "ADR-0012 F4",
+    },
+    Delegado {
+        prefixo: "list",
+        bin: crate::deployerlink::SKILLS,
+        mantem_prefixo: true,
+        vira: None,
+        adr: "ADR-0012 F4",
+    },
+    Delegado {
+        prefixo: "remove",
+        bin: crate::deployerlink::SKILLS,
+        mantem_prefixo: true,
+        vira: None,
+        adr: "ADR-0012 F4",
+    },
     Delegado {
         prefixo: "git-log",
         bin: crate::deployerlink::GIT,
@@ -225,10 +262,26 @@ mod tests {
     /// comandos que são do hub.
     #[test]
     fn o_que_e_do_hub_nao_e_interceptado() {
-        for c in ["skills", "overdev", "status", "doctor", "gui", "--help", "-V", "projects"] {
+        // **`skills` SAIU desta lista na E5**, e a mudança é o item: ele era do hub e passou a
+        // ser delegado. Um teste que guarda "o que é do hub" tem de acompanhar a extradição —
+        // se ele não acompanhasse, teria reprovado sobre um corte correto, e a saída fácil
+        // seria apagar o teste em vez de o dado.
+        for c in ["overdev", "status", "doctor", "gui", "--help", "-V", "projects"] {
             assert!(destino(&[c.to_string()]).is_none(), "`{c}` não devia ser delegado");
         }
         assert!(destino(&[]).is_none());
+        // E o que É delegado tem de estar delegado: a outra metade da mesma afirmação.
+        for (c, bin) in [
+            ("skills", crate::deployerlink::SKILLS),
+            ("install", crate::deployerlink::SKILLS),
+            ("db", crate::deployerlink::DATABASE),
+            ("git", crate::deployerlink::GIT),
+            ("ssh", crate::deployerlink::BIN),
+            ("env", crate::deployerlink::GESTOR),
+        ] {
+            let (dest, _) = destino(&[c.to_string()]).unwrap_or_else(|| panic!("`{c}` não delega"));
+            assert_eq!(dest, bin, "`{c}` foi para o app errado");
+        }
     }
 
     /// Prefixo PARCIAL não conta: `sshfoo` não é `ssh`. Sem a igualdade exata, um comando

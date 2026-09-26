@@ -5,7 +5,6 @@
 
 use crate::util::{self, commands_dir, config_path, settings_path, skills_dir};
 use crate::versoes;
-use crate::{registry, skills};
 use std::path::Path;
 
 fn hdr(t: &str) {
@@ -182,20 +181,20 @@ pub fn run() {
     kv("settings.json", if settings_path().exists() { "presente" } else { "ausente" });
     kv("config.json", if config_path().exists() { "presente" } else { "ausente" });
 
-    hdr("catálogo — versão no disco vs no fonte (raw, sem API)");
-    let cat = registry::catalog();
-    kv("skills no catálogo", &cat.len().to_string());
-    for it in &cat {
-        let inst = skills::installed_version(it).unwrap_or_else(|| "—".into());
-        let latest = versoes::latest_version_raw(&it.repo).unwrap_or_else(|| "?".into());
-        let mark = if inst == "—" {
-            "não instalada"
-        } else if inst == latest {
-            "ok"
-        } else {
-            "ATUALIZAR"
-        };
-        println!("  {:<12} disco={:<9} raw={:<9} {}", it.slug, inst, latest, mark);
+    // O catálogo vem do APP (E5). **Se ele não estiver instalado, a lista sai VAZIA e o
+    // relatório DIZ isso** — um bloco que some sem explicação faria quem lê o diagnóstico
+    // concluir que a máquina não tem skill nenhuma, que é o oposto do que este arquivo serve.
+    hdr("catálogo — o que o schematize-skills reporta");
+    let cat = crate::skillslink::catalogo();
+    if cat.is_empty() {
+        kv("skills", "nenhuma — o `schematize-skills` está instalado?");
+    } else {
+        kv("skills no catálogo", &cat.len().to_string());
+        for s in &cat {
+            let inst = if s.instalada.is_empty() { "—" } else { &s.instalada };
+            let ult = if s.ultima.is_empty() { "?" } else { &s.ultima };
+            println!("  {:<12} disco={:<9} publicada={:<9} {}", s.slug, inst, ult, s.situacao);
+        }
     }
 
     hdr("update.log (últimas tentativas de self-update)");

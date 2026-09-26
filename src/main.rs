@@ -12,7 +12,6 @@ use cli::conta::*;
 use cli::disco::*;
 use cli::diversos::*;
 use cli::overdev::*;
-use cli::skills::*;
 
 use clap::Parser;
 use schematize::i18n::tf;
@@ -42,15 +41,8 @@ fn main() {
     }
     let cli = Cli::parse();
     let r: Result<(), String> = match cli.cmd {
-        // Feature SKILLS, agrupada. O app é uma coisa; skills são uma funcionalidade.
-        Cmd::Skills { sub } => skills_cmd(sub),
-        // Aliases ocultos de compat (mesma lógica que o subcomando `skills`).
-        Cmd::Install { names, all, with_recommended } => {
-            skills_install(&names, all, with_recommended)
-        }
-        Cmd::Update { names, all } => skills_update(&names, all),
-        Cmd::List => skills_list(),
-        Cmd::Remove { name } => skills_remove(&name),
+        // O braço de SKILLS saiu daqui na E5: `skills`, `install`, `update`, `list` e `remove`
+        // são interceptados pelo `applink` antes do clap e vão para o `schematize-skills`.
         Cmd::Status => {
             status::run();
             Ok(())

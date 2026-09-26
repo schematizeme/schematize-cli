@@ -4,7 +4,7 @@
 
 use crate::i18n::{self, t, tf};
 use crate::versoes;
-use crate::{autostart, links, overdev, registry, settings, skills};
+use crate::{autostart, links, overdev, settings};
 
 fn header(s: &str) {
     println!("\n\x1b[1m{s}\x1b[0m");
@@ -16,9 +16,19 @@ pub fn run() {
 
     // Versões
     header(&t("status.section_versions"));
-    let st = skills::load_state();
-    for it in &registry::catalog() {
-        println!("  {}", skills::status_line(it, &st, true));
+    // O catálogo vem do APP (E5). A frase de estado é montada AQUI porque é texto de tela —
+    // o app devolve o slug (`em_dia`, `tem_atualizacao`…), e quem imprime escolhe a palavra.
+    for s in crate::skillslink::catalogo() {
+        let estado = match s.situacao.as_str() {
+            "em_dia" => i18n::t("common.current"),
+            "tem_atualizacao" => i18n::t("common.update"),
+            "nao_instalada" => i18n::t("common.not_installed"),
+            "fork" => "[fork]".to_string(),
+            _ => String::new(),
+        };
+        let inst = if s.instalada.is_empty() { "—" } else { &s.instalada };
+        let ult = if s.ultima.is_empty() { "?" } else { &s.ultima };
+        println!("  {:<12} {:<8} latest={:<8} {estado}", s.slug, inst, ult);
     }
     let cur = env!("CARGO_PKG_VERSION");
     let cli_latest = versoes::latest_version_raw("schematize-cli").unwrap_or_else(|| "?".into());

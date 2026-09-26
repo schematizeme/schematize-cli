@@ -58,6 +58,10 @@ pub const EXTERNOS: &[AppExterno] = &[
         sobre: "contas, o que ainda não saiu desta máquina, e os repositórios de cada conta",
     },
     AppExterno {
+        bin: "schematize-skills",
+        sobre: "o catálogo de skills, o que está instalado, e a autoria",
+    },
+    AppExterno {
         bin: "schematize-market",
         sobre: "instala e atualiza tudo do ecossistema — runtimes, ferramentas e os apps da casa",
     },
@@ -94,6 +98,8 @@ pub const BIN: &str = "schematize-deployer";
 pub const DATABASE: &str = "schematize-database";
 /// Nome do binário do Git (E2 da extradição, ADR-0019).
 pub const GIT: &str = "schematize-git";
+/// Nome do binário das Skills (E5 da extradição, ADR-0012 F4).
+pub const SKILLS: &str = "schematize-skills";
 /// Repositório, para a mensagem de instalação e para o `install.sh`.
 pub const REPO: &str = "schematizeme/schematize_deployer_rs";
 

@@ -7,7 +7,7 @@
 //! As funções `notif_*` são PURAS (montam um `Notif` a partir de dados já colhidos) pra serem
 //! testáveis sem rede; `collect` é a parte impura que faz as chamadas e delega a montagem a elas.
 
-use crate::{account, news, registry, skills, upgrade, util};
+use crate::{account, news, upgrade, util};
 use serde::Deserialize;
 
 /// Escopo de uma notificação: GLOBAL (vale pra todo mundo) ou PESSOAL (do ambiente do usuário).
@@ -171,57 +171,18 @@ pub fn collect() -> Vec<Notif> {
         }
     }
 
-    // --- PESSOAL: skills instaladas do usuário que estão desatualizadas.
-    // Cruza o estado (o que ele tem) com o catálogo (pra saber onde checar a última).
-    let st = skills::load_state();
-    let cat = registry::catalog();
-    // Candidatos: skill instalada, no catálogo, NÃO forkada (fork compara/mescla, não desatualiza).
-    let cands: Vec<(String, registry::Item, String)> = st
-        .skills
-        .keys()
-        .filter_map(|slug| {
-            let it = registry::find(&cat, slug)?;
-            let installed = skills::installed_version(&it)?;
-            if st.skills.get(slug).map(|e| e.forked).unwrap_or(false) {
-                return None;
-            }
-            Some((slug.clone(), it, installed))
-        })
-        .collect();
-    // AGREGADOR primeiro: UMA chamada a `{api}/versions?skills=...` traz todas as versões — a
-    // mesma fonte que o site lê (o espelho que o `sync-skills` alimenta a partir dos releases).
-    // Era um N+1 (1 ida ao GitHub por skill); virou 1 request.
-    let slugs: Vec<String> = cands.iter().map(|(s, _, _)| s.clone()).collect();
-    let bulk = skills::latest_versions_bulk(&slugs);
-
-    // O que o agregador respondeu resolve na hora; o resto (API fora, skill nova que a API ainda
-    // não conhece) cai no caminho antigo — raw do GitHub, uma thread por skill, concorrente.
-    let mut fallback: Vec<(String, registry::Item, String)> = Vec::new();
-    for (slug, it, installed) in cands {
-        match bulk.get(&slug) {
-            Some(latest) => {
-                if crate::util::semver_lt(&installed, latest) {
-                    out.push(notif_skill_outdated(&slug, &installed, latest));
-                }
-            }
-            None => fallback.push((slug, it, installed)),
-        }
-    }
-    let handles: Vec<_> = fallback
-        .into_iter()
-        .map(|(slug, it, installed)| {
-            std::thread::spawn(move || match skills::resolve_latest(&it) {
-                Ok(latest) if crate::util::semver_lt(&installed, &latest) => {
-                    Some((slug, installed, latest))
-                }
-                _ => None,
-            })
-        })
-        .collect();
-    for h in handles {
-        if let Ok(Some((slug, installed, latest))) = h.join() {
-            out.push(notif_skill_outdated(&slug, &installed, &latest));
-        }
+    // --- PESSOAL: skills instaladas que estão desatualizadas.
+    //
+    // **Uma pergunta ao APP, e não a leitura do estado mais o catálogo mais o agregador.**
+    // O que havia aqui eram ~45 linhas: cruzava `state.json` com o catálogo, chamava o
+    // agregador `{api}/versions`, e caía num fallback de uma thread por skill contra o raw do
+    // GitHub. Tudo isso é o que o `schematize-skills list` faz — e fazia em dois lugares.
+    //
+    // **Fork continua de fora**, e agora por construção: o app devolve `situacao: "fork"`, e
+    // `pede_atualizacao()` só é verdade para `tem_atualizacao`. Notificar "há atualização"
+    // sobre um fork é convidar a apagar o trabalho de quem editou.
+    for s in crate::skillslink::catalogo().iter().filter(|s| s.pede_atualizacao()) {
+        out.push(notif_skill_outdated(&s.slug, &s.instalada, &s.ultima));
     }
 
     // --- SERVIDOR: notificações do marketplace (só se logado; best-effort).

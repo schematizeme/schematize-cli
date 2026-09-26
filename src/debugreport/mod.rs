@@ -17,7 +17,7 @@
 //! Postura: TUDO best-effort — nunca panica; a falha de uma seção vira
 //! "(indisponível: <motivo>)" e o resto do relatório segue.
 
-use crate::{account, config, debug, doctor, overdev, registry, skills, util};
+use crate::{account, config, debug, doctor, overdev, util};
 use std::collections::BTreeSet;
 use std::fmt::Write as _;
 use std::fs;
@@ -108,7 +108,13 @@ pub fn write_report(out: Option<&Path>, online: bool) -> Result<PathBuf, String>
 /// Resumo curto (pro CLI imprimir depois de gravar / pra GUI). Sem segredo.
 pub fn short_summary() -> String {
     let logged = if account::is_logged_in() { "sim" } else { "não" };
-    let n_skills = skills::load_state().skills.len();
+    // **`None` e `Some(0)` são coisas diferentes**, e o relatório diz as duas: "0 skills"
+    // sobre uma máquina que só não tem o app instalado mandaria alguém procurar o problema
+    // errado — e este relatório existe justamente para ser lido por quem está procurando.
+    // "não sei" e "zero" saem diferentes: `?` sobre uma máquina que só não tem o app
+    // mandaria quem lê o relatório procurar o problema errado.
+    let n_skills =
+        crate::skillslink::instaladas().map(|n| n.to_string()).unwrap_or_else(|| "?".into());
     format!(
         "schematize v{} · logado: {logged} · skills instaladas: {n_skills}",
         env!("CARGO_PKG_VERSION")

@@ -14,5 +14,3 @@ pub(crate) mod diversos;
 pub(crate) mod overdev;
 pub(crate) mod perguntas;
 pub(crate) mod prompt;
-pub(crate) mod skills;
-pub(crate) mod skillsproj;

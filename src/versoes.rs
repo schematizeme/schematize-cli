@@ -24,7 +24,6 @@
 //! `Cargo.toml` sem `[package]`, nem para a tag com `v`, nem para o corpo vazio. Com
 //! [`parse_versao`] e [`parse_tag`] puros, cada um desses casos é uma linha de teste.
 
-use crate::registry;
 use crate::util;
 
 /// Timeout curto (s): saber a versão é conveniência; travar a UI por causa dela, não.
@@ -43,10 +42,14 @@ const UA: &str = "User-Agent: schematize-cli";
 /// curto e limite muito maior.
 ///
 /// Rede: nunca panica; qualquer falha vira `None`.
+/// A organização no GitHub. **Era `registry::ORG`**, do módulo de catálogo de skills — que
+/// saiu na E5. Ele nunca foi do catálogo: é o endereço da CASA, e todo repo daqui mora nele.
+pub const ORG: &str = "schematizeme";
+
 pub fn latest_version_raw(repo: &str) -> Option<String> {
     let is_cli = repo == CLI_REPO;
     let file = if is_cli { "Cargo.toml" } else { "VERSION" };
-    let url = format!("https://raw.githubusercontent.com/{}/{}/main/{}", registry::ORG, repo, file);
+    let url = format!("https://raw.githubusercontent.com/{}/{}/main/{}", ORG, repo, file);
     let body = util::run("curl", &["-sfL", "-m", NET_TIMEOUT, "-H", UA, &url]).ok()?;
     parse_versao(&body, is_cli)
 }
@@ -89,7 +92,7 @@ pub fn parse_versao(body: &str, cargo: bool) -> Option<String> {
 /// **Onde:** fallback e diagnóstico (`debug`) — NÃO é o caminho primário, porque a API é
 /// limitada a 60/h/IP.
 pub fn latest_release_tag(repo: &str) -> Option<String> {
-    let url = format!("https://api.github.com/repos/{}/{}/releases/latest", registry::ORG, repo);
+    let url = format!("https://api.github.com/repos/{}/{}/releases/latest", ORG, repo);
     let body =
         util::run("curl", &["-sfL", "-H", "Accept: application/vnd.github+json", "-H", UA, &url])
             .ok()?;

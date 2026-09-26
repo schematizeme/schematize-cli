@@ -77,17 +77,10 @@ CMD schematize icon (oculto)
   ARG emit                 --emit
   ARG hicolor              --hicolor
   ARG size                 --size
-CMD schematize install (oculto)
-  SOBRE (alias oculto de `skills install`)
-  ARG all                  --all
-  ARG names                 <valor>
-  ARG with_recommended     --with-recommended
 CMD schematize lang
   SOBRE Get/set the interface language (no args = show current; --list = all)
   ARG code                 
   ARG list                 --list
-CMD schematize list (oculto)
-  SOBRE (alias oculto de `skills list`)
 CMD schematize login
   SOBRE Log in to the schematize platform via the browser (OAuth device flow)
 CMD schematize logout
@@ -225,55 +218,8 @@ CMD schematize projects remove
 CMD schematize projects unmark
   SOBRE Remove the `.schematize` marker from the folder (default: cwd)
   ARG path                 
-CMD schematize remove (oculto)
-  SOBRE (alias oculto de `skills remove`)
-  ARG name                  OBRIGATORIO
-CMD schematize skills
-  SOBRE Manage skills (a FEATURE of the app): install | update | remove | list
-CMD schematize skills applied
-  SOBRE Which skill VERSION shaped THIS project, and which fell behind the installed one
-  ARG mark                 --mark
-CMD schematize skills compare
-  SOBRE Compare a forked skill against the latest official (files changed + unified diff)
-  ARG slug                  OBRIGATORIO
-CMD schematize skills edit
-  SOBRE Edit an installed skill: --list its files, or --file <rel> to print one (or set it)
-  ARG file                 --file
-  ARG list                 --list
-  ARG set_from             --set-from
-  ARG slug                  OBRIGATORIO
-CMD schematize skills fork
-  SOBRE Fork an OFFICIAL skill (stash its base) so it can be edited without losing the original
-  ARG slug                  OBRIGATORIO
-CMD schematize skills install
-  SOBRE Install one or more skills (or all with --all) from the latest release
-  ARG all                  --all
-  ARG names                 <valor>
-  ARG with_recommended     --with-recommended
-CMD schematize skills list
-  SOBRE List skills: installed vs latest available
-CMD schematize skills new
-  SOBRE Create a new skill scaffold in ~/.claude/skills/schematize-<slug>/
-  ARG desc                 --desc
-  ARG force                --force
-  ARG name                 --name
-  ARG slug                  OBRIGATORIO
-CMD schematize skills remove
-  SOBRE Remove an installed skill
-  ARG name                  OBRIGATORIO
-CMD schematize skills rerun
-  SOBRE Re-run a skill over this project to refresh its precepts (opens an agent)
-  ARG slug                 
-CMD schematize skills update
-  SOBRE Update installed skills to latest (all if no name/--all)
-  ARG all                  --all
-  ARG names                 <valor>
 CMD schematize status
   SOBRE Overview dashboard: versions, agent, overdev, language, links
-CMD schematize update (oculto)
-  SOBRE (alias oculto de `skills update`)
-  ARG all                  --all
-  ARG names                 <valor>
 CMD schematize upgrade
   SOBRE Update schematize itself — atualiza o próprio schematize (o APP, o binário), não as skills
   ARG force                --force

@@ -3,9 +3,8 @@
 //! Onde: `schematize agent` (loop) e `schematize check [--notify]` (uma vez).
 
 use crate::i18n::{t, tf};
-use crate::registry::{self, Item};
 use crate::versoes;
-use crate::{news, skills, util};
+use crate::{news, util};
 use notify_rust::Notification;
 use std::time::Duration;
 
@@ -22,27 +21,32 @@ pub struct Upd {
     pub name: String,
     pub installed: String,
     pub latest: String,
-    pub item: Option<Item>, // None = o próprio CLI
+    /// O SLUG da skill, ou `None` quando a atualização é do próprio CLI.
+    ///
+    /// **Era o `Item` inteiro do catálogo**, e virou o slug na E5: o catálogo saiu deste
+    /// crate, e o que se faz com ele aqui é uma coisa só — mandar o app atualizar aquela
+    /// skill. Carregar a struct inteira para passar um nome seria o acoplamento voltando pela
+    /// porta dos fundos.
+    pub slug: Option<String>,
 }
 
-/// Lista o que tem atualização: skills instaladas desatualizadas + o próprio CLI.
-/// O conjunto de skills vem do ÍNDICE REMOTO (registry::catalog) — pega skills novas.
+/// Lista o que tem atualização: skills desatualizadas + o próprio CLI.
+///
+/// **As skills vêm do APP** (E5): ele conhece o catálogo, lê a versão do disco e resolve a
+/// publicada. Sem ele instalado, a lista sai só com o CLI — e é o piso 10: a ausência de um
+/// app não pode impedir o outro de se atualizar.
+///
+/// **Fork fica de fora por construção**, porque o app o marca como `fork` e `pede_atualizacao`
+/// só é verdade para `tem_atualizacao`. Atualizar um fork apagaria o que a pessoa editou.
 pub fn check() -> Vec<Upd> {
     let mut out = Vec::new();
-    for it in registry::catalog() {
-        // fonte de verdade = VERSION no disco (funciona mesmo instalada por install.sh).
-        if let Some(inst) = skills::installed_version(&it) {
-            if let Ok(latest) = skills::resolve_latest(&it) {
-                if inst != latest {
-                    out.push(Upd {
-                        name: it.slug.clone(),
-                        installed: inst,
-                        latest,
-                        item: Some(it),
-                    });
-                }
-            }
-        }
+    for s in crate::skillslink::catalogo().iter().filter(|s| s.pede_atualizacao()) {
+        out.push(Upd {
+            name: s.slug.clone(),
+            installed: s.instalada.clone(),
+            latest: s.ultima.clone(),
+            slug: Some(s.slug.clone()),
+        });
     }
     let cur = env!("CARGO_PKG_VERSION");
     if let Some(latest) = cli_latest() {
@@ -51,7 +55,7 @@ pub fn check() -> Vec<Upd> {
                 name: "schematize (CLI)".into(),
                 installed: cur.into(),
                 latest,
-                item: None,
+                slug: None,
             });
         }
     }
@@ -63,10 +67,12 @@ fn apply(ups: &[Upd]) {
     let mut ok = 0usize;
     let mut errs: Vec<String> = Vec::new();
     for u in ups {
-        match &u.item {
-            // Skill: instalação in-process (user-space, sem root) — já funcionava.
-            Some(it) => match skills::install(it) {
-                Ok(_) => ok += 1,
+        match &u.slug {
+            // Skill: quem instala é o APP dela (E5). Era instalação in-process daqui; o
+            // download, a descompactação e a substituição são domínio de skill, e domínio
+            // de skill saiu deste crate.
+            Some(slug) => match crate::skillslink::atualizar(slug) {
+                Ok(()) => ok += 1,
                 Err(e) => errs.push(format!("{}: {e}", u.name)),
             },
             // CLI/GUI: self-update SEM sudo (a correção do "não atualiza") + resultado real.

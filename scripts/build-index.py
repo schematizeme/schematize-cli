@@ -69,6 +69,9 @@ REPOS = {
     "schematize_git_rs": dict(
         what="App schematize Git (E2 do ADR-0018): mais de uma identidade git na mesma maquina, sem commitar com a errada. Contas, alias SSH por conta, e o que ainda nao saiu da maquina.",
         stack="Rust/clap", runs="binário local"),
+    "schematize_skills_rs": dict(
+        what="App schematize Skills (E5 do ADR-0018, ADR-0012 F4): o catalogo, o que esta instalado, a autoria e o fork. E o unico dono do `gui.json`, o formato em que uma skill de TERCEIRO declara um botao na interface.",
+        stack="Rust/clap + Slint", runs="binário local"),
 }
 
 # ---------------------------------------------------------------- limpeza lexica
@@ -488,6 +491,8 @@ BOUNDARY_BIN = {
     'schematize-market': 'schematize_market_rs',
     'schematize-database': 'schematize_database_rs',
     'schematize-git': 'schematize_git_rs',
+    'schematize-skills': 'schematize_skills_rs',
+    'schematize-skills-gui': 'schematize_skills_rs',
     'schematize-gui': 'schematize_gui_slint',
 }
 

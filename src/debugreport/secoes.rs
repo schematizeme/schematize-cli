@@ -183,31 +183,45 @@ pub(crate) fn sec_config(o: &mut String) {
 /// 6) Skills: instaladas + versões + forkadas; alcance do catálogo.
 pub(crate) fn sec_skills(o: &mut String, online: bool) {
     hdr(o, "6. SKILLS");
-    let st = skills::load_state();
-    if st.skills.is_empty() {
-        let _ = writeln!(o, "  (nenhuma skill registrada no state)");
+    // **Este relatório é lido por quem está procurando um problema**, então "não sei" e
+    // "nenhuma" têm de sair diferentes. Sem o `schematize-skills` instalado, o número de
+    // instaladas é `None` — e dizer "0 skills" ali mandaria a pessoa investigar a coisa errada.
+    match crate::skillslink::instaladas() {
+        Some(0) => {
+            let _ = writeln!(o, "  (nenhuma skill instalada)");
+        }
+        Some(n) => kv(o, "instaladas", &n.to_string()),
+        None => {
+            let _ =
+                writeln!(o, "  (não consegui perguntar — o `schematize-skills` está instalado?)");
+            return;
+        }
     }
-    for (slug, e) in &st.skills {
-        let fork = if e.forked {
-            format!(" [FORK, base v{}]", e.fork_base_version.as_deref().unwrap_or("?"))
-        } else {
-            String::new()
-        };
-        let _ = writeln!(o, "  {slug:<16} v{}{fork}", e.version);
-    }
-    if online {
-        let cat = registry::catalog();
-        kv(
-            o,
-            "catálogo (alcance)",
-            &format!(
-                "{} skills{}",
-                cat.len(),
-                if cat.len() >= 19 { " (remoto ok)" } else { " (embutido? offline?)" }
-            ),
-        );
-    } else {
+    if !online {
         kv(o, "catálogo (alcance)", "(pulado — offline)");
+        return;
+    }
+    // O catálogo custa REDE (ele resolve a última versão de cada skill), e por isso só sai no
+    // modo online — a mesma regra de antes, com a leitura num lugar só.
+    let cat = crate::skillslink::catalogo();
+    kv(
+        o,
+        "catálogo (alcance)",
+        &format!(
+            "{} skills{}",
+            cat.len(),
+            if cat.len() >= 19 { " (remoto ok)" } else { " (embutido? offline?)" }
+        ),
+    );
+    for s in &cat {
+        let marca = match s.situacao.as_str() {
+            "fork" => " [FORK]",
+            "tem_atualizacao" => " [ATUALIZAR]",
+            _ => "",
+        };
+        let v =
+            if s.instalada.is_empty() { "—".to_string() } else { format!("v{}", s.instalada) };
+        let _ = writeln!(o, "  {:<16} {v}{marca}", s.slug);
     }
 }
 
