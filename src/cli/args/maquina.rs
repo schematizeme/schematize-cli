@@ -165,46 +165,13 @@ pub(crate) enum EnvCmd {
     },
 }
 
-/// Backend do "database builder" — introspecta, gera SQL/migration e o grafo do schema.
-#[derive(Subcommand)]
-pub(crate) enum DbCmd {
-    /// Introspect a database (SQLite file or Postgres conn) and print a summary.
-    Introspect {
-        /// Path to a SQLite file to introspect.
-        #[arg(long)]
-        sqlite: Option<String>,
-        /// Postgres connection string (uses `psql` from PATH).
-        #[arg(long)]
-        postgres: Option<String>,
-        /// Also print the schema as pretty JSON (for the GUI / piping).
-        #[arg(long)]
-        json: bool,
-    },
-    /// Emit SQL (CREATE/ALTER/INDEX) — or a migration with --migration — from a schema source.
-    Sql {
-        /// Read the schema from a JSON file (as saved by the GUI).
-        #[arg(long)]
-        from: Option<String>,
-        /// Or introspect this SQLite file as the source.
-        #[arg(long)]
-        sqlite: Option<String>,
-        /// Or introspect this Postgres conn as the source.
-        #[arg(long)]
-        postgres: Option<String>,
-        /// Emit an expand-contract migration (up/down) instead of plain SQL.
-        #[arg(long)]
-        migration: bool,
-    },
-    /// Print the schema graph (nodes/edges: table = node, FK = edge) from a schema source.
-    Graph {
-        #[arg(long)]
-        from: Option<String>,
-        #[arg(long)]
-        sqlite: Option<String>,
-        #[arg(long)]
-        postgres: Option<String>,
-    },
-}
+// O `DbCmd` saiu daqui com o domínio (E1 da extradição, ADR-0018). Os três subcomandos
+// (`introspect`, `sql`, `graph`) são do `schematize-database`, e `schematize db …` continua
+// funcionando: o `applink` intercepta antes do clap e repassa cru ao app dono.
+//
+// **Interceptar é diferente de manter uma cópia.** A cópia foi o que aconteceu com `ssh`,
+// `vps`, `mcp` e `env` nas primeiras extrações — 9.827 linhas duplicadas que divergiram, e o
+// conserto passou a existir só de um lado. Aqui o hub não sabe mais nenhuma flag do banco.
 
 /// `schematize disco` — inventário e limpeza do lixo recriável (build, cache, docker).
 /// `schematize git` — contas, repositórios e o que ainda não saiu da máquina.

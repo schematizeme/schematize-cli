@@ -9,7 +9,6 @@ mod cli;
 use cli::args::*;
 use cli::caixa::*;
 use cli::conta::*;
-use cli::db::*;
 use cli::disco::*;
 use cli::diversos::*;
 use cli::git::*;
@@ -180,7 +179,6 @@ fn main() {
         Cmd::Graph { sub } => match sub {
             GraphCmd::Obsidian { out } => panel::export_obsidian(out),
         },
-        Cmd::Db { sub } => db_cmd(sub),
         Cmd::Check { notify } => {
             agent::run_once(notify);
             Ok(())

@@ -32,7 +32,7 @@ pub(crate) mod maquina;
 pub(crate) mod overdev;
 pub(crate) mod skills;
 
-pub(crate) use maquina::{DbCmd, DiscoCmd, GitCmd};
+pub(crate) use maquina::{DiscoCmd, GitCmd};
 pub(crate) use overdev::{Auto, CaixaCmd, GraphCmd, Over, ProjectsCmd};
 pub(crate) use skills::SkillsCmd;
 
@@ -57,8 +57,9 @@ use clap::{Parser, Subcommand};
         "DELEGATED TO THE HOUSE APPS (still work when typed here):\n",
         "  ssh, vps, mcp   ->  schematize-deployer\n",
         "  env             ->  schematize-market\n",
+        "  db              ->  schematize-database\n",
         "\n",
-        "Run `schematize-deployer --help` or `schematize-market --help` for their commands."
+        "Run `<app> --help` for their commands."
     )
 )]
 pub(crate) struct Cli {
@@ -213,11 +214,6 @@ pub(crate) enum Cmd {
     Graph {
         #[command(subcommand)]
         sub: GraphCmd,
-    },
-    /// Database builder backend: introspect a DB, emit SQL/migration, or print the schema graph.
-    Db {
-        #[command(subcommand)]
-        sub: DbCmd,
     },
     /// Check for updates once (with --notify, fire a desktop notification).
     Check {

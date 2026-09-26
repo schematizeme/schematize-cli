@@ -1,7 +1,8 @@
 //! Encaminhamento para os apps da casa — o hub delega em vez de ter cópia.
 //!
 //! **O quê:** `schematize ssh|vps|mcp …` vai para o `schematize-deployer`; `schematize env …`
-//! vai para o `schematize-market`. Os argumentos são repassados **crus**.
+//! vai para o `schematize-market`; `schematize db …` vai para o `schematize-database`. Os
+//! argumentos são repassados **crus**.
 //!
 //! **Onde:** interceptado no `main`, ANTES do `clap`.
 //!
@@ -43,14 +44,51 @@ struct Delegado {
     bin: &'static str,
     /// O `prefixo` viaja para o app (deployer) ou é consumido aqui (market)?
     mantem_prefixo: bool,
+    /// A decisão que tirou este domínio daqui — vai na mensagem de "não instalado".
+    ///
+    /// **É campo, e não literal na mensagem, porque o literal MENTIU.** A frase cravava
+    /// "ADR-0010/0012" para todo delegado, e o `db` saiu pelo ADR-0018. Quem fosse checar a
+    /// decisão leria uma que não fala do banco, e concluiria que a mensagem está errada sobre
+    /// o resto também.
+    adr: &'static str,
 }
 
 /// Os domínios delegados. **Fonte única:** acrescentar um aqui é a única mudança necessária.
 const DELEGADOS: &[Delegado] = &[
-    Delegado { prefixo: "ssh", bin: crate::deployerlink::BIN, mantem_prefixo: true },
-    Delegado { prefixo: "vps", bin: crate::deployerlink::BIN, mantem_prefixo: true },
-    Delegado { prefixo: "mcp", bin: crate::deployerlink::BIN, mantem_prefixo: true },
-    Delegado { prefixo: "env", bin: crate::deployerlink::GESTOR, mantem_prefixo: false },
+    Delegado {
+        prefixo: "ssh",
+        bin: crate::deployerlink::BIN,
+        mantem_prefixo: true,
+        adr: "ADR-0010",
+    },
+    Delegado {
+        prefixo: "vps",
+        bin: crate::deployerlink::BIN,
+        mantem_prefixo: true,
+        adr: "ADR-0010",
+    },
+    Delegado {
+        prefixo: "mcp",
+        bin: crate::deployerlink::BIN,
+        mantem_prefixo: true,
+        adr: "ADR-0010",
+    },
+    Delegado {
+        prefixo: "env",
+        bin: crate::deployerlink::GESTOR,
+        mantem_prefixo: false,
+        adr: "ADR-0012",
+    },
+    // `db` não mantém o prefixo, como o `env`: no app dono os subcomandos são de TOPO
+    // (`schematize-database introspect`), e não `schematize-database db introspect`. Mandar o
+    // prefixo junto morreria em "unrecognized subcommand", que foi o que aconteceu na primeira
+    // tentativa de delegar o market.
+    Delegado {
+        prefixo: "db",
+        bin: crate::deployerlink::DATABASE,
+        mantem_prefixo: false,
+        adr: "ADR-0018",
+    },
 ];
 
 /// **O quê:** para qual app um `argv` vai, e com quais argumentos. PURA.
@@ -58,10 +96,18 @@ const DELEGADOS: &[Delegado] = &[
 /// **Onde:** [`interceptar`]. Separada da execução porque é a REGRA — e a regra tem casos
 /// (argv vazio, prefixo parcial, prefixo consumido) que só um teste cobre bem.
 pub fn destino(argv: &[String]) -> Option<(&'static str, Vec<String>)> {
+    delegado(argv).map(|(d, args)| (d.bin, args))
+}
+
+/// **O quê:** o delegado inteiro e os argumentos dele. PURA.
+///
+/// **Onde:** [`destino`] e [`interceptar`] — este precisa do `adr` para a mensagem de ausência,
+/// e aquele só do binário.
+fn delegado(argv: &[String]) -> Option<(&'static Delegado, Vec<String>)> {
     let primeiro = argv.first()?.as_str();
     let d = DELEGADOS.iter().find(|d| d.prefixo == primeiro)?;
     let args = if d.mantem_prefixo { argv.to_vec() } else { argv[1..].to_vec() };
-    Some((d.bin, args))
+    Some((d, args))
 }
 
 /// **O quê:** se o comando é de um app da casa, executa lá e devolve o código de saída.
@@ -72,13 +118,20 @@ pub fn destino(argv: &[String]) -> Option<(&'static str, Vec<String>)> {
 /// **Herda o terminal de propósito:** `ssh run` abre sessão interativa, `import --paste` lê da
 /// entrada padrão, e instalar pede sudo. Capturar a saída quebraria os três.
 pub fn interceptar(argv: &[String]) -> Option<i32> {
-    let (bin, args) = destino(argv)?;
+    let (d, args) = delegado(argv)?;
+    let bin = d.bin;
     let Some(caminho) = crate::agentrun::resolve_bin(bin) else {
+        // **O comando que se manda rodar tem de INSTALAR este app**, e o que estava aqui não
+        // instalava: era o `curl | bash` do `install.sh`, que põe o `schematize` e o
+        // `schematize-market` e mais ninguém (ADR-0013 — quem instala app da casa é o market).
+        // Quem seguisse a instrução rodaria um instalador longo e tentaria de novo, com o mesmo
+        // erro, sem nada dizendo por quê. Mensagem que não resolve é §37.48.
         eprintln!(
-            "erro: `{bin}` não está instalado — é ele que cuida de `{}` desde o ADR-0010/0012.\n\
-             Instale com:\n    curl -fsSL {} | bash",
+            "erro: `{bin}` não está instalado — é ele que cuida de `{}` desde o {}.\n\
+             Instale com:\n    {}",
             argv[0],
-            crate::upgrade::INSTALL_SH
+            d.adr,
+            crate::deployerlink::como_instalar_app(bin)
         );
         return Some(1);
     };

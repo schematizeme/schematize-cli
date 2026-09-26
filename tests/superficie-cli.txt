@@ -29,24 +29,6 @@ CMD schematize blog
 CMD schematize check
   SOBRE Check for updates once (with --notify, fire a desktop notification)
   ARG notify               --notify
-CMD schematize db
-  SOBRE Database builder backend: introspect a DB, emit SQL/migration, or print the schema graph
-CMD schematize db graph
-  SOBRE Print the schema graph (nodes/edges: table = node, FK = edge) from a schema source
-  ARG from                 --from
-  ARG postgres             --postgres
-  ARG sqlite               --sqlite
-CMD schematize db introspect
-  SOBRE Introspect a database (SQLite file or Postgres conn) and print a summary
-  ARG json                 --json
-  ARG postgres             --postgres
-  ARG sqlite               --sqlite
-CMD schematize db sql
-  SOBRE Emit SQL (CREATE/ALTER/INDEX) — or a migration with --migration — from a schema source
-  ARG from                 --from
-  ARG migration            --migration
-  ARG postgres             --postgres
-  ARG sqlite               --sqlite
 CMD schematize debug
   SOBRE Debug the update manager/versioning; or --collect a shareable, secret-safe debug report
   ARG collect              --collect

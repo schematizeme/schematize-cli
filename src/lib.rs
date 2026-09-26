@@ -11,7 +11,6 @@ pub mod applink;
 pub mod archive;
 pub mod autostart;
 pub mod config;
-pub mod database;
 pub mod debug;
 pub mod debugreport;
 pub mod deployerlink;

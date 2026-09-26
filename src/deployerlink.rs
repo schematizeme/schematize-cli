@@ -50,6 +50,10 @@ pub const EXTERNOS: &[AppExterno] = &[
         sobre: "mede o ambiente de dev e põe cada software no seu teto de recurso",
     },
     AppExterno {
+        bin: "schematize-database",
+        sobre: "lê o schema de um banco, modela e emite SQL ou migration expand-contract",
+    },
+    AppExterno {
         bin: "schematize-market",
         sobre: "instala e atualiza tudo do ecossistema — runtimes, ferramentas e os apps da casa",
     },
@@ -82,6 +86,8 @@ pub fn externo(bin: &str) -> Option<&'static AppExterno> {
 
 /// Nome do binário do Deployer.
 pub const BIN: &str = "schematize-deployer";
+/// Nome do binário do Database (E1 da extradição, ADR-0018).
+pub const DATABASE: &str = "schematize-database";
 /// Repositório, para a mensagem de instalação e para o `install.sh`.
 pub const REPO: &str = "schematizeme/schematize_deployer_rs";
 
