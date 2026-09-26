@@ -32,7 +32,7 @@ pub(crate) mod maquina;
 pub(crate) mod overdev;
 pub(crate) mod skills;
 
-pub(crate) use maquina::{DiscoCmd, GitCmd};
+pub(crate) use maquina::DiscoCmd;
 pub(crate) use overdev::{Auto, CaixaCmd, GraphCmd, Over, ProjectsCmd};
 pub(crate) use skills::SkillsCmd;
 
@@ -131,11 +131,6 @@ pub(crate) enum Cmd {
         #[arg(long, value_name = "K")]
         split: Option<usize>,
     },
-    /// Contas de git/GitHub, repositórios e o que ainda não saiu da máquina.
-    Git {
-        #[command(subcommand)]
-        sub: GitCmd,
-    },
     /// Inventário e limpeza do lixo recriável: artefato de build, cache de toolchain
     /// e camada de Docker — agrupado por DISCO (é o principal que costuma encher).
     Disco {
@@ -202,11 +197,6 @@ pub(crate) enum Cmd {
     Overdev {
         #[command(subcommand)]
         sub: Over,
-    },
-    /// Show recent git commits, flagging which are pushed (● pushed / ○ local).
-    GitLog {
-        #[arg(long, default_value = "20")]
-        limit: usize,
     },
     /// Open the auxiliary HTML panel (overdev + index graph) in the browser.
     Panel,

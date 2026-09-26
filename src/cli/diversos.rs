@@ -6,7 +6,7 @@ use crate::cli::prompt::canon_or;
 use schematize::debug;
 use schematize::i18n;
 use schematize::i18n::{t, tf};
-use schematize::{config, debugreport, githist, projects};
+use schematize::{config, debugreport, projects};
 
 /// `schematize lang [code] [--list]`.
 /// `schematize agents` — imprime o orçamento de concorrência e persiste ~/.schematize/agents.json.
@@ -117,35 +117,10 @@ pub(crate) fn debug_cmd(
     Ok(())
 }
 
-/// `schematize git-log [--limit N]` — commits recentes marcando push (●/○).
-pub(crate) fn git_log(limit: usize) {
-    let root = match std::env::current_dir() {
-        Ok(p) => p,
-        Err(e) => {
-            eprintln!("cwd inacessível: {e}");
-            return;
-        }
-    };
-    let cs = githist::commits(&root, limit);
-    if cs.is_empty() {
-        println!("sem commits (ou não é um repositório git).");
-        return;
-    }
-    for c in &cs {
-        let mark = if c.pushed { '●' } else { '○' };
-        println!("{mark} {}  {:<10}  {}  {}", c.short, c.date, c.author, c.subject);
-    }
-    match githist::upstream(&root) {
-        Some(u) => println!(
-            "\nbranch {} → {} (ahead {}, behind {})  [● pushado · ○ local]",
-            u.branch,
-            u.remote.as_deref().unwrap_or("?"),
-            u.ahead,
-            u.behind
-        ),
-        None => println!("\nbranch sem upstream (nenhum commit pushado)  [○ local]"),
-    }
-}
+// O `git_log` saiu daqui com o domínio (E2 da extradição, ADR-0019). Ele era o gêmeo de
+// topo do `schematize git log`, e os dois liam o mesmo `githist` — duas superfícies para a
+// mesma pergunta. Agora `schematize git-log` é interceptado pelo `applink` e vira
+// `schematize-git log`, com o prefixo TROCADO (o campo `vira`) em vez de consumido.
 
 /// `schematize projects <sub>` — lista/fixa/marca projetos.
 pub(crate) fn projects_cmd(sub: ProjectsCmd) -> Result<(), String> {

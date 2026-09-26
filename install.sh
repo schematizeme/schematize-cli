@@ -25,10 +25,12 @@ for a in "$@"; do case "$a" in
   --deployer) DEPLOYER=1;;   # instala TAMBEM o schematize-deployer (ver o bloco no install_source)
   --optimizer) OPTIMIZER=1;; # instala TAMBEM o schematize-optimizer (idem)
   --database) DATABASE=1;;   # instala TAMBEM o schematize-database + a janela dele (idem)
+  --git) GIT=1;;             # instala TAMBEM o schematize-git + a janela dele (idem)
 esac; done
 : "${DEPLOYER:=0}"
 : "${OPTIMIZER:=0}"
 : "${DATABASE:=0}"
+: "${GIT:=0}"
 
 log() { printf '\033[1;36m▶ %s\033[0m\n' "$*"; }
 ok()  { printf '\033[1;32m✓ %s\033[0m\n' "$*"; }
@@ -1060,7 +1062,7 @@ registrar_no_menu() {
   fi
 
   # ---------------------------------------------------------------------------
-  # DEPLOYER, OPTIMIZER e DATABASE — OPT-IN, com `--deployer` / `--optimizer` / `--database`.
+  # DEPLOYER, OPTIMIZER, DATABASE e GIT — OPT-IN, um `--<app>` para cada.
   #
   # POR QUE NAO ENTRAM POR PADRAO: um guarda credencial, o outro MEXE NA MAQUINA (slice
   # de systemd e, adiante, cmdline de kernel). Instalar em quem nao pediu e o oposto do
@@ -1090,6 +1092,9 @@ registrar_no_menu() {
   fi
   if [ "$DATABASE" = 1 ]; then
     delega_ao_market schematize-database || true
+  fi
+  if [ "$GIT" = 1 ]; then
+    delega_ao_market schematize-git || true
   fi
 
   # Os `target/` por-repo de antes do target compartilhado não são mais lidos por

@@ -173,57 +173,11 @@ pub(crate) enum EnvCmd {
 // `vps`, `mcp` e `env` nas primeiras extrações — 9.827 linhas duplicadas que divergiram, e o
 // conserto passou a existir só de um lado. Aqui o hub não sabe mais nenhuma flag do banco.
 
-/// `schematize disco` — inventário e limpeza do lixo recriável (build, cache, docker).
-/// `schematize git` — contas, repositórios e o que ainda não saiu da máquina.
-#[derive(Subcommand)]
-pub(crate) enum GitCmd {
-    /// Lista as contas cadastradas.
-    Accounts,
-    /// Cadastra (ou substitui) uma conta.
-    Add {
-        /// Rótulo curto e sem espaço ("pessoal", "volucer").
-        rotulo: String,
-        #[arg(long)]
-        usuario: String,
-        #[arg(long)]
-        email: String,
-        /// Arquivo da chave em ~/.ssh (sem isto, a conta usa o `gh`).
-        #[arg(long)]
-        chave: Option<String>,
-        /// Host do serviço (default github.com).
-        #[arg(long)]
-        servico: Option<String>,
-    },
-    /// DETECTA contas já presentes na máquina (`gh`, git config, ~/.ssh, e-mail dos repos)
-    /// e mostra o que daria pra cadastrar. Só sugere; `--add` é que grava.
-    Detect {
-        /// Cadastra as sugestões que ainda não existem.
-        #[arg(long)]
-        add: bool,
-    },
-    /// Remove uma conta pelo rótulo.
-    Remove { rotulo: String },
-    /// Aplica uma conta ao repositório do diretório atual.
-    Use {
-        rotulo: String,
-        /// Nome do remoto (default origin).
-        #[arg(long)]
-        remoto: Option<String>,
-    },
-    /// Escreve o alias SSH da conta no ~/.ssh/config.
-    SshConfig { rotulo: String },
-    /// Lista os repositórios do serviço (via `gh`).
-    Repos {
-        /// Só desta conta (default: todas).
-        rotulo: Option<String>,
-        #[arg(long, default_value_t = 50)]
-        limite: usize,
-    },
-    /// O que ainda NÃO saiu da máquina, projeto a projeto.
-    Status,
-    /// Commits do projeto atual, marcando os já enviados.
-    Log {
-        #[arg(long, default_value_t = 20)]
-        limite: usize,
-    },
-}
+// O `GitCmd` saiu daqui com o domínio (E2 da extradição, ADR-0019). Os dez subcomandos
+// (`accounts`, `add`, `detect`, `remove`, `use`, `ssh-config`, `repos`, `status`, `log`) são
+// do `schematize-git`, e `schematize git …` continua funcionando: o `applink` intercepta
+// antes do clap e repassa cru ao app dono.
+//
+// **Um enum de subcomandos que ninguém referencia NÃO dá aviso de dead_code** — ele é
+// `pub(crate)`, e o clippy o considera usado pelo próprio módulo. Foi o teste de superfície
+// que o pegou, ao ver dez comandos a mais do que o binário anuncia.

@@ -18,8 +18,6 @@ pub mod diagnostics;
 pub mod disco;
 pub mod doctor;
 pub mod gestorboot;
-pub mod gitcontas;
-pub mod githist;
 pub mod guiactions;
 /// Qual commit da GUI um release publica — o espelho do `lockpin` dela.
 pub mod guipin;

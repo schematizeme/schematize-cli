@@ -44,6 +44,15 @@ struct Delegado {
     bin: &'static str,
     /// O `prefixo` viaja para o app (deployer) ou é consumido aqui (market)?
     mantem_prefixo: bool,
+    /// O token que SUBSTITUI o prefixo no app dono, quando o nome muda de forma.
+    ///
+    /// **Existe por causa do `git-log`.** Ele era um comando de TOPO deste hub, e no app dono a
+    /// mesma coisa é `schematize-git log`. Sem isto restariam duas saídas ruins: consumir o
+    /// prefixo (e mandar as flags sem subcomando nenhum) ou mantê-lo (e mandar um `git-log`
+    /// que o app não conhece). As duas quebram um comando que alguém já tem no dedo.
+    ///
+    /// `None` é o caso normal: o prefixo viaja (deployer) ou some (market, database, git).
+    vira: Option<&'static str>,
     /// A decisão que tirou este domínio daqui — vai na mensagem de "não instalado".
     ///
     /// **É campo, e não literal na mensagem, porque o literal MENTIU.** A frase cravava
@@ -59,24 +68,28 @@ const DELEGADOS: &[Delegado] = &[
         prefixo: "ssh",
         bin: crate::deployerlink::BIN,
         mantem_prefixo: true,
+        vira: None,
         adr: "ADR-0010",
     },
     Delegado {
         prefixo: "vps",
         bin: crate::deployerlink::BIN,
         mantem_prefixo: true,
+        vira: None,
         adr: "ADR-0010",
     },
     Delegado {
         prefixo: "mcp",
         bin: crate::deployerlink::BIN,
         mantem_prefixo: true,
+        vira: None,
         adr: "ADR-0010",
     },
     Delegado {
         prefixo: "env",
         bin: crate::deployerlink::GESTOR,
         mantem_prefixo: false,
+        vira: None,
         adr: "ADR-0012",
     },
     // `db` não mantém o prefixo, como o `env`: no app dono os subcomandos são de TOPO
@@ -87,7 +100,23 @@ const DELEGADOS: &[Delegado] = &[
         prefixo: "db",
         bin: crate::deployerlink::DATABASE,
         mantem_prefixo: false,
+        vira: None,
         adr: "ADR-0018",
+    },
+    Delegado {
+        prefixo: "git",
+        bin: crate::deployerlink::GIT,
+        mantem_prefixo: false,
+        vira: None,
+        adr: "ADR-0019",
+    },
+    // `git-log` era comando de TOPO daqui; no app dono é `schematize-git log`.
+    Delegado {
+        prefixo: "git-log",
+        bin: crate::deployerlink::GIT,
+        mantem_prefixo: false,
+        vira: Some("log"),
+        adr: "ADR-0019",
     },
 ];
 
@@ -106,7 +135,10 @@ pub fn destino(argv: &[String]) -> Option<(&'static str, Vec<String>)> {
 fn delegado(argv: &[String]) -> Option<(&'static Delegado, Vec<String>)> {
     let primeiro = argv.first()?.as_str();
     let d = DELEGADOS.iter().find(|d| d.prefixo == primeiro)?;
-    let args = if d.mantem_prefixo { argv.to_vec() } else { argv[1..].to_vec() };
+    let mut args = if d.mantem_prefixo { argv.to_vec() } else { argv[1..].to_vec() };
+    if let Some(novo) = d.vira {
+        args.insert(0, novo.to_string());
+    }
     Some((d, args))
 }
 

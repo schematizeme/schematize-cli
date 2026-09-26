@@ -65,42 +65,6 @@ CMD schematize disco list
 CMD schematize doctor
   SOBRE Diagnose the environment (add --fix to repair what's safe)
   ARG fix                  --fix
-CMD schematize git
-  SOBRE Contas de git/GitHub, repositórios e o que ainda não saiu da máquina
-CMD schematize git accounts
-  SOBRE Lista as contas cadastradas
-CMD schematize git add
-  SOBRE Cadastra (ou substitui) uma conta
-  ARG chave                --chave
-  ARG email                --email OBRIGATORIO
-  ARG rotulo                OBRIGATORIO
-  ARG servico              --servico
-  ARG usuario              --usuario OBRIGATORIO
-CMD schematize git detect
-  SOBRE DETECTA contas já presentes na máquina (`gh`, git config, ~/.ssh, e-mail dos repos) e mostra o que daria pra cadastrar. Só sugere; `--add` é que grava
-  ARG add                  --add
-CMD schematize git log
-  SOBRE Commits do projeto atual, marcando os já enviados
-  ARG limite               --limite
-CMD schematize git remove
-  SOBRE Remove uma conta pelo rótulo
-  ARG rotulo                OBRIGATORIO
-CMD schematize git repos
-  SOBRE Lista os repositórios do serviço (via `gh`)
-  ARG limite               --limite
-  ARG rotulo               
-CMD schematize git ssh-config
-  SOBRE Escreve o alias SSH da conta no ~/.ssh/config
-  ARG rotulo                OBRIGATORIO
-CMD schematize git status
-  SOBRE O que ainda NÃO saiu da máquina, projeto a projeto
-CMD schematize git use
-  SOBRE Aplica uma conta ao repositório do diretório atual
-  ARG remoto               --remoto
-  ARG rotulo                OBRIGATORIO
-CMD schematize git-log
-  SOBRE Show recent git commits, flagging which are pushed (● pushed / ○ local)
-  ARG limit                --limit
 CMD schematize graph
   SOBRE Graph tools (export the index graph, Obsidian-style)
 CMD schematize graph obsidian

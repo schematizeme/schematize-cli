@@ -11,7 +11,6 @@ use cli::caixa::*;
 use cli::conta::*;
 use cli::disco::*;
 use cli::diversos::*;
-use cli::git::*;
 use cli::overdev::*;
 use cli::skills::*;
 
@@ -75,7 +74,6 @@ fn main() {
             r
         }
         Cmd::Disco { sub } => disco_cmd(sub),
-        Cmd::Git { sub } => git_cmd(sub),
         Cmd::Doctor { fix } => {
             doctor::run(fix);
             Ok(())
@@ -171,10 +169,6 @@ fn main() {
                 Ok(())
             }
         },
-        Cmd::GitLog { limit } => {
-            git_log(limit);
-            Ok(())
-        }
         Cmd::Panel => panel::open(),
         Cmd::Graph { sub } => match sub {
             GraphCmd::Obsidian { out } => panel::export_obsidian(out),
