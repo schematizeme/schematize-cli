@@ -12,6 +12,12 @@
 #   curl -fsSL .../install.sh | bash -s -- --package # atalho: pacote .deb/.rpm da distro (se houver)
 #   curl -fsSL .../install.sh | bash -s -- --deployer  # instala TAMBÉM o deployer (SSH/VPS)
 #   curl -fsSL .../install.sh | bash -s -- --optimizer # instala TAMBÉM o optimizer (recursos)
+#   curl -fsSL .../install.sh | bash -s -- --database  # instala TAMBÉM o database (schema/SQL)
+#   curl -fsSL .../install.sh | bash -s -- --git       # instala TAMBÉM o git (contas/repos)
+#
+# As flags de app são CUMULATIVAS e opt-in. Um comando que funciona e não aparece em lugar
+# nenhum é pior que um comando removido: a pessoa conclui que a funcionalidade não existe. Por
+# isso toda flag nova entra AQUI no mesmo commit em que nasce.
 set -euo pipefail
 
 REPO="schematizeme/schematize-cli"
