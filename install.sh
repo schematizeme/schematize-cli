@@ -24,9 +24,11 @@ for a in "$@"; do case "$a" in
   --gui) : ;;  # compat: no-op
   --deployer) DEPLOYER=1;;   # instala TAMBEM o schematize-deployer (ver o bloco no install_source)
   --optimizer) OPTIMIZER=1;; # instala TAMBEM o schematize-optimizer (idem)
+  --database) DATABASE=1;;   # instala TAMBEM o schematize-database + a janela dele (idem)
 esac; done
 : "${DEPLOYER:=0}"
 : "${OPTIMIZER:=0}"
+: "${DATABASE:=0}"
 
 log() { printf '\033[1;36m▶ %s\033[0m\n' "$*"; }
 ok()  { printf '\033[1;32m✓ %s\033[0m\n' "$*"; }
@@ -1058,11 +1060,16 @@ registrar_no_menu() {
   fi
 
   # ---------------------------------------------------------------------------
-  # DEPLOYER e OPTIMIZER — OPT-IN, com `--deployer` / `--optimizer`.
+  # DEPLOYER, OPTIMIZER e DATABASE — OPT-IN, com `--deployer` / `--optimizer` / `--database`.
   #
   # POR QUE NAO ENTRAM POR PADRAO: um guarda credencial, o outro MEXE NA MAQUINA (slice
   # de systemd e, adiante, cmdline de kernel). Instalar em quem nao pediu e o oposto do
   # piso 10 e do §37.48.
+  #
+  # O DATABASE nao guarda credencial nem mexe na maquina, e mesmo assim e opt-in: o padrao
+  # deste script e instalar o hub, nao o ecossistema inteiro. Quem quiser tudo pede ao
+  # gestor (`schematize-market install <app>`), que e o dono desse papel desde o ADR-0013.
+  # A flag existe pela mesma razao que as outras duas: caber numa linha de `curl | bash`.
   #
   # POR QUE O SCRIPT NAO OS COMPILA MAIS (D5): os dois blocos que estavam aqui clonavam,
   # compilavam e instalavam — exatamente o que o `schematize-market install` faz, com o
@@ -1080,6 +1087,9 @@ registrar_no_menu() {
   fi
   if [ "$OPTIMIZER" = 1 ]; then
     delega_ao_market schematize-optimizer || true
+  fi
+  if [ "$DATABASE" = 1 ]; then
+    delega_ao_market schematize-database || true
   fi
 
   # Os `target/` por-repo de antes do target compartilhado não são mais lidos por
