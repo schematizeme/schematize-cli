@@ -52,6 +52,28 @@ die() { printf '\033[1;31m✗ %s\033[0m\n' "$*" >&2; exit 1; }
 warn() { printf '\033[1;33m⚠ %s\033[0m\n' "$*" >&2; }
 
 # ---------------------------------------------------------------------------
+# TRAVA DE REENTRADA — este script chamado DE DENTRO de uma delegacao ao market.
+#
+# O QUE: se `SCHEMATIZE_DELEGADO_AO_MARKET=1` esta no ambiente, quem nos rodou foi um
+# `schematize-market install <app>` que ESTE script disparou (`delega_ao_market`). Um
+# market de verdade (>= 0.2.0, ADR-0013) compila o app sozinho e nunca volta aqui; so o
+# market ANTERIOR ao ADR-0013 fazia `curl install.sh | bash -s -- --<app>`. Se seguissemos,
+# este script delegaria de novo, o market velho chamaria de novo, e assim para sempre.
+#
+# POR QUE AQUI EM CIMA, antes da auto-atualizacao e de qualquer build: foi medido numa
+# instalacao real (Linux Mint 22.3, market 0.1.0, `--skills`) — o laco recompilava o CLI
+# inteiro a cada volta e nao terminava nunca. Sair na primeira linha util custa zero.
+#
+# O `install_market` agora SUBSTITUI o market abaixo do piso, entao este caminho so dispara
+# se a substituicao falhou; a mensagem diz o que fazer, sem culpar ninguem.
+# ---------------------------------------------------------------------------
+if [ "${SCHEMATIZE_DELEGADO_AO_MARKET:-}" = 1 ]; then
+  warn "o schematize-market desta maquina e antigo e me chamou de volta — parei aqui pra nao entrar em laco."
+  warn "  rode o install.sh de novo, direto (nao pelo market): ele troca o market antigo e segue."
+  exit 3
+fi
+
+# ---------------------------------------------------------------------------
 # AUTO-ATUALIZAÇÃO DESTE PRÓPRIO SCRIPT — antes de qualquer outra coisa.
 #
 # O one-liner do site aponta pra releases/latest/download/install.sh, que é um
@@ -525,14 +547,43 @@ purge_previous() {
 # nem instalacao de linguagem. Um `>/dev/null 2>&1` aqui e como dois apps sumiram do
 # menu em silencio quando `desktop --instalar` virou `--install`.
 # ---------------------------------------------------------------------------
+# O piso do market: a primeira versao que instala os apps SOZINHA (ADR-0013). Abaixo dela o
+# market devolvia a instalacao pra este script — e com a delegacao de hoje, isso e um laco.
+MARKET_MIN="0.2.0"
+
+# market_versao <bin> — so o numero de `schematize-market --version` ("schematize-market
+# 0.3.0 (abc123)" -> "0.3.0"). Vazio se o binario nao responder.
+market_versao() {
+  "$1" --version 2>/dev/null | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || true
+}
+
+# versao_menor <a> <b> — verdadeiro se a < b. Versao VAZIA conta como menor: um market que
+# nao diz a propria versao e velho demais pra confiar que instala sozinho.
+versao_menor() {
+  [ -z "$1" ] && return 0
+  [ "$1" = "$2" ] && return 1
+  [ "$(printf '%s\n%s\n' "$1" "$2" | sort -V | head -1)" = "$1" ]
+}
+
 install_market() {
   local bin="$TARGET_HOME/.cargo/bin" dst asset os arch url
   dst="$bin/schematize-market"
   as_user mkdir -p "$bin"
 
   if [ -x "$dst" ]; then
-    ok "schematize-market ja instalado ($("$dst" --version 2>/dev/null | head -1))"
-    return 0
+    local atual
+    atual="$(market_versao "$dst")"
+    if ! versao_menor "$atual" "$MARKET_MIN"; then
+      ok "schematize-market ja instalado (schematize-market $atual)"
+      return 0
+    fi
+    # Abaixo do piso nao e "ja instalado": e o market que devolve a instalacao pra este
+    # script (ver a TRAVA DE REENTRADA, no topo). Substitui pelo FONTE, e nao pelo release:
+    # o release pode estar atras do que a main sabe instalar (o 0.3.0 nao conhece o
+    # `schematize-skills`), e o fonte nunca rebaixa.
+    log "schematize-market ${atual:-desconhecido} e anterior ao $MARKET_MIN — substituindo (ele nao sabe instalar sozinho)."
+    install_market_do_fonte
+    return
   fi
 
   # Nomes de asset IDENTICOS aos que `nucleo::plataforma::market_asset_name()` monta
@@ -768,7 +819,10 @@ delega_ao_market() {
     return 1
   fi
   log "instalando o $app pelo gestor — schematize-market install $app"
-  if as_user "$mkt" install "$app" -y; then
+  # O marcador no ambiente e o que arma a TRAVA DE REENTRADA (topo do script): um market
+  # anterior ao ADR-0013 que tente nos rodar de volta encontra a porta fechada. Via `env`, e
+  # nao `export`, porque o `as_user` sob root passa por `sudo`, que limparia um export.
+  if as_user env SCHEMATIZE_DELEGADO_AO_MARKET=1 "$mkt" install "$app" -y; then
     ok "$app instalado."
     return 0
   fi
