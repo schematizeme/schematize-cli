@@ -74,6 +74,23 @@ pub const ORIGENS: &[Origem] = &[
     },
 ];
 
+/// Apps para os quais o hub DELEGA um comando que um hook do Claude Code chama (`overdev check`
+/// e `overdev guard`: Stop/PreToolUse). Se um deles falta, o hub sai rc=1 — e o Claude Code
+/// trata isso como erro de hook NÃO bloqueante: o veto simplesmente some.
+///
+/// **Onde:** `scripts/release-delegados.py` (lê esta constante e a tabela [`ORIGENS`]); é o
+/// guard que impede cortar release enquanto algum destes não for instalável numa máquina
+/// limpa. O teste `criticos_de_hook_estao_na_tabela` ata a lista ao `overdevlink`.
+pub const CRITICOS_DE_HOOK: &[&str] = &["schematize-overdev"];
+
+/// **O quê:** `true` se o `schematize-market install <bin>` resolve este app (o market o gere E
+/// o repo é público). PURA. App fora da tabela segue o comportamento de sempre (market).
+///
+/// **Onde:** `schematize apps install` — decide entre executar o market e só imprimir a [`dica`].
+pub fn pelo_market(bin: &str) -> bool {
+    ORIGENS.iter().find(|o| o.bin == bin).is_none_or(|o| o.mercado && o.publico)
+}
+
 /// **O quê:** o texto de instalação do app. PURA — sem rede, só a tabela [`ORIGENS`].
 ///
 /// **Onde:** [`crate::deployerlink::como_instalar_app`].
@@ -135,6 +152,31 @@ mod tests {
             "{d}"
         );
         assert!(d.contains("ainda não é público"), "{d}");
+    }
+
+    /// Todo crítico de hook está na tabela, e o overdev (o delegado dos hooks) é crítico.
+    #[test]
+    fn criticos_de_hook_estao_na_tabela() {
+        for b in CRITICOS_DE_HOOK {
+            origem(b);
+        }
+        assert!(CRITICOS_DE_HOOK.contains(&crate::overdevlink::BIN));
+    }
+
+    /// `pelo_market` concorda com `dica`: market só quando gerido E público.
+    #[test]
+    fn pelo_market_so_quando_gerido_e_publico() {
+        assert!(pelo_market("schematize-git"));
+        assert!(!pelo_market("schematize-overdev"));
+        assert!(!pelo_market("schematize-skills"));
+        for o in ORIGENS {
+            assert_eq!(
+                pelo_market(o.bin),
+                dica(o.bin).starts_with("schematize-market"),
+                "{}",
+                o.bin
+            );
+        }
     }
 
     /// Gerido e público: o comando do market, sem nota.

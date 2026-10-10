@@ -17,8 +17,19 @@
 # veredito é o `$?` de cada etapa e nada mais. O log fica em disco pra leitura humana,
 # mas quem decide é o código de saída — texto não vota.
 #
-# Uso:  scripts/verificar.sh [diretorio-de-log]
+# Uso:  scripts/verificar.sh [--release] [diretorio-de-log]
+#
+#   --release  acrescenta a etapa `release-delegados`, que BLOQUEIA enquanto algum app
+#              delegado por hook (overdev) nao for instalavel numa maquina limpa. Fica fora do
+#              verde do dia a dia de proposito: o desenvolvimento segue livre, so o corte de
+#              release e trancado. O release.yml roda o mesmo script antes de compilar.
 set -eu
+
+RELEASE=0
+if [ "${1:-}" = "--release" ]; then
+    RELEASE=1
+    shift
+fi
 
 R=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 LOG=${1:-${TMPDIR:-/tmp}}
@@ -85,6 +96,9 @@ etapa icone   python3 scripts/icone-aponta-janela.py
 etapa shim    sh scripts/shim-portabilidade.sh
 etapa clippy  cargo clippy --all-targets -- -D warnings
 etapa testes  cargo test --all-targets --quiet
+if [ "$RELEASE" = 1 ]; then
+  etapa release-delegados python3 scripts/release-delegados.py
+fi
 
 if [ "$falhou" -ne 0 ]; then
     printf '\nVERMELHO — alguma etapa falhou. Nao mute, nao comite, nao publique.\n'

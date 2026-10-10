@@ -167,6 +167,17 @@ pub(crate) fn apps_instalar(app: Option<String>, yes: bool) -> Result<(), String
         return Ok(());
     }
 
+    // O market só instala o que gere E cujo repo é público. Senão NÃO o executamos (falharia
+    // com 404/"app desconhecido"): imprime-se a dica que funciona e sai != 0, para que quem
+    // automatiza também veja que nada foi instalado.
+    if !schematize::instalardica::pelo_market(a.bin) {
+        return Err(format!(
+            "o `{}` não é instalável pelo market. Instale pelo fonte:\n    {}",
+            a.bin,
+            deployerlink::como_instalar_app(a.bin)
+        ));
+    }
+
     // O texto MOSTRADO usa o nome puro (é o que a pessoa copia num terminal normal); o que
     // EXECUTA usa o caminho absoluto, porque quem chama nem sempre tem `~/.cargo/bin` no PATH
     // — a janela do lançador do desktop não tem. Ver `deployerlink::comando_de_instalacao`.

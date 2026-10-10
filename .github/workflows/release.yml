@@ -18,8 +18,21 @@ permissions:
   contents: write
 
 jobs:
+  # 0) PORTÃO: nenhum release sai se um app que o hub delega por hook (overdev) não for
+  # instalável numa máquina limpa. Roda ANTES de criar o release e de compilar qualquer coisa;
+  # só o caminho de release passa por aqui (o ci.yml não). Ver `scripts/release-delegados.py`.
+  portao_delegados:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: apps delegados por hook são instaláveis numa máquina limpa
+        run: |
+          python3 scripts/release-delegados.py --autoteste
+          python3 scripts/release-delegados.py
+
   # 1) Cria (ou reaproveita) o release primeiro, pra todos os jobs subirem assets nele.
   create_release:
+    needs: portao_delegados
     runs-on: ubuntu-latest
     env:
       TAG: ${{ github.event.inputs.tag || github.ref_name }}

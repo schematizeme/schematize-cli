@@ -1,0 +1,44 @@
+//! `schematize apps install <app>` não pode mandar o market instalar o que ele não gere.
+//!
+//! **O quê:** roda o binário de verdade, com HOME descartável, e confere o que ele diz e o
+//! código de saída para um app que o market não gere / de repo privado (`schematize-overdev`).
+//!
+//! **Onde:** guarda do item B do release-gate (hub sem o motor do overdev).
+
+use std::process::Command;
+
+/// Roda `schematize apps install <app> --yes` num HOME vazio e devolve (rc, stdout+stderr).
+fn instalar(app: &str) -> (i32, String) {
+    let home =
+        std::env::temp_dir().join(format!("schematize-appsinst-{}-{app}", std::process::id()));
+    std::fs::create_dir_all(&home).expect("cria HOME descartável");
+    let out = Command::new(env!("CARGO_BIN_EXE_schematize"))
+        .args(["apps", "install", app, "--yes"])
+        .env("HOME", &home)
+        .env("XDG_CONFIG_HOME", home.join(".config"))
+        .env("XDG_DATA_HOME", home.join(".local/share"))
+        .env("PATH", "/usr/bin:/bin")
+        .output()
+        .expect("executa o binário");
+    let _ = std::fs::remove_dir_all(&home);
+    let texto =
+        format!("{}{}", String::from_utf8_lossy(&out.stdout), String::from_utf8_lossy(&out.stderr));
+    (out.status.code().unwrap_or(-1), texto)
+}
+
+/// Overdev: não é do market e o repo é privado — não executa o market, sai != 0 e imprime o
+/// `cargo install --git` com a nota do repo privado.
+#[test]
+fn app_nao_gerido_imprime_a_dica_e_sai_nao_zero() {
+    let (rc, texto) = instalar("schematize-overdev");
+    assert_ne!(rc, 0, "{texto}");
+    assert!(
+        texto.contains(
+            "cargo install --git https://github.com/schematizeme/schematize_overdev_rs --locked"
+        ),
+        "{texto}"
+    );
+    assert!(texto.contains("ainda não é público"), "{texto}");
+    assert!(!texto.contains("Vou instalar"), "não pode ter iniciado o fluxo do market: {texto}");
+    assert!(!texto.contains("curl -fsSL"), "não é caso de instalar o gestor: {texto}");
+}
