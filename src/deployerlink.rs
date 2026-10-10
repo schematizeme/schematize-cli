@@ -172,7 +172,7 @@ pub fn descobrir() -> Estado {
 /// minutos. Fazer isso como efeito colateral de um `status` seria surpresa cara. O comando
 /// fica visível para a pessoa rodar quando quiser.
 pub fn como_instalar_app(bin: &str) -> String {
-    format!("{GESTOR} install {bin}")
+    crate::instalardica::dica(bin)
 }
 
 /// O nome do gestor. Constante porque ele aparece em texto E em execução, e escrever a string
@@ -270,10 +270,15 @@ mod tests {
         for proibido in ["curl", "install.sh", "bash -s", "--deployer"] {
             assert!(!c.contains(proibido), "`{proibido}` voltou ao caminho de instalar: {c}");
         }
-        // E vale para todo app da tabela, não só o deployer.
+        // E vale para todo app da tabela: nunca `curl`, e sempre um comando que FUNCIONA
+        // (market quando ele gere o app e o repo é público; senão o fonte — ver `instalardica`).
         for a in EXTERNOS {
             let c = como_instalar_app(a.bin);
-            assert!(c.starts_with("schematize-market install"), "{}: {c}", a.bin);
+            assert!(
+                c.starts_with("schematize-market install") || c.starts_with("cargo install --git"),
+                "{}: {c}",
+                a.bin
+            );
             assert!(!c.contains("curl"), "{}: {c}", a.bin);
         }
     }
