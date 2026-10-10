@@ -117,6 +117,9 @@ pub fn gestor_bin() -> Option<PathBuf> {
 
 /// Piso do market: espelho de `MARKET_MIN` no `install.sh` (o teste `piso_igual_ao_install_sh`
 /// trava os dois). Abaixo dele o market devolve a instalação ao script — um laço.
+///
+/// REGRA: o piso só sobe para uma versão DEPOIS de o release dela existir. Antes disso o
+/// `releases/latest` ainda serve a velha, e quem roda é o caminho `avaliar_pos_troca` (segue com ela).
 const MARKET_MIN: &str = "0.2.0";
 
 /// O que fazer com o market já instalado.
@@ -156,6 +159,27 @@ fn decidir_gestor(saida: Option<&str>, piso: &str) -> DecisaoGestor {
         Some(min) if atual < min => DecisaoGestor::Substituir,
         _ => DecisaoGestor::Manter,
     }
+}
+
+/// Resultado da conferência do market RECÉM-baixado.
+#[derive(Debug, PartialEq, Eq)]
+enum PosTroca {
+    Atendido,
+    /// Ainda abaixo do piso: o release mais recente publicado é este (texto da versão).
+    AbaixoDoPiso(String),
+}
+
+/// **O quê:** decide, sobre o `--version` do market recém-trocado, se ele cumpre o piso. Nunca é
+/// erro: se o release publicado ainda está abaixo, seguir com ele evita baixar de novo a cada chamada.
+/// **Onde:** `ensure_gestor`, logo depois de `baixar_gestor_para`.
+fn avaliar_pos_troca(saida: Option<&str>, piso: &str) -> PosTroca {
+    if decidir_gestor(saida, piso) == DecisaoGestor::Manter {
+        return PosTroca::Atendido;
+    }
+    let v = saida
+        .and_then(parse_versao)
+        .map_or_else(|| "desconhecida".to_string(), |(a, b, c)| format!("{a}.{b}.{c}"));
+    PosTroca::AbaixoDoPiso(v)
 }
 
 /// **O quê:** baixa o asset do market para um temporário NO MESMO diretório de `dst`, confere
@@ -219,6 +243,14 @@ pub fn ensure_gestor() -> Result<PathBuf, String> {
         None => util::home().join(".cargo").join("bin").join(gestor_filename()),
     };
     baixar_gestor_para(&dst)?;
+    let nova = util::run(dst.to_str().unwrap_or_default(), &["--version"]).ok();
+    if let PosTroca::AbaixoDoPiso(v) = avaliar_pos_troca(nova.as_deref(), MARKET_MIN) {
+        // Não é erro nem laço: o release publicado ainda é velho; seguimos com ele.
+        log(&format!(
+            "o schematize-market mais recente publicado ({v}) está abaixo do mínimo esperado \
+             ({MARKET_MIN}); a atualização segue com ele até sair um market mais novo"
+        ));
+    }
     log(&format!("schematize-market instalado em {}", dst.display()));
     Ok(dst)
 }
@@ -479,6 +511,24 @@ mod tests_piso {
     fn piso_invalido_nao_derruba_o_gestor_bom() {
         // piso ilegível: falha fechada seria loop de download; mantém um market que roda e tem versão.
         assert_eq!(decidir_gestor(Some("schematize-market 0.3.0"), "lixo"), DecisaoGestor::Manter);
+    }
+
+    #[test]
+    fn pos_troca_abaixo_do_piso_avisa_sem_erro() {
+        assert_eq!(
+            avaliar_pos_troca(Some("schematize-market 0.3.0 (abc)"), "0.4.0"),
+            PosTroca::AbaixoDoPiso("0.3.0".into())
+        );
+        assert_eq!(
+            avaliar_pos_troca(Some("lixo"), "0.4.0"),
+            PosTroca::AbaixoDoPiso("desconhecida".into())
+        );
+        assert_eq!(avaliar_pos_troca(None, "0.4.0"), PosTroca::AbaixoDoPiso("desconhecida".into()));
+        assert_eq!(avaliar_pos_troca(Some("schematize-market 0.4.0"), "0.4.0"), PosTroca::Atendido);
+        assert_eq!(
+            avaliar_pos_troca(Some("schematize-market 0.10.0"), "0.9.9"),
+            PosTroca::Atendido
+        );
     }
 
     /// O piso tem duas casas (Rust e `install.sh`); este teste impede que divirjam.

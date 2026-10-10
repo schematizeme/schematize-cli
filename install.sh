@@ -549,6 +549,8 @@ purge_previous() {
 # ---------------------------------------------------------------------------
 # O piso do market: a primeira versao que instala os apps SOZINHA (ADR-0013). Abaixo dela o
 # market devolvia a instalacao pra este script — e com a delegacao de hoje, isso e um laco.
+# REGRA: o piso so sobe para uma versao DEPOIS de o release dela existir (o espelho em
+# src/selfupdate.rs trava os dois por teste).
 MARKET_MIN="0.2.0"
 
 # market_versao <bin> — so o numero de `schematize-market --version` ("schematize-market
