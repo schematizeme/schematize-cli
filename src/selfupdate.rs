@@ -115,32 +115,110 @@ pub fn gestor_bin() -> Option<PathBuf> {
     None
 }
 
-/// Garante o gestor instalado: devolve o caminho; se faltar, baixa o asset da plataforma pro
-/// `~/.cargo/bin`. Exposto pra GUI (botão "instalar gestor de atualizações").
-pub fn ensure_gestor() -> Result<PathBuf, String> {
-    if let Some(p) = gestor_bin() {
-        return Ok(p);
+/// Piso do market: espelho de `MARKET_MIN` no `install.sh` (o teste `piso_igual_ao_install_sh`
+/// trava os dois). Abaixo dele o market devolve a instalação ao script — um laço.
+const MARKET_MIN: &str = "0.2.0";
+
+/// O que fazer com o market já instalado.
+#[derive(Debug, PartialEq, Eq)]
+enum DecisaoGestor {
+    Manter,
+    Substituir,
+}
+
+/// **O quê:** extrai `(x, y, z)` do PRIMEIRO token com cara de `x.y.z` da 1ª linha.
+/// **Onde:** `decidir_gestor`.
+fn parse_versao(saida: &str) -> Option<(u64, u64, u64)> {
+    let linha = saida.lines().next()?;
+    linha.split_whitespace().find_map(|tok| {
+        let tok = tok.trim_start_matches('v');
+        let nucleo = tok.split(['-', '+']).next()?;
+        let mut partes = nucleo.split('.');
+        let mut num = || {
+            let p = partes.next()?;
+            if p.is_empty() || !p.bytes().all(|b| b.is_ascii_digit()) {
+                return None;
+            }
+            p.parse::<u64>().ok()
+        };
+        let v = (num()?, num()?, num()?);
+        partes.next().is_none().then_some(v)
+    })
+}
+
+/// **O quê:** mantém ou substitui o market, dado o `--version` dele (`None` = não executou).
+/// **Onde:** `ensure_gestor`.
+fn decidir_gestor(saida: Option<&str>, piso: &str) -> DecisaoGestor {
+    let Some(atual) = saida.and_then(parse_versao) else {
+        return DecisaoGestor::Substituir;
+    };
+    match parse_versao(piso) {
+        Some(min) if atual < min => DecisaoGestor::Substituir,
+        _ => DecisaoGestor::Manter,
     }
+}
+
+/// **O quê:** baixa o asset do market para um temporário NO MESMO diretório de `dst`, confere
+/// que executa e só então o põe no lugar com `rename` (atômico — nunca fica meio-escrito).
+/// **Onde:** `ensure_gestor`, nos dois casos (ausente e abaixo do piso).
+/// **Efeito:** em falha remove o temporário e deixa o `dst` anterior intacto.
+fn baixar_gestor_para(dst: &Path) -> Result<(), String> {
     let asset = gestor_asset().ok_or("sem binário do gestor pra esta plataforma/arch")?;
     let url = format!(
         "https://github.com/schematizeme/schematize_market_rs/releases/latest/download/{asset}"
     );
-    let dst = util::home().join(".cargo").join("bin").join(gestor_filename());
-    if let Some(parent) = dst.parent() {
-        let _ = fs::create_dir_all(parent);
+    let ajuda = |motivo: &str| {
+        format!(
+            "{motivo}. Instale o gestor à mão: curl -fsSL -o {d} {url} && chmod +x {d}",
+            d = dst.display()
+        )
+    };
+    let parent = dst.parent().ok_or_else(|| ajuda("destino do gestor sem diretório"))?;
+    fs::create_dir_all(parent)
+        .map_err(|e| ajuda(&format!("não consegui criar {}: {e}", parent.display())))?;
+    let tmp = parent.join(format!(".{}.novo", gestor_filename()));
+    if let Err(e) = download(&url, &tmp) {
+        let _ = fs::remove_file(&tmp);
+        return Err(ajuda(&format!("falha ao baixar o gestor ({e})")));
     }
-    download(&url, &dst)?;
     #[cfg(unix)]
     {
-        let _ = util::run("chmod", &["+x", dst.to_str().unwrap_or_default()]);
+        let _ = util::run("chmod", &["+x", tmp.to_str().unwrap_or_default()]);
     }
     // O binário TEM de executar aqui. Um asset da glibc/arquitetura errada baixa com HTTP
     // 200 e não roda; deixá-lo no PATH criaria um "gestor" que responde a nada, e o sintoma
     // seria "cliquei em atualizar e não aconteceu nada" — de novo.
-    if !binary_runs(&dst) {
-        let _ = fs::remove_file(&dst);
-        return Err("o gestor baixado não executa nesta máquina (glibc/arquitetura?)".into());
+    if !binary_runs(&tmp) {
+        let _ = fs::remove_file(&tmp);
+        return Err(ajuda("o gestor baixado não executa nesta máquina (glibc/arquitetura?)"));
     }
+    if let Err(e) = fs::rename(&tmp, dst) {
+        let _ = fs::remove_file(&tmp);
+        return Err(ajuda(&format!("não consegui pôr o gestor em {}: {e}", dst.display())));
+    }
+    Ok(())
+}
+
+/// Garante o gestor instalado E com versão >= [`MARKET_MIN`]: devolve o caminho; se faltar, ou se
+/// for velho/ilegível/não executar, baixa o asset da plataforma (troca atômica). Um market antigo
+/// que não entende o `--version` do hub ficava para sempre e `schematize upgrade` o usava.
+/// Exposto pra GUI (botão "instalar gestor de atualizações").
+pub fn ensure_gestor() -> Result<PathBuf, String> {
+    let dst = match gestor_bin() {
+        Some(p) => {
+            let saida = util::run(p.to_str().unwrap_or_default(), &["--version"]).ok();
+            if decidir_gestor(saida.as_deref(), MARKET_MIN) == DecisaoGestor::Manter {
+                return Ok(p);
+            }
+            log(&format!(
+                "schematize-market em {} abaixo de {MARKET_MIN} — substituindo",
+                p.display()
+            ));
+            p
+        }
+        None => util::home().join(".cargo").join("bin").join(gestor_filename()),
+    };
+    baixar_gestor_para(&dst)?;
     log(&format!("schematize-market instalado em {}", dst.display()));
     Ok(dst)
 }
@@ -339,5 +417,80 @@ mod tests_delegacao {
             "a mensagem tem de trazer o comando que instala o gestor — erro sem saída é erro \\
              que manda a pessoa adivinhar"
         );
+    }
+}
+
+#[cfg(test)]
+mod tests_piso {
+    use super::*;
+
+    fn d(saida: Option<&str>) -> DecisaoGestor {
+        decidir_gestor(saida, "0.2.0")
+    }
+
+    #[test]
+    fn parse_pega_o_primeiro_xyz_e_ignora_o_sha() {
+        assert_eq!(parse_versao("schematize-market 0.3.0 (abc123)"), Some((0, 3, 0)));
+        assert_eq!(parse_versao("schematize 0.65.1 (bf4aa36d7726)\n"), Some((0, 65, 1)));
+        assert_eq!(parse_versao("0.10.0"), Some((0, 10, 0)));
+        assert_eq!(parse_versao("schematize-market v1.2.3-rc1"), Some((1, 2, 3)));
+    }
+
+    #[test]
+    fn parse_rejeita_lixo() {
+        for ruim in [
+            "",
+            "schematize-market",
+            "   ",
+            "1.2",
+            "a.b.c",
+            "1.2.x",
+            "\0\0",
+            "(abc123)",
+            "99999999999999999999.0.0",
+        ] {
+            assert_eq!(parse_versao(ruim), None, "{ruim:?}");
+        }
+    }
+
+    #[test]
+    fn velho_ou_ilegivel_substitui() {
+        assert_eq!(d(Some("schematize-market 0.1.9")), DecisaoGestor::Substituir);
+        assert_eq!(d(Some("")), DecisaoGestor::Substituir);
+        assert_eq!(d(Some("schematize-market")), DecisaoGestor::Substituir);
+        assert_eq!(d(Some("lixo \u{1F980} \0")), DecisaoGestor::Substituir);
+        assert_eq!(d(None), DecisaoGestor::Substituir);
+    }
+
+    #[test]
+    fn no_piso_ou_acima_mantem() {
+        assert_eq!(d(Some("schematize-market 0.2.0")), DecisaoGestor::Manter);
+        assert_eq!(d(Some("schematize-market 0.3.0 (abc)")), DecisaoGestor::Manter);
+        assert_eq!(d(Some("schematize-market 1.0.0")), DecisaoGestor::Manter);
+    }
+
+    #[test]
+    fn comparacao_e_numerica_nao_lexica() {
+        assert_eq!(decidir_gestor(Some("0.10.0"), "0.9.9"), DecisaoGestor::Manter);
+        assert_eq!(decidir_gestor(Some("0.9.9"), "0.10.0"), DecisaoGestor::Substituir);
+    }
+
+    #[test]
+    fn piso_invalido_nao_derruba_o_gestor_bom() {
+        // piso ilegível: falha fechada seria loop de download; mantém um market que roda e tem versão.
+        assert_eq!(decidir_gestor(Some("schematize-market 0.3.0"), "lixo"), DecisaoGestor::Manter);
+    }
+
+    /// O piso tem duas casas (Rust e `install.sh`); este teste impede que divirjam.
+    #[test]
+    fn piso_igual_ao_install_sh() {
+        let sh = include_str!("../install.sh");
+        let linha = sh
+            .lines()
+            .find(|l| l.starts_with("MARKET_MIN="))
+            .expect("install.sh declara MARKET_MIN");
+        let valor = linha.trim_start_matches("MARKET_MIN=").trim().trim_matches('"');
+        assert_eq!(MARKET_MIN, valor, "MARKET_MIN do Rust diverge do install.sh");
+        assert!(parse_versao(MARKET_MIN).is_some());
     }
 }
