@@ -2,10 +2,6 @@ CMD schematize
   SOBRE Ecosystem manager for Claude — skills, overdev, and more (Linux-first).
 CMD schematize agent
   SOBRE Resident agent: periodically checks and notifies (used by autostart)
-CMD schematize agents
-  SOBRE Orçamento de concorrência: quantos agents/subagents do Claude a máquina aguenta SEM travar (CPU/RAM/load, contando OUTRAS instâncias do claude na máquina). Persiste ~/.schematize/agents.json
-  ARG json                 --json
-  ARG split                --split
 CMD schematize apps
   SOBRE Apps do ecossistema: quais existem, quais estão instalados, e INSTALAR de fato
 CMD schematize apps exec
@@ -16,8 +12,6 @@ CMD schematize apps install
   SOBRE Actually INSTALL an ecosystem app (builds from source; takes minutes)
   ARG app                  
   ARG yes                  --yes
-CMD schematize archive
-  SOBRE Archive de evolução: materializa a estrutura do <projeto>_archive/, extrai o chat da sessão pro chats/ e gera o context_agent/#N.txt (contexto portável). Roda no dir do projeto
 CMD schematize autostart
   SOBRE Bind the agent to the system (starts at login)
 CMD schematize autostart disable
@@ -65,11 +59,6 @@ CMD schematize disco list
 CMD schematize doctor
   SOBRE Diagnose the environment (add --fix to repair what's safe)
   ARG fix                  --fix
-CMD schematize graph
-  SOBRE Graph tools (export the index graph, Obsidian-style)
-CMD schematize graph obsidian
-  SOBRE Export the index as an Obsidian vault (markdown + [[wikilinks]])
-  ARG out                  --out
 CMD schematize gui
   SOBRE Open the graphical window (same software as the CLI — just the GUI face)
 CMD schematize icon (oculto)
@@ -96,112 +85,6 @@ CMD schematize notifications
 CMD schematize open
   SOBRE Open a resource in the browser: site | blog | github
   ARG target                OBRIGATORIO
-CMD schematize overdev
-  SOBRE Overdev mode — continuous dev until the checklist is done
-CMD schematize overdev add
-  SOBRE Add a demand to the inbox WITHOUT touching the checklist (safe while an agent runs)
-  ARG texto                 <valor>
-CMD schematize overdev answer
-  SOBRE Answer a human item with text — this RELEASES the machine item it was blocking
-  ARG alvo                  OBRIGATORIO
-  ARG texto                 <valor>
-CMD schematize overdev ask
-  SOBRE Enqueue a QUIZ question for the human: clickable options, context, and what it unblocks
-  ARG auto                 --auto
-  ARG contexto             --contexto
-  ARG kind                 --kind
-  ARG linka                --linka
-  ARG opcoes               --opcao
-  ARG titulo                <valor>
-CMD schematize overdev caixa
-  SOBRE Inbox: list, organize a demand into items, or merge them into the checklist
-CMD schematize overdev caixa agente
-  SOBRE Open an agent in a terminal to organize the pending demands
-CMD schematize overdev caixa list
-  SOBRE Show what is captured and not yet in the checklist
-CMD schematize overdev caixa merge
-  SOBRE Merge every organized demand into the checklist (atomic, under lock)
-CMD schematize overdev caixa organizar
-  SOBRE Record the items an agent extracted from a demand (moves it to `processado`)
-  ARG id                    OBRIGATORIO
-  ARG itens                --item OBRIGATORIO
-CMD schematize overdev check
-  SOBRE (Stop hook) reject stopping while there is an open item
-CMD schematize overdev disable
-  SOBRE Remove the overdev hooks from settings.json
-CMD schematize overdev enable
-  SOBRE Register the hooks (Stop + AskUserQuestion veto) in settings.json
-CMD schematize overdev guard
-  SOBRE (PreToolUse hook) veto AskUserQuestion during overdev
-CMD schematize overdev history
-  SOBRE List the local DB snapshot history for this project (newest first)
-  ARG limit                --limit
-CMD schematize overdev hold
-  SOBRE Mark the first open item matching the text as on-hold
-  ARG texto                 <valor>
-CMD schematize overdev human
-  SOBRE Human closes a `- [H ]` item → `- [H x]`: by text and/or `--done <n>`
-  ARG done                 --done
-  ARG texto                 <valor>
-CMD schematize overdev index
-  SOBRE Inject `/eng-index` into a `claude` session to (re)index the project
-CMD schematize overdev load
-  SOBRE Inject `/eng-load` into a `claude` session to load the engineering precepts
-CMD schematize overdev log
-  SOBRE Print the completion log (HH:MM:SS local + item) from .schematize/overdev/completions.json
-CMD schematize overdev note
-  SOBRE Attach a human note (correction prompt / per-task point) in .schematize/overdev/NOTAS.md
-  ARG kind                 --kind
-  ARG texto                 <valor>
-CMD schematize overdev park
-  SOBRE Park a question (log it in the base txt) and mark the item on-hold
-  ARG item                  OBRIGATORIO
-  ARG pergunta              <valor>
-CMD schematize overdev questions
-  SOBRE The question queue: open, answered-awaiting-review, and reviewed
-  ARG json                 --json
-CMD schematize overdev refuse
-  SOBRE Refuse a human item — the machine item it blocked is CANCELLED, not resumed
-  ARG alvo                  OBRIGATORIO
-  ARG texto                 <valor>
-CMD schematize overdev reply
-  SOBRE Answer a queued question by id: option ids and/or free text. Used by the GUI
-  ARG alvo                  OBRIGATORIO
-  ARG escolhas             --escolha
-  ARG texto                --texto
-CMD schematize overdev restore
-  SOBRE Restore a snapshot (by id) back to its original path
-  ARG id                    OBRIGATORIO
-CMD schematize overdev review
-  SOBRE Record the MACHINE's review of an answer — this, and not the answer, is what releases
-  ARG alvo                  OBRIGATORIO
-  ARG texto                 <valor>
-CMD schematize overdev run
-  SOBRE Run overdev with an attached `claude` agent in a PTY (monitors + auto-continue)
-  ARG max                  --max
-  ARG yes                  --yes
-CMD schematize overdev snapshot
-  SOBRE Snapshot the `.schematize/overdev/` artifacts into the local DB (versioned backup)
-CMD schematize overdev split
-  SOBRE SPLIT do checklist em K arquivos `checklist/part-N.md` (pastas multi-arquivo) pra rodar multiagents. Respeita o governador (`schematize agents`): mostra quantos subagents por claude e recusa passar do teto seguro. `--dispatch` lança os K claudes (cada um no seu part)
-  ARG dispatch             --dispatch
-  ARG force                --force
-  ARG k                     OBRIGATORIO
-CMD schematize overdev start
-  SOBRE Start a run in the current directory: `schematize overdev start "<goal>"`
-  ARG max                  --max
-  ARG objetivo              <valor>
-CMD schematize overdev status
-  SOBRE Show the run state
-CMD schematize overdev stop
-  SOBRE End the run (hooks become inert again)
-CMD schematize overdev supervise
-  SOBRE SUPERVISIONA o run deste diretório: se o agente morrer (contexto/crash/janela fechada) com item de máquina aberto, RELANÇA. É a rede que o Stop hook não cobre — ele só age quando o agente TENTA encerrar o turno, não quando o processo simplesmente acaba
-  ARG max                  --max
-CMD schematize overdev terminal
-  SOBRE Abre um TERMINAL interativo já neste projeto, com o `claude` pronto e o bypass de permissões ligado. Quando o claude sai, o shell continua aberto na pasta certa
-CMD schematize panel
-  SOBRE Open the auxiliary HTML panel (overdev + index graph) in the browser
 CMD schematize projects
   SOBRE Projects: list detected/pinned projects, pin/unpin, or drop a `.schematize` marker
 CMD schematize projects add

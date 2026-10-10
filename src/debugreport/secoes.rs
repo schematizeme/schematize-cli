@@ -101,10 +101,14 @@ pub(crate) fn sec_path_env(o: &mut String) {
 /// 4) Dependências: claude, terminais, node/npm/cargo, libfontconfig.
 pub(crate) fn sec_dependencias(o: &mut String) {
     hdr(o, "4. DEPENDÊNCIAS");
-    kv(o, "claude no PATH?", if crate::agentrun::claude_in_path() { "sim" } else { "não" });
+    kv(
+        o,
+        "claude no PATH?",
+        if crate::binlink::resolve_bin("claude").is_some() { "sim" } else { "não" },
+    );
     // Resolve pelo mesmo caminho que o launch usa ($PATH + fallback ~/.local/bin etc.) pra o
     // relatório não divergir (ex.: "no PATH? sim" mas "--version indisponível" sob PATH mínimo da GUI).
-    match crate::agentrun::claude_path() {
+    match crate::binlink::resolve_bin("claude") {
         Some(p) => {
             kv(o, "claude (path)", &p.display().to_string());
             kv(o, "claude --version", &cmd_out(&p.display().to_string(), &["--version"]));
@@ -228,14 +232,19 @@ pub(crate) fn sec_skills(o: &mut String, online: bool) {
 /// 7) Overdev: varre dev_dirs+recent_projects por `.overdev/state.json`. Devolve as raízes achadas.
 pub(crate) fn sec_overdev(o: &mut String) -> Vec<PathBuf> {
     hdr(o, "7. OVERDEV");
+    // **O progresso de cada run vem do APP** (E6): ele conhece o formato do checklist de dois
+    // níveis, e conhecer formato em dois lugares é a divergência esperando acontecer.
+    //
+    // O que este relatório continua fazendo sozinho é ENCONTRAR os projetos — varrer as
+    // `dev_dirs` atrás de `.schematize/overdev` é leitura de disco, não domínio de overdev.
     let roots = overdev_roots();
     if roots.is_empty() {
         let _ =
             writeln!(o, "  (nenhum projeto com .overdev/state.json nas dev_dirs/recent_projects)");
         return roots;
     }
+    let bin = crate::binlink::resolve_bin(crate::overdevlink::BIN);
     for root in &roots {
-        let prog = overdev::progress_at(root);
         let checklist = crate::paths::overdev_dir_at(root).join("CHECKLIST.md");
         let mt = fs::metadata(&checklist)
             .ok()
@@ -244,11 +253,21 @@ pub(crate) fn sec_overdev(o: &mut String) -> Vec<PathBuf> {
             .map(|d| fmt_epoch(d.as_secs()))
             .unwrap_or_else(|| "?".into());
         let _ = writeln!(o, "  {}", root.display());
-        let _ = writeln!(
-            o,
-            "    mode={} feitos={} abertos={} on-hold={} humanos={} iters={}/{} · CHECKLIST mtime={}",
-            prog.mode, prog.done, prog.open, prog.hold, prog.human, prog.iterations, prog.max_iters, mt
-        );
+        let linha = bin
+            .as_ref()
+            .and_then(|b| {
+                std::process::Command::new(b)
+                    .args(["progresso"])
+                    .current_dir(root)
+                    .stdin(std::process::Stdio::null())
+                    .output()
+                    .ok()
+                    .filter(|x| x.status.success())
+                    .map(|x| String::from_utf8_lossy(&x.stdout).trim().to_string())
+            })
+            .filter(|s| !s.is_empty())
+            .unwrap_or_else(|| "? (schematize-overdev não respondeu)".into());
+        let _ = writeln!(o, "    {linha} · CHECKLIST mtime={mt}");
     }
     roots
 }

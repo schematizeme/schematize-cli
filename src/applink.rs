@@ -148,6 +148,70 @@ const DELEGADOS: &[Delegado] = &[
         vira: None,
         adr: "ADR-0012 F4",
     },
+    // **O overdev, e com ele os HOOKS do Claude Code.**
+    //
+    // O `PreToolUse` roda `schematize overdev guard` a cada chamada de ferramenta e o `Stop`
+    // roda `schematize overdev check` a cada parada. Esta linha é o que mantém as duas coisas
+    // funcionando depois que o domínio saiu — e é por isso que ela entrou no repo ANTES de o
+    // domínio sair, e não junto: uma janela em que o binário instalado não sabe responder
+    // `overdev guard` bloqueia toda sessão aberta.
+    Delegado {
+        prefixo: "overdev",
+        bin: crate::deployerlink::OVERDEV,
+        mantem_prefixo: false,
+        vira: None,
+        adr: "ADR-0012 F5",
+    },
+    // A caixa de entrada do overdev — `schematize caixa` e o atalho `schematize add`.
+    Delegado {
+        prefixo: "caixa",
+        bin: crate::deployerlink::OVERDEV,
+        mantem_prefixo: true,
+        vira: None,
+        adr: "ADR-0012 F5",
+    },
+    Delegado {
+        prefixo: "add",
+        bin: crate::deployerlink::OVERDEV,
+        mantem_prefixo: true,
+        vira: None,
+        adr: "ADR-0012 F5",
+    },
+    // O `archive` sincroniza o `<projeto>_archive`, que é onde o overdev grava handoff,
+    // contexto e índice. Foi com ele.
+    Delegado {
+        prefixo: "archive",
+        bin: crate::deployerlink::OVERDEV,
+        mantem_prefixo: true,
+        vira: None,
+        adr: "ADR-0012 F5",
+    },
+    // O `graph obsidian` exporta o ÍNDICE como vault do Obsidian, e o exportador vive no
+    // `panel/` — que foi com o overdev. O índice é do hub, mas o parser do grafo é o mesmo que
+    // o painel HTML usa: ter dois leitores do mesmo formato é o que esta extradição desfaz.
+    Delegado {
+        prefixo: "graph",
+        bin: crate::deployerlink::OVERDEV,
+        mantem_prefixo: true,
+        vira: None,
+        adr: "ADR-0012 F5",
+    },
+    Delegado {
+        prefixo: "panel",
+        bin: crate::deployerlink::OVERDEV,
+        mantem_prefixo: true,
+        vira: None,
+        adr: "ADR-0012 F5",
+    },
+    // O governador de concorrência: ele existe para o SPLIT do overdev saber quantos agentes
+    // cabem antes de lançar.
+    Delegado {
+        prefixo: "agents",
+        bin: crate::deployerlink::OVERDEV,
+        mantem_prefixo: true,
+        vira: None,
+        adr: "ADR-0012 F5",
+    },
     Delegado {
         prefixo: "git-log",
         bin: crate::deployerlink::GIT,
@@ -189,7 +253,7 @@ fn delegado(argv: &[String]) -> Option<(&'static Delegado, Vec<String>)> {
 pub fn interceptar(argv: &[String]) -> Option<i32> {
     let (d, args) = delegado(argv)?;
     let bin = d.bin;
-    let Some(caminho) = crate::agentrun::resolve_bin(bin) else {
+    let Some(caminho) = crate::binlink::resolve_bin(bin) else {
         // **O comando que se manda rodar tem de INSTALAR este app**, e o que estava aqui não
         // instalava: era o `curl | bash` do `install.sh`, que põe o `schematize` e o
         // `schematize-market` e mais ninguém (ADR-0013 — quem instala app da casa é o market).
@@ -258,15 +322,30 @@ mod tests {
         assert_eq!(args, ["ssh", "import", "--paste", "--name", "k"]);
     }
 
+    /// **A forma exata dos HOOKS do Claude Code:** `overdev check|guard` chegam ao
+    /// `schematize-overdev` como `check`/`guard` — sem o prefixo, que o app não conhece.
+    #[test]
+    fn os_hooks_do_overdev_chegam_como_check_e_guard() {
+        for sub in ["check", "guard"] {
+            let argv: Vec<String> = ["overdev", sub].iter().map(|s| s.to_string()).collect();
+            let (bin, args) = destino(&argv).expect(sub);
+            assert_eq!(bin, crate::deployerlink::OVERDEV);
+            assert_eq!(args, [sub]);
+        }
+    }
+
     /// O que NÃO é delegado passa direto para o `clap` do hub — interceptar demais roubaria
     /// comandos que são do hub.
     #[test]
     fn o_que_e_do_hub_nao_e_interceptado() {
-        // **`skills` SAIU desta lista na E5**, e a mudança é o item: ele era do hub e passou a
-        // ser delegado. Um teste que guarda "o que é do hub" tem de acompanhar a extradição —
-        // se ele não acompanhasse, teria reprovado sobre um corte correto, e a saída fácil
-        // seria apagar o teste em vez de o dado.
-        for c in ["overdev", "status", "doctor", "gui", "--help", "-V", "projects"] {
+        // **Esta lista ENCOLHE a cada fase, e é assim que se sabe que a extradição andou.**
+        // `skills` saiu na E5; `overdev` na E6. Um teste que guarda "o que é do hub" tem de
+        // acompanhar — se não acompanhasse, teria reprovado sobre um corte correto, e a saída
+        // fácil seria apagar o teste em vez de o dado.
+        //
+        // O que sobrou aqui é o hub de verdade: diagnosticar, mostrar estado, abrir a janela,
+        // e o registro de projetos que o seletor da janela principal lê.
+        for c in ["status", "doctor", "gui", "--help", "-V", "projects"] {
             assert!(destino(&[c.to_string()]).is_none(), "`{c}` não devia ser delegado");
         }
         assert!(destino(&[]).is_none());
@@ -278,6 +357,10 @@ mod tests {
             ("git", crate::deployerlink::GIT),
             ("ssh", crate::deployerlink::BIN),
             ("env", crate::deployerlink::GESTOR),
+            ("overdev", crate::deployerlink::OVERDEV),
+            ("agents", crate::deployerlink::OVERDEV),
+            ("archive", crate::deployerlink::OVERDEV),
+            ("caixa", crate::deployerlink::OVERDEV),
         ] {
             let (dest, _) = destino(&[c.to_string()]).unwrap_or_else(|| panic!("`{c}` não delega"));
             assert_eq!(dest, bin, "`{c}` foi para o app errado");

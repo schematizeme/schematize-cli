@@ -7,28 +7,18 @@
 // `main` guarda só o arranque e o despacho.
 mod cli;
 use cli::args::*;
-use cli::caixa::*;
 use cli::conta::*;
 use cli::disco::*;
 use cli::diversos::*;
-use cli::overdev::*;
 
 use clap::Parser;
 use schematize::i18n::tf;
-use schematize::{agent, autostart, doctor, links, news, overdev, panel, status, upgrade, util};
+use schematize::overdevlink;
+use schematize::{agent, autostart, doctor, links, news, status, upgrade, util};
 
-/// Um alvo de item humano digitado na linha de comando.
-///
-/// Número puro = a POSIÇÃO entre os humanos abertos (é o que a UI numera, e o que a
-/// pessoa tem à mão ao olhar a lista). Qualquer outra coisa = trecho do texto. Aceitar
-/// os dois evita obrigar alguém a copiar e colar um item inteiro pra respondê-lo.
-fn alvo_humano(s: &str) -> schematize::overdev::resposta::Alvo {
-    use schematize::overdev::resposta::Alvo;
-    match s.trim().parse::<usize>() {
-        Ok(n) if n > 0 => Alvo::Indice(n),
-        _ => Alvo::Texto(s.trim().to_string()),
-    }
-}
+// O `alvo_humano` foi com o domínio (E6): ele interpreta o alvo de um item HUMANO, e quem
+// resolve item humano é o `schematize-overdev`. Lá ele ganhou teste — aqui vivia no meio do
+// despacho, sem nenhum.
 
 fn main() {
     // ANTES do clap: `ssh`, `vps`, `mcp` e `env` são dos apps da casa, e os argumentos vão
@@ -47,7 +37,6 @@ fn main() {
             status::run();
             Ok(())
         }
-        Cmd::Agents { json, split } => agents_cmd(json, split),
         Cmd::Diagnostics { yes } => schematize::diagnostics::send(yes),
         Cmd::Icon { emit, size, hicolor } => {
             let mut r: Result<(), String> = Ok(());
@@ -86,85 +75,12 @@ fn main() {
                 notifications_cmd(sync, historico);
                 Ok(())
             }
-        }
+        },
         Cmd::Blog => links::open("blog"),
         Cmd::Open { target } => links::open(&target),
         Cmd::Lang { code, list } => lang_cmd(code, list),
-        Cmd::Overdev { sub } => match sub {
-            Over::Enable => overdev::enable(),
-            Over::Disable => overdev::disable(),
-            Over::Start { objetivo, max } => overdev::start(&objetivo.join(" "), max),
-            Over::Terminal => cli::overdev::cwd_project().and_then(|p| {
-                schematize::agentrun::abrir_terminal_no_projeto(&p)
-                    .map(|t| println!("terminal `{t}` aberto em {} — o claude sobe com o bypass ligado.", p.display()))
-            }),
-            Over::Supervise { max } => cli::overdev::cwd_project().map(|projeto| {
-                let teto = max.unwrap_or(schematize::overdev::supervisor::MAX_RELANCAMENTOS);
-                println!(
-                    "Supervisionando {} — relanço o agente se ele morrer com item de máquina aberto (teto {teto}).",
-                    projeto.display()
-                );
-                let n = schematize::overdev::supervisor::supervise(&projeto, teto);
-                println!("supervisor encerrado após {n} relançamento(s).");
-            }),
-            Over::Split { k, dispatch, force } => overdev_split(k, dispatch, force),
-            Over::Check => {
-                overdev::check();
-                Ok(())
-            }
-            Over::Guard => {
-                overdev::guard();
-                Ok(())
-            }
-            Over::Status => {
-                overdev::status();
-                Ok(())
-            }
-            Over::Hold { texto } => overdev::hold(&texto.join(" ")),
-            Over::Park { item, pergunta } => overdev::park(&item, &pergunta.join(" ")),
-            Over::Human { texto, done } => {
-                let t = texto.join(" ");
-                let sub = if t.trim().is_empty() { None } else { Some(t.as_str()) };
-                overdev::human_done(sub, done)
-            }
-            Over::Note { texto, kind } => overdev::note(&kind, &texto.join(" ")),
-            Over::Answer { alvo, texto } => {
-                overdev::resolver(alvo_humano(&alvo), overdev::resposta::Acao::Responder, &texto.join(" "))
-            }
-            Over::Refuse { alvo, texto } => {
-                overdev::resolver(alvo_humano(&alvo), overdev::resposta::Acao::Recusar, &texto.join(" "))
-            }
-            Over::Ask { titulo, kind, opcoes, contexto, auto, linka } => cli::perguntas::ask(
-                &titulo.join(" "),
-                &kind,
-                &opcoes,
-                &contexto,
-                &auto,
-                &linka,
-            ),
-            Over::Questions { json } => cli::perguntas::questions(json),
-            Over::Reply { alvo, escolhas, texto } => {
-                cli::perguntas::reply(&alvo, &escolhas, &texto)
-            }
-            Over::Review { alvo, texto } => cli::perguntas::review(&alvo, &texto.join(" ")),
-            Over::Add { texto } => caixa_add(&texto.join(" ")),
-            Over::Caixa { sub } => caixa_cmd(sub),
-            Over::Stop => overdev::stop(),
-            Over::Run { max, yes } => overdev_run(max, yes),
-            Over::Snapshot => overdev_snapshot(),
-            Over::History { limit } => overdev_history(limit),
-            Over::Restore { id } => overdev_restore(id),
-            Over::Load => overdev_agent_cmd(overdev::load_cmd()),
-            Over::Index => overdev_agent_cmd(overdev::index_cmd()),
-            Over::Log => {
-                overdev_log();
-                Ok(())
-            }
-        },
-        Cmd::Panel => panel::open(),
-        Cmd::Graph { sub } => match sub {
-            GraphCmd::Obsidian { out } => panel::export_obsidian(out),
-        },
+        // O braço do OVERDEV saiu daqui na E6 — 71 linhas de despacho. `schematize overdev …`
+        // é interceptado pelo `applink` antes do clap, e com ele os HOOKS do Claude Code.
         Cmd::Check { notify } => {
             agent::run_once(notify);
             Ok(())
@@ -174,15 +90,15 @@ fn main() {
             // pra garantir o gestor de atualizações sem o usuário pedir. Sai na
             // hora se já estiver instalado (só um stat, sem rede).
             schematize::gestorboot::ensure_in_background();
-            // Auto-cura dos hooks do overdev: quem ligou numa versão antiga carrega o
-            // comando daquela versão no settings.json, e atualizar o app não regravava.
-            // No-op se o overdev está desligado ou o comando já é o atual.
-            // Auto-cura só do settings do USUÁRIO. O do projeto é reparado pelo
-            // `doctor` — escrever no repo de alguém sem pedido explícito não é papel
-            // de um daemon que subiu no login.
-            let exe = util::self_exe();
-            let _ = schematize::settings::refresh_hooks(&exe);
-            let _ = schematize::settings::repara_hooks_em(&util::settings_path(), &exe);
+            // Auto-cura dos hooks do overdev: quem ligou numa versão antiga carrega o comando
+            // daquela versão no `settings.json`, e atualizar o app não regravava.
+            //
+            // **Quem regrava agora é o app do overdev** (E6), e este daemon apenas PEDE. A
+            // chamada é best-effort: sem o app instalado, não há hook para curar — e um
+            // daemon que falha no login por causa de um app opcional é pior que um hook velho.
+            if let Err(e) = overdevlink::reparar_hooks() {
+                eprintln!("aviso: não reparei os hooks do overdev: {e}");
+            }
             agent::run_loop();
             Ok(())
         }
@@ -203,16 +119,10 @@ fn main() {
                 // justamente ela que aparecia quando o PATH resolvia pro pacote em vez
                 // do fonte — o "abre a versão antiga". Melhor uma mensagem clara do que
                 // uma janela diferente da que o usuário espera.
-                Err(_) => Err(
-                    "não achei o `schematize-gui` no PATH. Rode `schematize doctor` \
+                Err(_) => Err("não achei o `schematize-gui` no PATH. Rode `schematize doctor` \
                      (ele diagnostica e conserta) ou reinstale pelo install.sh."
-                        .to_string(),
-                ),
+                    .to_string()),
             }
-        }
-        Cmd::Archive => {
-            let cwd = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
-            schematize::archive::sync(&cwd).map(|msg| println!("{msg}"))
         }
         Cmd::Apps { sub } => match sub {
             None => crate::cli::deployer::apps_cmd(),

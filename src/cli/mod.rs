@@ -6,11 +6,8 @@
 //! espaço de módulos do LIB — misturar os dois confunde quem lê.
 
 pub(crate) mod args;
-pub(crate) mod caixa;
 pub(crate) mod conta;
 pub(crate) mod deployer;
 pub(crate) mod disco;
 pub(crate) mod diversos;
-pub(crate) mod overdev;
-pub(crate) mod perguntas;
 pub(crate) mod prompt;

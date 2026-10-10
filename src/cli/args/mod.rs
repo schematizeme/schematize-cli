@@ -28,11 +28,11 @@
 //! `superficie_da_cli_nao_mudou` compara a cada `cargo test`. O corte é provado, não
 //! confiado.
 
+pub(crate) mod graph;
 pub(crate) mod maquina;
-pub(crate) mod overdev;
 
+pub(crate) use graph::{Auto, ProjectsCmd};
 pub(crate) use maquina::DiscoCmd;
-pub(crate) use overdev::{Auto, CaixaCmd, GraphCmd, Over, ProjectsCmd};
 
 use clap::{Parser, Subcommand};
 
@@ -98,16 +98,6 @@ pub(crate) enum Cmd {
         #[arg(long)]
         yes: bool,
     },
-    /// Orçamento de concorrência: quantos agents/subagents do Claude a máquina aguenta SEM travar
-    /// (CPU/RAM/load, contando OUTRAS instâncias do claude na máquina). Persiste ~/.schematize/agents.json.
-    Agents {
-        /// Sai em JSON (pra scripts/hooks) em vez da tabela legível.
-        #[arg(long)]
-        json: bool,
-        /// Simula um SPLIT em K claudes principais e mostra quantos subagents cada um pode abrir.
-        #[arg(long, value_name = "K")]
-        split: Option<usize>,
-    },
     /// Inventário e limpeza do lixo recriável: artefato de build, cache de toolchain
     /// e camada de Docker — agrupado por DISCO (é o principal que costuma encher).
     Disco {
@@ -135,9 +125,6 @@ pub(crate) enum Cmd {
         #[arg(long)]
         online: bool,
     },
-    /// Archive de evolução: materializa a estrutura do <projeto>_archive/, extrai o chat da sessão
-    /// pro chats/ e gera o context_agent/#N.txt (contexto portável). Roda no dir do projeto.
-    Archive,
     /// Update schematize itself — atualiza o próprio schematize (o APP, o binário), não as skills.
     Upgrade {
         #[arg(long)]
@@ -170,18 +157,9 @@ pub(crate) enum Cmd {
         #[arg(long)]
         list: bool,
     },
-    /// Overdev mode — continuous dev until the checklist is done.
-    Overdev {
-        #[command(subcommand)]
-        sub: Over,
-    },
-    /// Open the auxiliary HTML panel (overdev + index graph) in the browser.
-    Panel,
-    /// Graph tools (export the index graph, Obsidian-style).
-    Graph {
-        #[command(subcommand)]
-        sub: GraphCmd,
-    },
+    // `overdev`, `panel`, `archive`, `caixa`, `add`, `agents` e `projects` saíram na E6: o
+    // `applink` os intercepta antes do clap e os encaminha ao `schematize-overdev`. Com eles
+    // vão os HOOKS do Claude Code, que chamam `schematize overdev guard` e `… check`.
     /// Check for updates once (with --notify, fire a desktop notification).
     Check {
         #[arg(long)]

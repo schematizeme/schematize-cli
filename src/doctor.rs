@@ -4,7 +4,7 @@
 
 use crate::i18n::{t, tf};
 use crate::versoes;
-use crate::{autostart, gestorboot, settings, util};
+use crate::{autostart, gestorboot, util};
 use std::fs;
 use std::path::Path;
 
@@ -56,68 +56,51 @@ pub fn run(fix: bool) {
         line(&Lv::Warn, &t("doctor.check_skills_dir"), "");
     }
 
-    // settings.json válido
-    match settings::settings_valid() {
-        Some(true) | None => line(&Lv::Ok, &t("doctor.check_settings"), ""),
-        Some(false) => {
-            issues += 1;
-            line(&Lv::Fail, &t("doctor.check_settings"), "");
+    // OS HOOKS agora são do `schematize-overdev` (E6).
+    //
+    // O que havia aqui eram ~45 linhas que liam o `settings.json`, comparavam o comando com o
+    // desta versão, regravavam, e ainda varriam os settings de PROJETO atrás de hook quebrado.
+    // Tudo isso é conhecimento do formato do hook — e o formato tem um dono.
+    //
+    // **`None` não é "tudo bem".** Sem o app, o `doctor` diz que não sabe: afirmar que os
+    // hooks estão certos sem ter perguntado é a mentira que este comando existe para não
+    // contar.
+    match crate::overdevlink::hooks() {
+        None => {
+            line(
+                &Lv::Warn,
+                &t("doctor.check_overdev"),
+                "não sei — `schematize-overdev` instalado?",
+            );
         }
-    }
-
-    // overdev hooks. Além de ligado/desligado, checa se o COMANDO gravado é o desta
-    // versão: o `settings.json` guarda o comando de quem ligou o overdev, e atualizar
-    // o app não regravava. Quem ligou numa versão antiga seguia com um caminho
-    // absoluto (`/usr/bin/schematize`, do pacote .deb) que o install do fonte removeu
-    // — `not found` em toda parada do agente. Aqui a gente regrava.
-    if settings::overdev_enabled() {
-        let exe = util::self_exe();
-        if settings::hooks_atualizados(&exe) {
-            line(&Lv::Ok, &t("doctor.check_overdev"), &t("common.on"));
-        } else {
-            match settings::refresh_hooks(&exe) {
-                Ok(_) => {
-                    line(&Lv::Ok, &t("doctor.check_overdev"), "comando desatualizado — regravado")
-                }
-                Err(e) => {
+        Some(h) => {
+            match h.settings.as_str() {
+                "invalido" => {
                     issues += 1;
-                    line(&Lv::Warn, &t("doctor.check_overdev"), &e);
+                    line(&Lv::Fail, &t("doctor.check_settings"), "");
+                }
+                _ => line(&Lv::Ok, &t("doctor.check_settings"), ""),
+            }
+            if !h.ligados {
+                line(&Lv::Ok, &t("doctor.check_overdev"), &t("common.off"));
+            } else if h.em_dia {
+                line(&Lv::Ok, &t("doctor.check_overdev"), &t("common.on"));
+            } else {
+                // O comando gravado é de uma versão anterior. Regravar é barato; descobrir
+                // tarde que o `guard` não roda há semanas, não.
+                match crate::overdevlink::reparar_hooks() {
+                    Ok(()) => line(
+                        &Lv::Ok,
+                        &t("doctor.check_overdev"),
+                        "comando desatualizado — regravado",
+                    ),
+                    Err(e) => {
+                        issues += 1;
+                        line(&Lv::Warn, &t("doctor.check_overdev"), &e);
+                    }
                 }
             }
         }
-        // Hook QUEBRADO (aponta pra caminho que não existe) — inclusive no settings do
-        // PROJETO, onde vive o hook shell legado registrado com caminho RELATIVO. Esse
-        // só funciona se o Claude Code rodar exatamente naquela pasta; em qualquer outra
-        // dá "arquivo ou diretório inexistente" em toda parada.
-        let projeto = std::env::current_dir().ok();
-        for arquivo in settings::arquivos_de_settings(projeto.as_deref()) {
-            match settings::repara_hooks_em(&arquivo, &exe) {
-                Ok(true) => {
-                    line(&Lv::Ok, "hook quebrado", &format!("regravado em {}", arquivo.display()))
-                }
-                Ok(false) => {}
-                Err(e) => {
-                    issues += 1;
-                    line(&Lv::Warn, "hook quebrado", &format!("{}: {e}", arquivo.display()));
-                }
-            }
-        }
-    } else {
-        line(&Lv::Ok, &t("doctor.check_overdev"), &t("common.off"));
-    }
-
-    // agente (informativo)
-    let ag =
-        if autostart::is_active() { t("status.agent_active") } else { t("status.agent_inactive") };
-    line(&Lv::Ok, &t("doctor.check_agent"), &ag);
-
-    // PATH shadow
-    match shadowed() {
-        Some(p) => {
-            issues += 1;
-            line(&Lv::Warn, &t("doctor.check_path"), &tf("doctor.path_shadow", &[("path", &p)]));
-        }
-        None => line(&Lv::Ok, &t("doctor.check_path"), ""),
     }
 
     // rede (GitHub)
@@ -211,14 +194,24 @@ pub fn report_text() -> String {
     ln(if util::claude_dir().is_dir() { "OK" } else { "WARN" }, "~/.claude", "", &mut o);
     ln(if util::skills_dir().is_dir() { "OK" } else { "WARN" }, "skills dir", "", &mut o);
 
-    // settings.json válido.
-    match settings::settings_valid() {
-        Some(true) | None => ln("OK", "settings.json", "", &mut o),
-        Some(false) => ln("FAIL", "settings.json", "inválido", &mut o),
+    // settings.json e hooks: quem sabe disso é o `schematize-overdev` (E6).
+    //
+    // **Sem ele, as duas linhas dizem `?`** — e não "ok"/"off". Este bloco alimenta o relatório
+    // que alguém cola num pedido de ajuda: uma linha que afirma o que não foi medido é pior que
+    // a ausência dela, porque ninguém volta a checar o que o relatório já deu por certo.
+    match crate::overdevlink::hooks() {
+        Some(h) => {
+            match h.settings.as_str() {
+                "invalido" => ln("FAIL", "settings.json", "inválido", &mut o),
+                s => ln("OK", "settings.json", if s == "ausente" { "ausente" } else { "" }, &mut o),
+            }
+            ln("OK", "overdev hooks", if h.ligados { "on" } else { "off" }, &mut o);
+        }
+        None => {
+            ln("WARN", "settings.json", "? (schematize-overdev não respondeu)", &mut o);
+            ln("WARN", "overdev hooks", "?", &mut o);
+        }
     }
-
-    // overdev hooks + agente (informativo).
-    ln("OK", "overdev hooks", if settings::overdev_enabled() { "on" } else { "off" }, &mut o);
     ln("OK", "agente residente", if autostart::is_active() { "ativo" } else { "inativo" }, &mut o);
 
     // PATH shadow.

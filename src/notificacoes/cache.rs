@@ -101,13 +101,17 @@ pub fn ler() -> Vec<Registro> {
         .unwrap_or_default()
 }
 
-/// Grava o cache de forma ATÔMICA (temporário + rename, via `overdev::trava`).
+/// Grava o cache de forma ATÔMICA (temporário + rename).
+///
+/// **A escrita atômica mudou de casa na E6.** Ela morava em `overdev::trava` — junto com a
+/// trava do run, por acidente de quem a escreveu primeiro. Não é do overdev: é plataforma, e
+/// este cache de notificações a usa pelo mesmo motivo que a trava usava.
 ///
 /// Atômica porque este arquivo é lido pelo badge a cada abertura: um arquivo escrito
 /// pela metade viraria "nenhuma notificação" — o mesmo sintoma que estamos corrigindo.
 pub fn gravar(v: &[Registro]) -> Result<(), String> {
     let corpo = serde_json::to_string_pretty(v).map_err(|e| e.to_string())?;
-    crate::overdev::trava::escreve_atomico(&arquivo(), &corpo)
+    crate::util::escreve_atomico(&arquivo(), &corpo)
 }
 
 /// Funde o que acabou de chegar da coleta com o que já estava guardado.

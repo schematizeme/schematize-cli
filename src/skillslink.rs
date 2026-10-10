@@ -36,7 +36,7 @@ pub struct Skill {
 
 /// **O quê:** roda um subcomando do app e devolve o stdout. `None` se ele não responder.
 fn perguntar(args: &[&str]) -> Option<String> {
-    let bin = crate::agentrun::resolve_bin(BIN)?;
+    let bin = crate::binlink::resolve_bin(BIN)?;
     let o = std::process::Command::new(bin)
         .args(args)
         .stdin(std::process::Stdio::null())
@@ -115,7 +115,7 @@ impl Skill {
 /// sem skills ainda é uma tela; uma atualização que não aconteceu tem de aparecer na
 /// notificação de resultado — "pronto" sobre uma falha é a mentira mais cara deste fluxo.
 pub fn atualizar(slug: &str) -> Result<(), String> {
-    let bin = crate::agentrun::resolve_bin(BIN)
+    let bin = crate::binlink::resolve_bin(BIN)
         .ok_or_else(|| format!("`{BIN}` não está instalado — é ele que atualiza skills"))?;
     let o = std::process::Command::new(bin)
         .args(["update", slug])

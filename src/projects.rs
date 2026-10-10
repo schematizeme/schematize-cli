@@ -7,6 +7,16 @@
 //! Regras: um diretório que contenha um marcador É um projeto; ao achar um marcador
 //! PARA de descer (não recursa dentro de um projeto já identificado). Limite de
 //! profundidade sensato e ignora `node_modules`, `target`, `.git`, etc.
+//
+// **Este módulo FICOU no hub na E6, e o app do overdev tem a própria cópia.** Ele varre as
+// `dev_dirs` atrás de projeto — e os dois precisam da resposta por razões diferentes: o hub
+// desenha o seletor de projetos da janela, o overdev descobre onde há run. Nenhum dos dois é
+// "o dono": é leitura de disco, que é plataforma.
+//
+// Duplicar aqui é a escolha do D4 (a `commons` de domínio é vetada pelo piso 6), e o custo é
+// conhecido: se a regra de "o que conta como projeto" mudar, ela muda em dois lugares. O
+// contrário — o hub pedir a lista ao app do overdev — faria o seletor de projetos da janela
+// principal parar de funcionar sem um app que é opcional.
 
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};

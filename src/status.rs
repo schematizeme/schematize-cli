@@ -4,7 +4,7 @@
 
 use crate::i18n::{self, t, tf};
 use crate::versoes;
-use crate::{autostart, links, overdev, settings};
+use crate::{autostart, links};
 
 fn header(s: &str) {
     println!("\n\x1b[1m{s}\x1b[0m");
@@ -46,11 +46,20 @@ pub fn run() {
     header(&t("status.section_overdev"));
     println!(
         "  hooks: {}",
-        if settings::overdev_enabled() { t("common.on") } else { t("common.off") }
+        // Sem o app do overdev, "não sei" — e não "off". Dizer que o hook está desligado
+        // sobre uma máquina onde ele pode estar ligado é a resposta errada com cara de certa.
+        match crate::overdevlink::hooks() {
+            Some(h) if h.ligados => t("common.on"),
+            Some(_) => t("common.off"),
+            None => "?".to_string(),
+        }
     );
-    match overdev::status_brief() {
-        (true, Some(obj)) => println!("  {}", tf("status.overdev_run_active", &[("obj", &obj)])),
-        _ => println!("  {}", t("status.overdev_run_none")),
+    // A LINHA vem pronta do app (E6): ela já traz modo, feitos, abertos, on-hold e humanos.
+    // Montá-la aqui exigiria conhecer o formato do checklist de dois níveis — o domínio que
+    // acabou de sair.
+    match crate::overdevlink::progresso_breve() {
+        Some(linha) => println!("  {linha}"),
+        None => println!("  {}", t("status.overdev_run_none")),
     }
 
     // Idioma

@@ -26,20 +26,15 @@ notify-rust = "4"
 # Encoder PNG — gera o ícone (appicon) em PNG A PARTIR DO CÓDIGO, pros hicolor/.desktop, sem depender
 # de rasterizador externo (ImageMagick/rsvg) que falha em SVG. Já está no dep tree (transitivo).
 png = "0.18"
-portable-pty = "0.9.0"
-# DB local do overdev (SQLite). Duas formas de obter a lib:
+# O `rusqlite` SAIU na E6, e era a dependência mais cara deste crate.
 #
-#  - `sqlite-embutido` (DEFAULT): compila o SQLite (~250 mil linhas de C) dentro do
-#    binário. É o que os RELEASES publicados usam — binário que roda em qualquer
-#    distro, sem depender da versão de libsqlite3 de quem baixou.
-#  - `sqlite-do-sistema`: linka a libsqlite3 que já está instalada. Não compila C
-#    nenhum, e é o certo pra quem constrói do FONTE na própria máquina. O
-#    install.sh detecta (`pkg-config --exists sqlite3`) e escolhe sozinho.
+# Ele existia para o DB local do overdev (snapshots e histórico), com duas formas de obter a
+# lib: `sqlite-embutido` compilava ~250 mil linhas de C dentro do binário, e `sqlite-do-sistema`
+# linkava a libsqlite3 da distro. O `install.sh` detectava e escolhia sozinho.
 #
-# Crate de Rust não dá pra pegar da distro (Rust não tem ABI estável — os
-# `librust-*-dev` só servem ao rustc da própria distro). Biblioteca C, dá — e é
-# por isso que este é o único ponto onde reusar o pacote do sistema faz sentido.
-rusqlite = { version = "0.31", default-features = false }
+# Nada disso sumiu — mudou de casa, para o `schematize_overdev_rs`, que é quem usa o DB. O que
+# sai daqui é o custo: o hub e a janela dele deixam de compilar um banco de dados inteiro para
+# oferecer um recurso que nem todo mundo usa.
 
 # Perfil de release COMPARTILHADO pelos repos do app (CLI, GUI Slint, market, deployer,
 # optimizer, updater-GUI). Cargo so reaproveita artefato quando o perfil bate EXATAMENTE.
@@ -59,10 +54,9 @@ opt-level = 3
 lto = "thin"
 
 [features]
-default = ["sqlite-embutido"]
-# Ver a nota em `rusqlite`, acima.
-sqlite-embutido = ["rusqlite/bundled"]
-sqlite-do-sistema = []
+# As features de SQLite saíram com o `rusqlite` (E6). Elas eram a escolha entre compilar o
+# banco no binário ou linkar o da distro — uma decisão de quem tem o banco, e o banco mudou
+# de app.
 
 # ---- Empacotamento .deb (Debian/Mint/Ubuntu) — cargo-deb ----
 [package.metadata.deb]

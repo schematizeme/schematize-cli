@@ -17,7 +17,7 @@
 //! Postura: TUDO best-effort — nunca panica; a falha de uma seção vira
 //! "(indisponível: <motivo>)" e o resto do relatório segue.
 
-use crate::{account, config, debug, doctor, overdev, util};
+use crate::{account, config, debug, doctor, util};
 use std::collections::BTreeSet;
 use std::fmt::Write as _;
 use std::fs;
