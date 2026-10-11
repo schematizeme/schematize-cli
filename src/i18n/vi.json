@@ -312,7 +312,6 @@
   "gui.od_caixa_agent_ok": "đã mở tác nhân trong terminal.",
   "gui.od_caixa_hint": "Viết ra còn gì cần làm. Việc này KHÔNG động vào danh sách lúc này — không tác nhân nào bị ngắt. Một tác nhân sẽ sắp xếp sau, và chỉ khi đó nó mới vào danh sách.",
   "gui.od_caixa_merge": "Gộp vào danh sách",
-  "gui.od_caixa_merged": "mục trong danh sách.",
   "gui.od_caixa_ok": "đã ghi lại — danh sách không bị động tới.",
   "gui.od_caixa_pending": "chờ sắp xếp",
   "gui.od_caixa_placeholder": "ví dụ: cần xuất CSV và gửi qua e-mail…",

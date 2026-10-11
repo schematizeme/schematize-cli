@@ -312,7 +312,6 @@
   "gui.od_caixa_agent_ok": "agent ouvert dans le terminal.",
   "gui.od_caixa_hint": "Écrivez ce qu'il reste à faire. Ceci ne touche PAS la liste maintenant — aucun agent n'est interrompu. Un agent l'organise ensuite, et c'est seulement alors que cela entre.",
   "gui.od_caixa_merge": "Fusionner dans la liste",
-  "gui.od_caixa_merged": "élément(s) dans la liste.",
   "gui.od_caixa_ok": "capturé — la liste n'a pas été touchée.",
   "gui.od_caixa_pending": "à organiser",
   "gui.od_caixa_placeholder": "ex. : il faut un export CSV envoyé par e-mail…",

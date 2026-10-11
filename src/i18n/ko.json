@@ -312,7 +312,6 @@
   "gui.od_caixa_agent_ok": "터미널에서 에이전트를 열었습니다.",
   "gui.od_caixa_hint": "그 밖에 해야 할 일을 적으세요. 지금 체크리스트를 건드리지 않습니다 — 어떤 에이전트도 중단되지 않습니다. 나중에 에이전트가 정리하고, 그때에야 들어갑니다.",
   "gui.od_caixa_merge": "체크리스트에 병합",
-  "gui.od_caixa_merged": "개 항목이 체크리스트에.",
   "gui.od_caixa_ok": "기록했습니다 — 체크리스트는 건드리지 않았습니다.",
   "gui.od_caixa_pending": "정리 대기",
   "gui.od_caixa_placeholder": "예: CSV로 내보내 메일로 보내야 함…",

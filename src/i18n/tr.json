@@ -312,7 +312,6 @@
   "gui.od_caixa_agent_ok": "ajan terminalde açıldı.",
   "gui.od_caixa_hint": "Başka ne yapılması gerektiğini yazın. Bu, listeye ŞİMDİ dokunmaz — hiçbir ajan kesilmez. Bir ajan sonra düzenler, ancak o zaman listeye girer.",
   "gui.od_caixa_merge": "Listeye birleştir",
-  "gui.od_caixa_merged": "listede öğe.",
   "gui.od_caixa_ok": "kaydedildi — listeye dokunulmadı.",
   "gui.od_caixa_pending": "düzenlenecek",
   "gui.od_caixa_placeholder": "örn.: CSV dışa aktarımı ve e-postayla gönderim gerekiyor…",

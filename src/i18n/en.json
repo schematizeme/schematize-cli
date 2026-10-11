@@ -312,7 +312,6 @@
   "gui.od_caixa_agent_ok": "agent opened in the terminal.",
   "gui.od_caixa_hint": "Write down what else needs doing. This does NOT touch the checklist now — no agent is interrupted. An agent organises it later, and only then does it go in.",
   "gui.od_caixa_merge": "Merge into the checklist",
-  "gui.od_caixa_merged": "item(s) in the checklist.",
   "gui.od_caixa_ok": "captured — the checklist was not touched.",
   "gui.od_caixa_pending": "to organise",
   "gui.od_caixa_placeholder": "e.g.: needs CSV export and e-mail delivery…",

@@ -267,16 +267,13 @@ gui_runtime_deps() {
 gui_build_deps() {
   case "$FAMILY" in
     # libfontconfig1-dev: o Slint 1.17 (fontique no núcleo) LINKA a libfontconfig no build.
-    # libsqlite3-dev: PREFERIR a lib da distro a compilar o SQLite embutido (~250 mil
-    # linhas de C a cada build limpo). Se ela estiver aqui, o build do CLI linka a dela.
     debian) instala_faltantes "libs de build da GUI" build-essential pkg-config libx11-dev \
               libxcursor-dev libxrandr-dev libxi-dev \
               libxkbcommon-dev libwayland-dev libgl1-mesa-dev libxcb1-dev libxcb-render0-dev \
-              libxcb-shape0-dev libxcb-xfixes0-dev libfontconfig1-dev libsqlite3-dev ;;
+              libxcb-shape0-dev libxcb-xfixes0-dev libfontconfig1-dev ;;
     rpm)    instala_faltantes "libs de build da GUI" gcc gcc-c++ make pkg-config libX11-devel \
               libXcursor-devel libXrandr-devel \
-              libXi-devel libxkbcommon-devel wayland-devel Mesa-libGL-devel libxcb-devel fontconfig-devel \
-              sqlite-devel ;;
+              libXi-devel libxkbcommon-devel wayland-devel Mesa-libGL-devel libxcb-devel fontconfig-devel ;;
     *) die "GUI do fonte: instale manualmente as libs de X11/Wayland/GL/fontconfig da sua distro." ;;
   esac
 }
@@ -1020,19 +1017,15 @@ install_source() {
   local tgt="$TARGET_HOME/.schematize/target"; as_user mkdir -p "$tgt"
   export CARGO_TARGET_DIR="$tgt"
 
-  # SQLite: se a distro tem a lib de desenvolvimento, LINKA a dela em vez de
-  # compilar ~250 mil linhas de C a cada build limpo. (Isso vale só pra biblioteca
-  # C — crate de Rust não dá pra reusar da distro: Rust não tem ABI estável.)
-  local feats=""
-  if pkg-config --exists sqlite3 2>/dev/null; then
-    log "usando a libsqlite3 da distro (não compila o SQLite embutido)"
-    feats="--no-default-features --features sqlite-do-sistema"
-  fi
+  # Sem seleção de feature de SQLite: o CLI e a GUI não têm `rusqlite` (E6, ADR-0018) nem as
+  # features `sqlite-*`. O banco do overdev mora no app dele (schematize-overdev), que este
+  # script não compila. O guard `scripts/features-install-em-dia.py` reprova se um `--features`
+  # aqui deixar de existir no Cargo.toml do crate.
 
   # CLI SEM a feature `gui` — NÃO produz o schematize-gui egui (a única GUI é o Slint, repo próprio).
   log "compilando o CLI do fonte (incremental — recompila só o que mudou; 1ª vez leva minutos)"
   _sync_repo "https://github.com/$REPO.git" "$cli" || die "clone do CLI falhou"
-  if ! as_user sh -c "cd '$cli' && CARGO_TARGET_DIR='$tgt' cargo build --release $feats"; then
+  if ! as_user sh -c "cd '$cli' && CARGO_TARGET_DIR='$tgt' cargo build --release"; then
     # §37.48: mensagem acionavel, sem culpa. "build do CLI falhou" nao diz nada a quem nao
     # le Rust — e quando a causa e a que este script JA ANUNCIOU (nao consegui instalar
     # pacote porque nao ha root nem sudo), nao dize-lo e deixar a pessoa procurar o que ja
@@ -1057,7 +1050,7 @@ install_source() {
   log "compilando a GUI Slint — schematize-gui (incremental)"
   if _sync_repo "https://github.com/schematizeme/schematize_gui_slint.git" "$gui" 2>/dev/null \
      && { as_user sh -c "cd '$gui' && CARGO_TARGET_DIR='$tgt' cargo update -p schematize" 2>/dev/null || true; } \
-     && as_user sh -c "cd '$gui' && CARGO_TARGET_DIR='$tgt' cargo build --release $feats" \
+     && as_user sh -c "cd '$gui' && CARGO_TARGET_DIR='$tgt' cargo build --release" \
      && as_user install -m755 "$tgt/release/schematize-gui" "$bin/schematize-gui"; then
     ok "GUI Slint instalada (schematize-gui)."
     # Encerra GUI antiga ainda aberta — fechar a janela não matava o processo, e o relaunch reusava

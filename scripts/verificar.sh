@@ -92,6 +92,10 @@ fi
 # que a pergunta deixa de ter resposta. Como o `etapa` so olha zero/nao-zero, ele entra com
 # `|| [ $? = 2 ]`: defasagem local nao reprova o gate, mudez reprova.
 etapa instalado sh -c 'python3 scripts/instalado-em-dia.py; [ $? != 1 ]'
+# AS FEATURES DO install.sh: o script manda `--features X` ao cargo; se X sai do Cargo.toml (como
+# as de SQLite na E6), o build do fonte morre so nas maquinas que tomam aquele ramo. Confere
+# cada feature contra o Cargo.toml do crate; checkout irmao ausente vira SKIP explicito.
+etapa features python3 scripts/features-install-em-dia.py
 etapa icone   python3 scripts/icone-aponta-janela.py
 etapa shim    sh scripts/shim-portabilidade.sh
 etapa clippy  cargo clippy --all-targets -- -D warnings

@@ -312,7 +312,6 @@
   "gui.od_caixa_agent_ok": "agente aberto no terminal.",
   "gui.od_caixa_hint": "Escreva o que mais precisa ser feito. Isto NÃO toca o checklist agora — nenhum agente é interrompido. Um agente organiza depois, e só então entra.",
   "gui.od_caixa_merge": "Fundir no checklist",
-  "gui.od_caixa_merged": "item(ns) no checklist.",
   "gui.od_caixa_ok": "capturado — o checklist não foi tocado.",
   "gui.od_caixa_pending": "a organizar",
   "gui.od_caixa_placeholder": "ex.: precisa exportar em CSV e mandar por e-mail…",

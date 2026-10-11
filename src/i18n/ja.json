@@ -312,7 +312,6 @@
   "gui.od_caixa_agent_ok": "エージェントをターミナルで開きました。",
   "gui.od_caixa_hint": "ほかに必要なことを書いてください。これは今チェックリストに触れません — どのエージェントも中断されません。あとでエージェントが整理し、そのときに初めて入ります。",
   "gui.od_caixa_merge": "チェックリストに統合",
-  "gui.od_caixa_merged": "件をチェックリストに。",
   "gui.od_caixa_ok": "記録しました — チェックリストには触れていません。",
   "gui.od_caixa_pending": "整理待ち",
   "gui.od_caixa_placeholder": "例: CSV で書き出してメールで送る必要がある…",

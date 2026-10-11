@@ -312,7 +312,6 @@
   "gui.od_caixa_agent_ok": "agent otwarty w terminalu.",
   "gui.od_caixa_hint": "Zapisz, co jeszcze trzeba zrobić. To NIE rusza listy teraz — żaden agent nie jest przerywany. Agent uporządkuje to później i dopiero wtedy trafi na listę.",
   "gui.od_caixa_merge": "Scal z listą",
-  "gui.od_caixa_merged": "pozycja(e) na liście.",
   "gui.od_caixa_ok": "zapisane — lista nie została ruszona.",
   "gui.od_caixa_pending": "do uporządkowania",
   "gui.od_caixa_placeholder": "np.: trzeba eksportować do CSV i wysyłać mailem…",

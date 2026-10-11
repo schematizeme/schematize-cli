@@ -312,7 +312,6 @@
   "gui.od_caixa_agent_ok": "agen dibuka di terminal.",
   "gui.od_caixa_hint": "Tuliskan apa lagi yang perlu dikerjakan. Ini TIDAK menyentuh daftar sekarang — tidak ada agen yang terganggu. Nanti seorang agen merapikannya, dan baru saat itu ia masuk.",
   "gui.od_caixa_merge": "Gabungkan ke daftar",
-  "gui.od_caixa_merged": "item pada daftar.",
   "gui.od_caixa_ok": "dicatat — daftar tidak disentuh.",
   "gui.od_caixa_pending": "untuk dirapikan",
   "gui.od_caixa_placeholder": "mis.: perlu diekspor ke CSV dan dikirim lewat e-mail…",

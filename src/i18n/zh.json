@@ -312,7 +312,6 @@
   "gui.od_caixa_agent_ok": "已在终端中打开代理。",
   "gui.od_caixa_hint": "写下还需要做什么。这现在不会动清单——没有代理会被打断。稍后由代理整理，那时才会进入清单。",
   "gui.od_caixa_merge": "并入清单",
-  "gui.od_caixa_merged": "个条目进入清单。",
   "gui.od_caixa_ok": "已记录——清单没有被改动。",
   "gui.od_caixa_pending": "待整理",
   "gui.od_caixa_placeholder": "例如：需要导出 CSV 并通过邮件发送…",

@@ -312,7 +312,6 @@
   "gui.od_caixa_agent_ok": "Agent im Terminal geöffnet.",
   "gui.od_caixa_hint": "Schreiben Sie auf, was sonst noch zu tun ist. Das berührt die Liste JETZT NICHT — kein Agent wird unterbrochen. Ein Agent ordnet es später ein, und erst dann kommt es hinein.",
   "gui.od_caixa_merge": "In die Liste übernehmen",
-  "gui.od_caixa_merged": "Eintrag/Einträge in der Liste.",
   "gui.od_caixa_ok": "erfasst — die Liste wurde nicht angerührt.",
   "gui.od_caixa_pending": "zu ordnen",
   "gui.od_caixa_placeholder": "z. B.: muss als CSV exportiert und per E-Mail verschickt werden…",

@@ -312,7 +312,6 @@
   "gui.od_caixa_agent_ok": "agent geopend in de terminal.",
   "gui.od_caixa_hint": "Schrijf op wat er nog moet gebeuren. Dit raakt de lijst NU niet — geen enkele agent wordt onderbroken. Een agent ordent het later, en pas dan komt het erin.",
   "gui.od_caixa_merge": "In de lijst samenvoegen",
-  "gui.od_caixa_merged": "item(s) in de lijst.",
   "gui.od_caixa_ok": "vastgelegd — de lijst is niet aangeraakt.",
   "gui.od_caixa_pending": "te ordenen",
   "gui.od_caixa_placeholder": "bv.: moet als CSV geëxporteerd en gemaild worden…",
