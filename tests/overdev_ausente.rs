@@ -51,7 +51,11 @@ fn roda(raiz: &Path, sub: &str, stdin: &str, path: &str) -> Saida {
         .stderr(Stdio::piped())
         .spawn()
         .expect("executa o binário");
-    filho.stdin.take().expect("stdin").write_all(stdin.as_bytes()).expect("escreve stdin");
+    // BrokenPipe é legítimo: o subcomando pode sair sem ler o stdin (corrida), e o que se
+    // asserta é rc/saída, não que o filho consumiu a entrada. Qualquer outro erro falha.
+    if let Err(e) = filho.stdin.take().expect("stdin").write_all(stdin.as_bytes()) {
+        assert_eq!(e.kind(), std::io::ErrorKind::BrokenPipe, "escreve stdin: {e}");
+    }
     let o = filho.wait_with_output().expect("espera");
     (
         o.status.code().unwrap_or(-1),
