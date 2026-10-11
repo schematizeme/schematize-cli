@@ -8,7 +8,6 @@
 mod cli;
 use cli::args::*;
 use cli::conta::*;
-use cli::disco::*;
 use cli::diversos::*;
 
 use clap::Parser;
@@ -54,7 +53,6 @@ fn main() {
             }
             r
         }
-        Cmd::Disco { sub } => disco_cmd(sub),
         Cmd::Doctor { fix } => {
             doctor::run(fix);
             Ok(())

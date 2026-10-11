@@ -2,7 +2,7 @@
 //!
 //! **O quê:** `ssh|vps|mcp` vão para o `schematize-deployer`; `env` para o `schematize-market`;
 //! `db` para o `schematize-database`; `git`/`git-log` para o `schematize-git`; `skills` para o
-//! `schematize-skills`. Os argumentos são repassados **crus**.
+//! `schematize-skills`; `disco` para o `schematize-optimizer`. Os argumentos são repassados **crus**.
 //!
 //! **Onde:** interceptado no `main`, ANTES do `clap`.
 //!
@@ -212,6 +212,16 @@ const DELEGADOS: &[Delegado] = &[
         vira: None,
         adr: "ADR-0012 F5",
     },
+    // `disco` foi para o optimizer na E3, mas o hub manteve uma COPIA inteira até o D9. Aqui
+    // o prefixo é consumido E os subcomandos mudam de forma (`list|clean|docker` viram
+    // `disco|disco-clean|disco-docker` no app dono) — ver [`traduz_disco`].
+    Delegado {
+        prefixo: "disco",
+        bin: crate::deployerlink::OPTIMIZER,
+        mantem_prefixo: false,
+        vira: None,
+        adr: "ADR-0018 E3",
+    },
     Delegado {
         prefixo: "git-log",
         bin: crate::deployerlink::GIT,
@@ -229,6 +239,30 @@ pub fn destino(argv: &[String]) -> Option<(&'static str, Vec<String>)> {
     delegado(argv).map(|(d, args)| (d.bin, args))
 }
 
+/// **O quê:** os argumentos de `schematize disco <sub> …` na forma do `schematize-optimizer`.
+/// PURA.
+///
+/// **Onde:** [`delegado`], só para o prefixo `disco`.
+///
+/// **O mapa:** `list [--min-dias N]` -> `disco [--min-dias N]`; `clean …` -> `disco-clean …`;
+/// `docker …` -> `disco-docker …`. Flags passam cruas (`--min-dias`, `--tipo`, `--montagem`,
+/// `-y/--yes`, `--podar` têm o mesmo nome nos dois). Sem subcomando, ou só `--help`, o app dono
+/// responde — o hub não valida flag de ninguém.
+fn traduz_disco(resto: &[String]) -> Vec<String> {
+    let (verbo, cauda) = match resto.split_first() {
+        Some((v, c)) => match v.as_str() {
+            "list" => ("disco", c),
+            "clean" => ("disco-clean", c),
+            "docker" => ("disco-docker", c),
+            _ => return resto.to_vec(),
+        },
+        None => return vec!["disco".to_string()],
+    };
+    let mut out = vec![verbo.to_string()];
+    out.extend(cauda.iter().cloned());
+    out
+}
+
 /// **O quê:** o delegado inteiro e os argumentos dele. PURA.
 ///
 /// **Onde:** [`destino`] e [`interceptar`] — este precisa do `adr` para a mensagem de ausência,
@@ -236,6 +270,9 @@ pub fn destino(argv: &[String]) -> Option<(&'static str, Vec<String>)> {
 fn delegado(argv: &[String]) -> Option<(&'static Delegado, Vec<String>)> {
     let primeiro = argv.first()?.as_str();
     let d = DELEGADOS.iter().find(|d| d.prefixo == primeiro)?;
+    if d.prefixo == "disco" {
+        return Some((d, traduz_disco(&argv[1..])));
+    }
     let mut args = if d.mantem_prefixo { argv.to_vec() } else { argv[1..].to_vec() };
     if let Some(novo) = d.vira {
         args.insert(0, novo.to_string());
@@ -357,6 +394,7 @@ mod tests {
             ("git", crate::deployerlink::GIT),
             ("ssh", crate::deployerlink::BIN),
             ("env", crate::deployerlink::GESTOR),
+            ("disco", crate::deployerlink::OPTIMIZER),
             ("overdev", crate::deployerlink::OVERDEV),
             ("agents", crate::deployerlink::OVERDEV),
             ("archive", crate::deployerlink::OVERDEV),
@@ -364,6 +402,29 @@ mod tests {
         ] {
             let (dest, _) = destino(&[c.to_string()]).unwrap_or_else(|| panic!("`{c}` não delega"));
             assert_eq!(dest, bin, "`{c}` foi para o app errado");
+        }
+    }
+
+    /// `disco` vai para o optimizer com os subcomandos traduzidos — e flags passam cruas.
+    #[test]
+    fn disco_vira_os_verbos_do_optimizer() {
+        let v = |a: &[&str]| a.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        let casos: [(&[&str], &[&str]); 7] = [
+            (&["disco"], &["disco"]),
+            (&["disco", "list"], &["disco"]),
+            (&["disco", "list", "--min-dias", "5"], &["disco", "--min-dias", "5"]),
+            (
+                &["disco", "clean", "--tipo", "target", "-y"],
+                &["disco-clean", "--tipo", "target", "-y"],
+            ),
+            (&["disco", "docker", "--podar", "x"], &["disco-docker", "--podar", "x"]),
+            (&["disco", "docker"], &["disco-docker"]),
+            (&["disco", "--help"], &["--help"]),
+        ];
+        for (entrada, saida) in casos {
+            let (bin, args) = destino(&v(entrada)).expect("disco delega");
+            assert_eq!(bin, crate::deployerlink::OPTIMIZER);
+            assert_eq!(args, v(saida), "{entrada:?}");
         }
     }
 

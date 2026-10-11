@@ -41,21 +41,6 @@ CMD schematize deployer status
 CMD schematize diagnostics
   SOBRE Envia (OPT-IN) o relatório de diagnóstico REDIGIDO pro servidor (POST /diagnostics). Nada é enviado por padrão — só com este comando e após confirmar
   ARG yes                  --yes
-CMD schematize disco
-  SOBRE Inventário e limpeza do lixo recriável: artefato de build, cache de toolchain e camada de Docker — agrupado por DISCO (é o principal que costuma encher)
-CMD schematize disco clean
-  SOBRE Apaga os artefatos que casam com os filtros (mostra a lista antes)
-  ARG min_dias             --min-dias
-  ARG montagem             --montagem
-  ARG tipo                 --tipo
-  ARG yes                  --yes -y
-CMD schematize disco docker
-  SOBRE Uso e podas do Docker
-  ARG podar                --podar
-  ARG yes                  --yes -y
-CMD schematize disco list
-  SOBRE Lista o que dá pra recuperar, agrupado por DISCO e por tipo
-  ARG min_dias             --min-dias
 CMD schematize doctor
   SOBRE Diagnose the environment (add --fix to repair what's safe)
   ARG fix                  --fix

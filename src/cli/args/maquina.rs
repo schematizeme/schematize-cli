@@ -87,40 +87,6 @@ pub(crate) enum SshCmd {
 }
 
 #[derive(Subcommand)]
-pub(crate) enum DiscoCmd {
-    /// Lista o que dá pra recuperar, agrupado por DISCO e por tipo.
-    List {
-        /// Só o que está parado há pelo menos N dias.
-        #[arg(long, default_value_t = 0)]
-        min_dias: u64,
-    },
-    /// Apaga os artefatos que casam com os filtros (mostra a lista antes).
-    Clean {
-        /// Só o que está parado há pelo menos N dias.
-        #[arg(long, default_value_t = 30)]
-        min_dias: u64,
-        /// Filtra por tipo (ex.: "target", "node_modules", "cache").
-        #[arg(long)]
-        tipo: Option<String>,
-        /// Só neste disco (ponto de montagem, ex.: "/" ou "/home").
-        #[arg(long)]
-        montagem: Option<String>,
-        /// Não perguntar.
-        #[arg(long, short = 'y')]
-        yes: bool,
-    },
-    /// Uso e podas do Docker.
-    Docker {
-        /// Executa uma poda pelo rótulo (sem isto, só lista).
-        #[arg(long)]
-        podar: Option<String>,
-        /// Não perguntar (não vale pras podas que apagam dados).
-        #[arg(long, short = 'y')]
-        yes: bool,
-    },
-}
-
-#[derive(Subcommand)]
 pub(crate) enum EnvCmd {
     /// Switch how a language is installed (docker|mise|distro|official).
     /// Installs the new method FIRST, then removes the old one — a failure never leaves you

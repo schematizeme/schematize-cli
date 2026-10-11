@@ -32,7 +32,6 @@ pub(crate) mod graph;
 pub(crate) mod maquina;
 
 pub(crate) use graph::{Auto, ProjectsCmd};
-pub(crate) use maquina::DiscoCmd;
 
 use clap::{Parser, Subcommand};
 
@@ -56,6 +55,7 @@ use clap::{Parser, Subcommand};
         "  ssh, vps, mcp   ->  schematize-deployer\n",
         "  env             ->  schematize-market\n",
         "  db              ->  schematize-database\n",
+        "  disco           ->  schematize-optimizer\n",
         "\n",
         "Run `<app> --help` for their commands."
     )
@@ -97,12 +97,6 @@ pub(crate) enum Cmd {
         /// Pula a confirmação (envia direto).
         #[arg(long)]
         yes: bool,
-    },
-    /// Inventário e limpeza do lixo recriável: artefato de build, cache de toolchain
-    /// e camada de Docker — agrupado por DISCO (é o principal que costuma encher).
-    Disco {
-        #[command(subcommand)]
-        sub: DiscoCmd,
     },
     /// Diagnose the environment (add --fix to repair what's safe).
     Doctor {

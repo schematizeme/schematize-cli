@@ -13,7 +13,6 @@ pub mod debug;
 pub mod debugreport;
 pub mod deployerlink;
 pub mod diagnostics;
-pub mod disco;
 pub mod doctor;
 pub mod gestorboot;
 /// Qual commit da GUI um release publica — o espelho do `lockpin` dela.
@@ -21,7 +20,6 @@ pub mod guipin;
 pub mod i18n;
 pub mod instalardica;
 pub mod links;
-pub mod market;
 pub mod news;
 pub mod notificacoes;
 pub mod notifications;

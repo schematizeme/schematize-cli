@@ -123,6 +123,8 @@ pub const GIT: &str = "schematize-git";
 pub const SKILLS: &str = "schematize-skills";
 /// Nome do binário do Overdev (E6 da extradição, ADR-0012 F5).
 pub const OVERDEV: &str = "schematize-overdev";
+/// Nome do binário do Optimizer (E3 da extradição; `disco` vive lá).
+pub const OPTIMIZER: &str = "schematize-optimizer";
 /// Repositório, para a mensagem de instalação e para o `install.sh`.
 pub const REPO: &str = "schematizeme/schematize_deployer_rs";
 
