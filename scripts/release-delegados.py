@@ -69,9 +69,12 @@ def bloqueios(crit: list[str], tabela: dict[str, dict]) -> list[str]:
             continue
         falta = []
         if not o["publico"]:
-            falta.append(f"publicar o repo {o['repo']}, cortar um release dele")
+            falta.append(f"tornar o repo {o['repo']} público (GET anônimo = 200)")
         if not o["mercado"]:
-            falta.append("o market passar a geri-lo (appsdacasa.rs + `mercado: true` na tabela)")
+            falta.append(
+                "publicar uma versão do market que o gere (hoje: está no main do market, "
+                "falta a tag) e então marcar `mercado: true`"
+            )
         if falta:
             msgs.append(
                 f"`{bin_}` (hook-crítico) não é instalável numa máquina limpa "
@@ -80,6 +83,25 @@ def bloqueios(crit: list[str], tabela: dict[str, dict]) -> list[str]:
                 + ". Sem isso o hub, ao atualizar, sai rc=1 nos hooks e o veto do overdev some."
             )
     return msgs
+
+
+def _texto_ok() -> bool:
+    """Confere o TEXTO do bloqueio para cada combinação de flags. ONDE: `autoteste`."""
+    base = {"repo": "schematizeme/x", "mercado": True, "publico": True}
+    pub = "tornar o repo schematizeme/x público (GET anônimo = 200)"
+    mer = "publicar uma versão do market que o gere"
+    velho = ("cortar um release dele", "geri-lo", "publicar o repo")
+    ok = True
+    for publico, mercado in [(True, True), (False, True), (True, False), (False, False)]:
+        msgs = bloqueios(["a"], {"a": {**base, "publico": publico, "mercado": mercado}})
+        txt = " ".join(msgs)
+        esperado = [(pub, not publico), (mer, not mercado)]
+        errado = any((frag in txt) != deve for frag, deve in esperado)
+        errado |= any(v in txt for v in velho) or bool(msgs) != (not (publico and mercado))
+        if errado:
+            print(f"autoteste: texto errado para publico={publico} mercado={mercado}: {txt!r}")
+            ok = False
+    return ok
 
 
 def autoteste() -> int:
@@ -98,6 +120,7 @@ def autoteste() -> int:
         if obtido != esperado:
             print(f"autoteste: {crit} {tab} -> {obtido}, esperado {esperado}")
             falhou = True
+    falhou |= not _texto_ok()
     reais = origens(FONTE.read_text(encoding="utf-8"))
     if not {"schematize-overdev", "schematize-market"} <= set(reais):
         print("autoteste: o extrator não leu a tabela real")
