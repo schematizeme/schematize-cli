@@ -116,18 +116,30 @@ C = {
 "src/notificacoes/formato.rs":("hub", "formato de notificacao"),
 "src/autostart.rs":          ("hub", "bind do agente ao login (plataforma)"),
 "src/appicon.rs":            ("hub", "geracao do icone PNG (plataforma)"),
+# ---- Codigo novo desde o inventario de 2026-09-24 (D9): todo HUB ------------------------
+"src/binlink.rs":            ("hub", "achar binario no PATH/fallbacks: plataforma que a propria delegacao usa"),
+"src/instalardica.rs":       ("hub", "a dica 'instale com ...' exibida quando um app delegado falta: casco de delegacao"),
+"src/overdevlink.rs":        ("hub", "SHIM: ponte com o schematize-overdev (hooks e delegacao), nao o motor"),
+"src/skillslink.rs":         ("hub", "SHIM: ponte com o schematize-skills, nao o dominio"),
+"src/gitlog.rs":             ("hub", "ponte: le os commits via schematize-git para o seletor da janela"),
+"src/marketstatus.rs":       ("hub", "ponte: le o `status --json` do market para o badge de versao"),
+"src/overdevcli.rs":         ("hub", "casco de delegacao: monta/chama o `schematize-overdev` pela janela"),
+"src/skillactions.rs":       ("hub", "ponte: botoes da aba Skills que chamam o schematize-skills"),
+"src/skillsapplied.rs":      ("hub", "ponte: le a versao de skill aplicada via schematize-skills"),
+"src/wire/notificacoes.rs":  ("hub", "notificacoes de desktop na janela: o hub e o agente residente que notifica"),
+"src/wire/projeto.rs":       ("hub", "seletor de projeto da janela: o hub e o navegador de projetos"),
 # ---- HUB GUI ---------------------------------------------------------------
-"src/wire/overdev.rs":       ("overdev", "a tela do overdev vai com o app do overdev"),
+"src/wire/overdev.rs": ("hub", "ponte/aba enxuta apos E6/E4 (seletor, commits, atalhos, versao lida do gestor) — o dominio esta no app"),
 "src/wire/caixa.rs":         ("overdev", "caixas do checklist na tela"),
-"src/wire/odhistory.rs":     ("overdev", "historico de runs na tela"),
+"src/wire/odhistory.rs": ("hub", "ponte/aba enxuta apos E6/E4 (seletor, commits, atalhos, versao lida do gestor) — o dominio esta no app"),
 "src/wire/quiz.rs":          ("overdev", "os callbacks do quiz na aba Overdev"),
 "src/quizmodel.rs":          ("overdev", "parser PURO da fila de quiz"),
 "src/checklist.rs":          ("overdev", "modelo do checklist na GUI"),
 "src/checklistview.rs":      ("overdev", "render do checklist"),
-"src/odproj.rs":             ("overdev", "projeto do overdev na GUI"),
+"src/odproj.rs": ("hub", "ponte/aba enxuta apos E6/E4 (seletor, commits, atalhos, versao lida do gestor) — o dominio esta no app"),
 "src/odload.rs":             ("overdev", "carga dos arquivos do run"),
 "src/odmonitor.rs":          ("overdev", "monitor do run em andamento"),
-"src/odhistory.rs":          ("overdev", "historico na GUI"),
+"src/odhistory.rs": ("hub", "ponte/aba enxuta apos E6/E4 (seletor, commits, atalhos, versao lida do gestor) — o dominio esta no app"),
 "src/wire/database.rs":      ("database", "a tela do database builder vai com o app dele"),
 "src/dbbuilder.rs":          ("database", "modelo do builder na GUI"),
 "src/wire/skills.rs":        ("skills", "a tela de skills vai com o app de skills"),
@@ -137,7 +149,7 @@ C = {
 "src/discorows.rs":          ("optimizer", "linhas da tela de disco"),
 "src/wire/git.rs":           ("git", "a tela de contas git vai com o app dela"),
 "src/gitrows.rs":            ("git", "linhas da tela de contas git"),
-"src/wire/appversion.rs":    ("market", "versao dos apps na tela: o market e o dono de versao"),
+"src/wire/appversion.rs": ("hub", "ponte/aba enxuta apos E6/E4 (seletor, commits, atalhos, versao lida do gestor) — o dominio esta no app"),
 "src/wire/envs.rs":          ("hub", "JA DELEGA ao market-gui (F3); o que sobrou e a ponte"),
 "src/envrows.rs":            ("hub", "sobrou servindo outras telas depois da F3 — ponte"),
 "src/marketlink.rs":         ("hub", "SHIM: pergunta ao market por subprocesso"),
@@ -181,10 +193,24 @@ def main():
             dest, motivo = C[chave]
             linhas.append((repo, rel, n, dest, motivo))
             total += n
+    # REGRA D9: o que ESTA no hub tem de ser do hub. Exaustividade + soma provam que o inventario
+    # fecha, mas nao que a extradicao aconteceu: 77 unidades de outros apps ficaram aqui e o
+    # gerador dizia OK. Roda ANTES do retorno por falta de classificacao, para que as duas
+    # falhas aparecam juntas e uma nao esconda a outra.
+    residuo = [(r, a, n, d) for r, a, n, d, _ in linhas if d != "hub"]
+    if residuo:
+        print("RESIDUO — unidade no hub cujo destino e OUTRO app (extradicao nao feita):",
+              file=sys.stderr)
+        for r, a, n, d in residuo:
+            print(f"  - {r}/{a}: {n} unidades, destino {DESTINOS[d][0]}", file=sys.stderr)
+        print(f"  total: {sum(n for _, _, n, _ in residuo)} unidades em {len(residuo)} arquivos",
+              file=sys.stderr)
     if faltando:
         print("ARQUIVOS SEM CLASSIFICACAO — inventario nao e exaustivo:", file=sys.stderr)
         for f in faltando:
             print("  -", f, file=sys.stderr)
+        return 1
+    if residuo:
         return 1
     esperado = sum(sum(c.values()) for c in cont.values())
     if total != esperado:
@@ -196,7 +222,10 @@ def main():
         por_dest[d] += n
     for d, n in por_dest.most_common():
         print(f"  {n:5d}  {DESTINOS[d][0]}")
-    pathlib.Path("/tmp/inventario.tsv").write_text(
+    # Dentro do workspace (piso 12), nunca em /tmp.
+    saida = pathlib.Path(".schematize/scratch/inventario.tsv")
+    saida.parent.mkdir(parents=True, exist_ok=True)
+    saida.write_text(
         "\n".join(f"{r}\t{a}\t{n}\t{d}\t{m}" for r, a, n, d, m in linhas), encoding="utf-8")
     return 0
 
