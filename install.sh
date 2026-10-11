@@ -548,7 +548,7 @@ purge_previous() {
 # market devolvia a instalacao pra este script — e com a delegacao de hoje, isso e um laco.
 # REGRA: o piso so sobe para uma versao DEPOIS de o release dela existir (o espelho em
 # src/selfupdate.rs trava os dois por teste).
-MARKET_MIN="0.2.0"
+MARKET_MIN="0.4.0"
 
 # market_versao <bin> — so o numero de `schematize-market --version` ("schematize-market
 # 0.3.0 (abc123)" -> "0.3.0"). Vazio se o binario nao responder.

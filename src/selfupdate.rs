@@ -120,7 +120,7 @@ pub fn gestor_bin() -> Option<PathBuf> {
 ///
 /// REGRA: o piso só sobe para uma versão DEPOIS de o release dela existir. Antes disso o
 /// `releases/latest` ainda serve a velha, e quem roda é o caminho `avaliar_pos_troca` (segue com ela).
-const MARKET_MIN: &str = "0.2.0";
+const MARKET_MIN: &str = "0.4.0";
 
 /// O que fazer com o market já instalado.
 #[derive(Debug, PartialEq, Eq)]
