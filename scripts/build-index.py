@@ -72,6 +72,9 @@ REPOS = {
     "schematize_skills_rs": dict(
         what="App schematize Skills (E5 do ADR-0018, ADR-0012 F4): o catalogo, o que esta instalado, a autoria e o fork. E o unico dono do `gui.json`, o formato em que uma skill de TERCEIRO declara um botao na interface.",
         stack="Rust/clap + Slint", runs="binário local"),
+    "schematize_overdev_rs": dict(
+        what="App schematize Overdev (E6 do ADR-0018, ADR-0012 F5): o motor do overdev — checklist, execucao, caixa, hooks, grafo, monitor — e a janela propria. O hub so delega a ele.",
+        stack="Rust/clap + Slint", runs="binário local"),
 }
 
 # ---------------------------------------------------------------- limpeza lexica
@@ -493,9 +496,25 @@ BOUNDARY_BIN = {
     'schematize-git': 'schematize_git_rs',
     'schematize-skills': 'schematize_skills_rs',
     'schematize-skills-gui': 'schematize_skills_rs',
+    # A janela do overdev ANTES do CLI de mesmo prefixo — ver a nota sobre ordem, acima.
+    'schematize-overdev-gui': 'schematize_overdev_rs',
+    'schematize-overdev': 'schematize_overdev_rs',
     'schematize-gui': 'schematize_gui_slint',
 }
 
+
+# CONTRATOS DECLARADOS (E6, 2026-10-10): dependencia de servico que NAO e spawn nem import, e por
+# isso o leitor lexico nao ve. O market INSTALA o `schematize-overdev` (clone + cargo install do
+# repo `schematizeme/schematize_overdev_rs`, dado da tabela `APPS_GERIDOS`) — o hub novo so pode
+# ser publicado sem desligar o overdev de quem atualiza GRACAS a essa aresta, e um grafo que a
+# omite deixa o repo do overdev parecer sem consumidor. Chave (repo, nome da unidade): a ancora
+# e a funcao que de fato avalia o acesso ao repo do app antes de instalar. Declarar e EXCECAO:
+# so entra o que o analisador nao tem como derivar, com ancora real no codigo.
+CONTRATOS_DECLARADOS = {
+    ('schematize_market_rs', 'avaliar_acesso'): (
+        'schematize_overdev_rs',
+        'instala `schematize-overdev` (clone + cargo install, tabela APPS_GERIDOS)'),
+}
 
 USE_SCHEMATIZE_RE = re.compile(r'use\s+schematize::(?:\{([^}]*)\}|([A-Za-z_][A-Za-z0-9_:]*))')
 
@@ -870,6 +889,29 @@ def build_graph(repo):
         u['boundary'] = boundary_for(
             u, repo, resolvers, imports.get(u['file'], frozenset()), ambiguos)
 
+    # CONSTANTE DE ESCOPO DE ARQUIVO (E6, 2026-10-10). `const BIN: &str = "schematize-overdev"`
+    # e `const BIN: &str = "schematize-skills"` convivem em arquivos diferentes do mesmo repo:
+    # o dicionario GLOBAL de constantes guarda um nome so, e o ultimo ganhava — o hub ficava sem
+    # a aresta para o overdev. Aqui a constante vale NO ARQUIVO em que foi declarada, que e o
+    # escopo real dela, e so para quem dispara (`Command::new`) e a cita no corpo.
+    for f, src in raw.items():
+        locais = const_resolvers([src], repo)
+        if not locais:
+            continue
+        for u in units:
+            if u['file'] != f or not re.search(r'Command::new', u.get('own_clean') or ''):
+                continue
+            corpo = u['own_clean']
+            for nome, (dest, binname) in locais.items():
+                if re.search(r'\b' + re.escape(nome) + r'\b', corpo):
+                    u['boundary'] = (dest, f'spawn `{binname}` via `{nome}` (processo externo)')
+                    break
+
+    for u in units:
+        decl = CONTRATOS_DECLARADOS.get((repo, u['name']))
+        if decl and not u.get('boundary'):
+            u['boundary'] = decl
+
     # LANCADORES GENERICOS, e a aresta que so existe em quem os CHAMA.
     #
     # `abrir_gui(bin, aba)` dispara um `Command::new(bin)` — e nao sabe de qual app: o binario
@@ -1149,7 +1191,8 @@ def contrato_agregado(us):
         ms = sorted(mods)
         head = '/'.join(ms[:6]) + (f' (+{len(ms) - 6})' if len(ms) > 6 else '')
         return f'chama a lib `schematize::{{{head}}}`'
-    return ' · '.join(sorted(spawns)) + ' (processo externo)' if spawns else ''
+    sufixo = '' if any(x.startswith('instala ') for x in spawns) else ' (processo externo)'
+    return ' · '.join(sorted(spawns)) + sufixo if spawns else ''
 
 
 def emit_global(graphs, date):
