@@ -291,6 +291,14 @@ pub fn interceptar(argv: &[String]) -> Option<i32> {
     let (d, args) = delegado(argv)?;
     let bin = d.bin;
     let Some(caminho) = crate::binlink::resolve_bin(bin) else {
+        // **Os HOOKS do overdev não podem sair rc=1**: o Claude Code trata isso como erro NÃO
+        // bloqueante e o veto de um run ativo some em silêncio. `overdevausente` responde
+        // rc=0 (com o JSON de bloqueio quando cabe). Ver o doc dele.
+        if d.prefixo == "overdev" {
+            if let Some(rc) = crate::overdevausente::executar(&args) {
+                return Some(rc);
+            }
+        }
         // **O comando que se manda rodar tem de INSTALAR este app**, e o que estava aqui não
         // instalava: era o `curl | bash` do `install.sh`, que põe o `schematize` e o
         // `schematize-market` e mais ninguém (ADR-0013 — quem instala app da casa é o market).
