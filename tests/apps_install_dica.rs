@@ -1,7 +1,7 @@
 //! `schematize apps install <app>` não pode mandar o market instalar o que ele não gere.
 //!
 //! **O quê:** roda o binário de verdade, com HOME descartável, e confere o que ele diz e o
-//! código de saída para um app que o market não gere / de repo privado (`schematize-overdev`).
+//! código de saída para um app que o market não gere / de repo privado (`schematize-skills`).
 //!
 //! **Onde:** guarda do item B do release-gate (hub sem o motor do overdev).
 
@@ -26,15 +26,15 @@ fn instalar(app: &str) -> (i32, String) {
     (out.status.code().unwrap_or(-1), texto)
 }
 
-/// Overdev: não é do market e o repo é privado — não executa o market, sai != 0 e imprime o
-/// `cargo install --git` com a nota do repo privado.
+/// Skills: repo privado — não executa o market, sai != 0 e imprime o `cargo install --git`
+/// com a nota do repo privado.
 #[test]
 fn app_nao_gerido_imprime_a_dica_e_sai_nao_zero() {
-    let (rc, texto) = instalar("schematize-overdev");
+    let (rc, texto) = instalar("schematize-skills");
     assert_ne!(rc, 0, "{texto}");
     assert!(
         texto.contains(
-            "cargo install --git https://github.com/schematizeme/schematize_overdev_rs --locked"
+            "cargo install --git https://github.com/schematizeme/schematize_skills_rs --locked"
         ),
         "{texto}"
     );
@@ -44,7 +44,7 @@ fn app_nao_gerido_imprime_a_dica_e_sai_nao_zero() {
 }
 
 /// **Nome curto no binário de verdade:** `apps install overdev` tem de cair no MESMO caminho de
-/// `schematize-overdev` (a dica do repo privado), e nunca em «não conheço o app». Cobre todos os
+/// `schematize-skills` (a dica do repo privado), e nunca em «não conheço o app». Cobre todos os
 /// apps da tabela: o nome curto jamais pode ser tratado como desconhecido.
 #[test]
 fn nome_curto_nao_e_desconhecido_em_nenhum_app() {
@@ -64,12 +64,17 @@ fn nome_curto_nao_e_desconhecido_em_nenhum_app() {
             "`{app}` foi tratado como desconhecido: {texto}"
         );
     }
-    let (rc, texto) = instalar("overdev");
+    let (rc, texto) = instalar("skills");
     assert_ne!(rc, 0, "{texto}");
     assert!(
-        texto.contains("cargo install --git https://github.com/schematizeme/schematize_overdev_rs"),
+        texto.contains("cargo install --git https://github.com/schematizeme/schematize_skills_rs"),
         "{texto}"
     );
+    // Overdev agora é do market publicado: sem o gestor, pede o gestor (não a dica de fonte).
+    let (rc, texto) = instalar("overdev");
+    assert_ne!(rc, 0, "{texto}");
+    assert!(texto.contains("schematize-market"), "{texto}");
+    assert!(!texto.contains("cargo install --git"), "{texto}");
     // E o nome que realmente não existe segue sendo recusado.
     let (rc, texto) = instalar("naoexiste");
     assert_ne!(rc, 0, "{texto}");

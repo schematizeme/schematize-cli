@@ -73,8 +73,8 @@ pub const ORIGENS: &[Origem] = &[
     Origem {
         bin: "schematize-overdev",
         repo: "schematizeme/schematize_overdev_rs",
-        mercado: false,
-        publico: false,
+        mercado: true,
+        publico: true,
     },
     Origem {
         bin: "schematize-market",
@@ -149,19 +149,12 @@ mod tests {
         ORIGENS.iter().find(|o| o.bin == bin).unwrap_or_else(|| panic!("{bin} fora da tabela"))
     }
 
-    /// O bug: overdev não é do market e o repo é privado — a dica não pode ser o comando do
-    /// market, tem de ser o do fonte, com a nota honesta.
+    /// O overdev agora é gerido pelo market PUBLICADO (>= 0.4.2) e o repo é público: a dica é o
+    /// comando do market, sem nota de "ainda não é público".
     #[test]
-    fn overdev_nao_manda_para_o_market() {
-        let d = dica("schematize-overdev");
-        assert!(!d.contains("schematize-market"), "{d}");
-        assert!(
-            d.contains(
-                "cargo install --git https://github.com/schematizeme/schematize_overdev_rs --locked"
-            ),
-            "{d}"
-        );
-        assert!(d.contains("ainda não é público"), "{d}");
+    fn overdev_vai_pelo_market() {
+        assert_eq!(dica("schematize-overdev"), "schematize-market install schematize-overdev");
+        assert!(!dica("schematize-overdev").contains("ainda não é público"));
     }
 
     /// Todo crítico de hook está na tabela, e o overdev (o delegado dos hooks) é crítico.
@@ -177,7 +170,7 @@ mod tests {
     #[test]
     fn pelo_market_so_quando_gerido_e_publico() {
         assert!(pelo_market("schematize-git"));
-        assert!(!pelo_market("schematize-overdev"));
+        assert!(pelo_market("schematize-overdev"));
         assert!(!pelo_market("schematize-skills"));
         for o in ORIGENS {
             assert_eq!(
@@ -231,7 +224,7 @@ mod tests {
     /// de propósito. Quando a release do market que o inclui existir (tag `v0.4.1`+, e o
     /// `MARKET_MIN` do `install.sh` subir junto), vire `mercado: true` na tabela E tire o bin
     /// daqui — o teste abaixo reprova se um dos dois ficar para trás.
-    const SO_NO_MARKET_DE_MAIN: &[&str] = &["schematize-overdev"];
+    const SO_NO_MARKET_DE_MAIN: &[&str] = &[];
 
     /// **Guarda entre repos, com a semântica explícita.** `mercado` = "o market PUBLICADO gere
     /// este app" (é o que decide se a dica manda rodar o comando dele numa máquina de usuário).
