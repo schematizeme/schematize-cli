@@ -146,6 +146,7 @@ fn guard_sem_app_e_sem_run_e_silencioso() {
 
 /// App PRESENTE: a delegação não muda — o rc e a saída são os do app, mesmo com run ativo.
 #[test]
+#[cfg(unix)]
 fn com_app_presente_a_delegacao_segue_igual() {
     use std::os::unix::fs::PermissionsExt;
     let r = sandbox("presente");
