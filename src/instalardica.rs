@@ -29,6 +29,16 @@ pub struct Origem {
 }
 
 /// A tabela. **Ao publicar `schematize_skills_rs`/`schematize_overdev_rs`, vire `publico`.**
+///
+/// **`mercado` = "o market PUBLICADO (última tag) gere este app"** — não "o market de `main`".
+/// O `schematize-overdev` já está em `EXTERNOS` no market de `main` (commit `bb6d47e`), mas fica
+/// `mercado: false` até existir a tag `v0.4.1` que o inclui; o porquê está no teste
+/// `mercado_confere_com_o_appsdacasa_do_market` (`SO_NO_MARKET_DE_MAIN`) e em `scripts/release-delegados.py`.
+///
+/// **Duas viradas destravam o corte de release do hub** (`sh scripts/verificar.sh --release`):
+/// (1) `mercado: true` — SÓ DEPOIS de a tag do market existir e o `MARKET_MIN` do `install.sh`
+/// subir para ela; (2) `publico: true` — SÓ DEPOIS de o dono publicar o repo (HTTP 200 sem
+/// autenticação). Até lá o hub oferece o `cargo install --git` com a nota honesta.
 pub const ORIGENS: &[Origem] = &[
     Origem {
         bin: "schematize-deployer",
@@ -215,8 +225,26 @@ mod tests {
         assert_eq!(ORIGENS.len(), crate::deployerlink::EXTERNOS.len());
     }
 
-    /// **Guarda entre repos:** `mercado` tem de bater com a tabela `EXTERNOS` do market. Se o
-    /// repo irmão não está ao lado (CI clona só este), PULA dizendo por quê — nunca passa mudo.
+    /// Apps que o market de `main` já gere mas que o market PUBLICADO ainda não conhece.
+    ///
+    /// **Esta lista é o checklist da virada.** Cada bin aqui tem `mercado: false` na [`ORIGENS`]
+    /// de propósito. Quando a release do market que o inclui existir (tag `v0.4.1`+, e o
+    /// `MARKET_MIN` do `install.sh` subir junto), vire `mercado: true` na tabela E tire o bin
+    /// daqui — o teste abaixo reprova se um dos dois ficar para trás.
+    const SO_NO_MARKET_DE_MAIN: &[&str] = &["schematize-overdev"];
+
+    /// **Guarda entre repos, com a semântica explícita.** `mercado` = "o market PUBLICADO gere
+    /// este app" (é o que decide se a dica manda rodar o comando dele numa máquina de usuário).
+    /// A tabela `EXTERNOS` do market em `main` = "o market de `main` gere". Logo:
+    ///
+    /// * `mercado: true` EXIGE o app em `EXTERNOS` — o publicado nunca sabe mais que `main`
+    ///   (publicado ⊆ main). É o furo perigoso: dica que manda um comando que não existe.
+    /// * App em `EXTERNOS` com `mercado: false` é PERMITIDO (main ⊇ publicado), mas só se estiver
+    ///   em [`SO_NO_MARKET_DE_MAIN`] — a exceção é nomeada, não implícita.
+    /// * E o inverso: bin em [`SO_NO_MARKET_DE_MAIN`] que já virou `mercado: true`, ou que o
+    ///   market deixou de gerir, reprova — a lista não apodrece.
+    ///
+    /// Se o repo irmão não está ao lado (CI clona só este), PULA dizendo por quê — nunca passa mudo.
     #[test]
     fn mercado_confere_com_o_appsdacasa_do_market() {
         let p = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -230,12 +258,54 @@ mod tests {
         };
         let geridos = bins_do_externos(&fonte);
         assert!(!geridos.is_empty(), "não achei a tabela EXTERNOS em {}", p.display());
+        let em_main = |bin: &str| geridos.iter().any(|b| b == bin);
         for o in ORIGENS {
-            assert_eq!(
-                o.mercado,
-                geridos.iter().any(|b| b == o.bin),
-                "`{}`: `mercado` diverge da tabela do market",
-                o.bin
+            if o.mercado {
+                assert!(
+                    em_main(o.bin),
+                    "`{}`: `mercado: true` mas o market de main não o gere — o publicado não \
+                     pode saber mais que main",
+                    o.bin
+                );
+                assert!(
+                    !SO_NO_MARKET_DE_MAIN.contains(&o.bin),
+                    "`{}`: já é `mercado: true` — tire-o de SO_NO_MARKET_DE_MAIN",
+                    o.bin
+                );
+            } else if em_main(o.bin) {
+                assert!(
+                    SO_NO_MARKET_DE_MAIN.contains(&o.bin),
+                    "`{}`: o market de main o gere e `mercado: false` não está justificado em \
+                     SO_NO_MARKET_DE_MAIN",
+                    o.bin
+                );
+            }
+        }
+        for b in SO_NO_MARKET_DE_MAIN {
+            assert!(
+                em_main(b),
+                "`{b}` está em SO_NO_MARKET_DE_MAIN mas o market de main não o gere"
+            );
+            assert!(!origem(b).mercado, "`{b}` já é `mercado: true`");
+        }
+    }
+
+    /// **O `install.sh` instala o overdev PELO market e, se falhar, diz a dica DESTA tabela.**
+    /// Texto e tabela são dois lugares para o mesmo fato: sem este teste o hint do script
+    /// envelhece quando o repo virar público (a dica passa a ser o comando do market).
+    #[test]
+    fn install_sh_instala_o_overdev_pelo_market_e_repete_a_dica() {
+        let sh = include_str!("../install.sh");
+        assert!(
+            sh.contains("delega_ao_market schematize-overdev"),
+            "o install.sh não pede o schematize-overdev ao market"
+        );
+        for linha in dica("schematize-overdev").lines() {
+            assert!(
+                sh.contains(linha.trim()),
+                "a dica do overdev mudou em instalardica.rs e o install.sh não a acompanhou: \
+                 falta `{}`",
+                linha.trim()
             );
         }
     }

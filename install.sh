@@ -831,6 +831,35 @@ delega_ao_market() {
 }
 
 # ---------------------------------------------------------------------------
+# garantir_overdev — poe o `schematize-overdev` na maquina, PELO market.
+#
+# O QUE: se o app nao esta la, `delega_ao_market schematize-overdev`. Se nao veio, imprime a
+# dica que FUNCIONA (a mesma de `src/instalardica.rs`, travada por teste) e SEGUE.
+#
+# ONDE: `install_source`, logo depois das delegacoes opt-in — e, ao contrario delas, SEM flag.
+#
+# POR QUE SEM FLAG: o hub DELEGA `schematize overdev check|guard` (hooks Stop/PreToolUse do
+# Claude Code) a este app. Sem ele o hook sai rc=1, o Claude Code trata como erro nao
+# bloqueante e o veto do overdev some em silencio.
+#
+# POR QUE NUNCA ABORTA: o repo do overdev e PRIVADO ate o dono publicar, e um market anterior
+# a v0.4.1 nem o conhece. Falhar a instalacao do hub por causa de um opcional trocaria um
+# recurso ausente por uma maquina sem nada (piso 10). A falha FALA — nao e engolida: o
+# `delega_ao_market` ja imprime o porque, e aqui vai o caminho alternativo.
+# ---------------------------------------------------------------------------
+garantir_overdev() {
+  [ -x "$TARGET_HOME/.cargo/bin/schematize-overdev" ] && { ok "schematize-overdev ja instalado."; return 0; }
+  if delega_ao_market schematize-overdev; then
+    return 0
+  fi
+  warn "o hub precisa do schematize-overdev para o comando 'schematize overdev' e para os hooks."
+  warn "  se voce tem acesso ao repositorio, instale pelo fonte:"
+  warn "  cargo install --git https://github.com/schematizeme/schematize_overdev_rs --locked"
+  warn "  (o repositório ainda não é público; quem tem acesso instala com o comando acima)"
+  return 1
+}
+
+# ---------------------------------------------------------------------------
 # PATH nos rc de shell.
 #
 # O QUE: garante que <dir> esteja no PATH dos terminais FUTUROS, acrescentando um
@@ -1156,6 +1185,10 @@ registrar_no_menu() {
   fi
   if [ "$SKILLS" = 1 ]; then
     delega_ao_market schematize-skills || true
+  fi
+  # O overdev vai SEMPRE (o hub delega os hooks a ele) e nunca aborta o script.
+  if ! garantir_overdev; then
+    warn "seguindo sem o schematize-overdev — o resto da instalacao nao depende dele."
   fi
 
   # Os `target/` por-repo de antes do target compartilhado não são mais lidos por
