@@ -90,11 +90,28 @@ fn nome_legado(bin: &str) -> Option<&'static str> {
     }
 }
 
-/// **O quê:** acha um app externo pelo nome do binário.
-/// **Onde:** a CLI, ao despachar `schematize <app> …`.
-pub fn externo(bin: &str) -> Option<&'static AppExterno> {
-    EXTERNOS.iter().find(|a| a.bin == bin)
+/// **O quê:** o RESOLVEDOR ÚNICO de nome de app: aceita o binário inteiro
+/// (`schematize-overdev`) ou o nome curto (`overdev`), sem diferenciar maiúscula e ignorando
+/// espaço nas pontas.
+///
+/// **Onde:** todo subcomando de `schematize apps` (`install`, `exec`) — nenhum compara nome
+/// por conta própria. O prefixo vem de [`PREFIXO_APP`], então app novo na tabela já ganha o
+/// nome curto sem tocar em mais nada.
+///
+/// **Por que existe:** `apps install overdev` respondia «não conheço o app `overdev`» porque a
+/// tabela só casava o nome completo; quem digita o que a lista mostra pela metade não deve
+/// ouvir que o app não existe. Deny-by-default continua: nome fora da tabela é `None`, e o
+/// que o chamador executa é SEMPRE o `bin` da tabela, nunca o texto digitado.
+pub fn externo(nome: &str) -> Option<&'static AppExterno> {
+    let n = nome.trim().to_ascii_lowercase();
+    if n.is_empty() {
+        return None;
+    }
+    EXTERNOS.iter().find(|a| a.bin == n || a.bin.strip_prefix(PREFIXO_APP) == Some(n.as_str()))
 }
+
+/// Prefixo comum dos binários dos apps da casa; o nome curto é o binário sem ele.
+const PREFIXO_APP: &str = "schematize-";
 
 /// Nome do binário do Deployer.
 pub const BIN: &str = "schematize-deployer";
@@ -280,6 +297,37 @@ mod tests {
                 a.bin
             );
             assert!(!c.contains("curl"), "{}: {c}", a.bin);
+        }
+    }
+
+    /// **O nome CURTO resolve para todo app da tabela**, e é o MESMO app do nome completo.
+    #[test]
+    fn nome_curto_resolve_todo_app_da_tabela() {
+        for a in EXTERNOS {
+            let curto =
+                a.bin.strip_prefix("schematize-").expect("todo app da tabela tem o prefixo");
+            assert_eq!(externo(curto), Some(a), "`{curto}` deveria resolver para {}", a.bin);
+            assert_eq!(externo(a.bin), Some(a), "o nome completo continua valendo");
+            assert_eq!(externo(&curto.to_uppercase()), Some(a), "maiúscula não muda o app");
+            assert_eq!(externo(&format!("  {curto}\n")), Some(a), "espaço nas pontas é ignorado");
+        }
+    }
+
+    /// **Deny-by-default:** o que não está na tabela não resolve — nem vazio, nem só o prefixo,
+    /// nem um nome com cara de flag.
+    #[test]
+    fn nome_fora_da_tabela_nao_resolve() {
+        for ruim in [
+            "",
+            "  ",
+            "schematize-",
+            "schematize",
+            "nada",
+            "--yes",
+            "overdev;ls",
+            "schematize-schematize-git",
+        ] {
+            assert_eq!(externo(ruim), None, "`{ruim}` não pode resolver");
         }
     }
 

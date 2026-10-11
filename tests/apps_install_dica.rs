@@ -42,3 +42,36 @@ fn app_nao_gerido_imprime_a_dica_e_sai_nao_zero() {
     assert!(!texto.contains("Vou instalar"), "não pode ter iniciado o fluxo do market: {texto}");
     assert!(!texto.contains("curl -fsSL"), "não é caso de instalar o gestor: {texto}");
 }
+
+/// **Nome curto no binário de verdade:** `apps install overdev` tem de cair no MESMO caminho de
+/// `schematize-overdev` (a dica do repo privado), e nunca em «não conheço o app». Cobre todos os
+/// apps da tabela: o nome curto jamais pode ser tratado como desconhecido.
+#[test]
+fn nome_curto_nao_e_desconhecido_em_nenhum_app() {
+    for app in [
+        "deployer",
+        "optimizer",
+        "database",
+        "git",
+        "skills",
+        "overdev",
+        "market",
+        "schematize-git",
+    ] {
+        let (_rc, texto) = instalar(app);
+        assert!(
+            !texto.contains("não conheço o app"),
+            "`{app}` foi tratado como desconhecido: {texto}"
+        );
+    }
+    let (rc, texto) = instalar("overdev");
+    assert_ne!(rc, 0, "{texto}");
+    assert!(
+        texto.contains("cargo install --git https://github.com/schematizeme/schematize_overdev_rs"),
+        "{texto}"
+    );
+    // E o nome que realmente não existe segue sendo recusado.
+    let (rc, texto) = instalar("naoexiste");
+    assert_ne!(rc, 0, "{texto}");
+    assert!(texto.contains("não conheço o app `naoexiste`"), "{texto}");
+}
