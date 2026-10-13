@@ -8,11 +8,10 @@ mesmo** e traz as **novidades do blog** ([blog.schematize.net](https://blog.sche
 
 ## Instalar
 
-**Padrão: compila na sua máquina.** É open source e quem instala é dev — o build local é o
-caminho de verdade (não depende de release/CI publicado, sempre casa com a sua arquitetura).
-O instalador cuida do **Rust** (rustup) e das **libs de build da GUI** (X11/Wayland/GL `-dev`,
-via apt/zypper/dnf — pede sudo), clona o main e compila CLI + GUI (`cargo install --features
-gui`). Primeira compilação leva alguns minutos.
+**Padrão: binário pré-compilado** do release mais novo — sem Rust, sem compilador, sem libs
+de build (ADR-0022). Se não houver binário pra sua plataforma (ou o release ainda não saiu), o
+instalador avisa com clareza e **compila do fonte por você**. Compilar na máquina de propósito
+é opcional: `--from-source`.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/schematizeme/schematize-cli/main/install.sh | bash
@@ -21,13 +20,14 @@ curl -fsSL https://raw.githubusercontent.com/schematizeme/schematize-cli/main/in
 **Distros com deps automáticas:** Debian 13 / Mint / Ubuntu e openSUSE Leap / Fedora. Outras:
 instale à mão as libs de X11/Wayland/GL `-dev` da sua distro e rode o mesmo comando.
 
-**Atalhos (opcionais — só se houver release pronto):**
+**Opcionais:**
 ```bash
-# binários pré-compilados do release (sem compilar)
-curl -fsSL https://raw.githubusercontent.com/schematizeme/schematize-cli/main/install.sh | bash -s -- --binary
+# compilar na sua máquina (instala Rust e as libs de build da GUI; pede sudo; leva minutos)
+curl -fsSL https://raw.githubusercontent.com/schematizeme/schematize-cli/main/install.sh | bash -s -- --from-source
 # pacote .deb/.rpm da distro
 curl -fsSL https://raw.githubusercontent.com/schematizeme/schematize-cli/main/install.sh | bash -s -- --package
 ```
+(`--binary` continua aceita: é o mesmo que o padrão.)
 
 **Do fonte manualmente:**
 ```bash
@@ -44,8 +44,8 @@ cargo install --path .
 
 O instalador faz os dois de uma vez. Instala `schematize` + `schematize-gui` em
 `~/.cargo/bin` e liga o autostart do agente
-(inicia com a sessão, checa atualizações e notifica). **`schematize upgrade` recompila do
-fonte** (puxa o main e refaz o build) — sem depender de binário publicado.
+(inicia com a sessão, checa atualizações e notifica). **`schematize upgrade`** delega ao
+`schematize-market` (binário do release); `--from-source` do instalador é o caminho de fonte.
 
 ## Interface gráfica (GUI)
 

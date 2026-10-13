@@ -1,9 +1,8 @@
-//! `schematize upgrade` — RECOMPILA o CLI/GUI do fonte (source-first).
-//! O quê: puxa o install.sh do main e roda em modo --from-source (rustup + libs de
-//! build + `cargo install --features gui`), com stdio herdado pra sudo/rustup poderem
-//! pedir no terminal. Não depende de binário publicado por CI.
-//! Onde: chamado por main (`schematize upgrade`). A GUI/agente têm o atalho binário
-//! (selfupdate.rs) pra quando existir release pronto; este é o caminho de verdade.
+//! `schematize upgrade` — atualiza o app delegando ao `schematize-market`.
+//! O quê: o `install.sh` do main instala BINÁRIO pré-compilado por padrão (ADR-0022) e só
+//! compila com `--from-source` (rustup + libs de build); aqui ficam a URL do script e o
+//! lookup de versão. Onde: chamado por main (`schematize upgrade`); `selfupdate.rs` usa a
+//! URL como fallback de fonte.
 
 use crate::i18n::{t, tf};
 

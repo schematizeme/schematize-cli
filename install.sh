@@ -1,14 +1,17 @@
 #!/usr/bin/env bash
 # install.sh — instalador do schematize (Linux-first: Debian/Mint/Ubuntu + openSUSE).
 #
-# PADRÃO: COMPILA NA MÁQUINA (do fonte). É open source e quem instala é dev — build
-# local é o caminho de verdade: sem depender de CI/binário publicado, sempre casando
-# com a arquitetura do host. O instalador cuida do Rust (rustup) e das libs de build
-# da GUI (X11/Wayland/GL -dev, via apt/zypper/dnf — pede sudo).
+# PADRÃO: BINÁRIO PRÉ-COMPILADO do release latest (ADR-0022, decisão de 2026-10-13, que
+# supera a do commit 8893281). Quem instala nem sempre é dev: exigir rustup, compilador e
+# libs -dev é culpar o usuário por não ter toolchain (§37.48). Se NÃO houver binário pra
+# plataforma (ou o release ainda não foi cortado), o instalador cai pro fonte COM mensagem
+# clara — nunca falha cru. Compilar na máquina continua disponível com --from-source (cuida
+# do Rust via rustup e das libs de build da GUI via apt/zypper/dnf — pede sudo).
 #
 # Uso:
-#   curl -fsSL .../install.sh | bash                 # compila CLI + GUI na máquina (PADRÃO)
-#   curl -fsSL .../install.sh | bash -s -- --binary  # atalho: binários pré-compilados do release (se houver)
+#   curl -fsSL .../install.sh | bash                 # binários pré-compilados do release (PADRÃO)
+#   curl -fsSL .../install.sh | bash -s -- --from-source  # compila CLI + GUI na máquina
+#   curl -fsSL .../install.sh | bash -s -- --binary  # compat: o mesmo que o padrão (flag antiga, aceita)
 #   curl -fsSL .../install.sh | bash -s -- --package # atalho: pacote .deb/.rpm da distro (se houver)
 #   curl -fsSL .../install.sh | bash -s -- --deployer  # instala TAMBÉM o deployer (SSH/VPS)
 #   curl -fsSL .../install.sh | bash -s -- --optimizer # instala TAMBÉM o optimizer (recursos)
@@ -24,7 +27,7 @@ set -euo pipefail
 REPO="schematizeme/schematize-cli"
 BASE="https://github.com/$REPO/releases/latest/download"
 API="https://api.github.com/repos/$REPO/releases/latest"
-MODE="source"   # padrão: compilar do fonte
+MODE="binary"   # padrão: binário pré-compilado (ADR-0022); --from-source compila
 for a in "$@"; do case "$a" in
   --from-source|--source) MODE=source;; --binary) MODE=binary;;
   --package|--deb|--rpm) MODE=package;; --auto) MODE=package;;
@@ -983,7 +986,20 @@ post_config() {
   echo "    schematize skills list            # versões instaladas vs latest"
 }
 
+# O quê: confirma que o release latest tem o asset do CLI pra esta plataforma.
+# Onde: início de `install_binary`. Sem binário publicado (arch != x86_64, release não cortado,
+# sem rede ao GitHub) devolve 1 e o chamador cai pro fonte — o release só publica linux-x86_64.
+binario_disponivel() {
+  [ "$(uname -m)" = x86_64 ] || return 1
+  curl -fsSLI --max-time 20 -o /dev/null "$(resolve_dl)/schematize-linux-x86_64" 2>/dev/null
+}
 install_binary() {
+  if ! binario_disponivel; then
+    warn "não há binário pré-compilado pra esta plataforma ($(uname -m)) ou o release ainda não está publicado."
+    warn "sem problema: vou compilar do fonte pra você (instalo o Rust e as libs de build; pede sudo; leva alguns minutos)."
+    warn "para escolher isso de propósito da próxima vez:  bash install.sh --from-source"
+    MODE=source; install_source; return
+  fi
   purge_previous "$TARGET_HOME/.cargo/bin"
   ensure_runtime_deps; gui_runtime_deps; ensure_fonts
   local DL; DL="$(resolve_dl)"
@@ -1064,7 +1080,7 @@ install_source() {
       warn "compilacao (compilador C, pkg-config, libs de dev) que eu nao pude instalar"
       warn "porque voce nao e root e nao ha \`sudo\` nesta maquina."
       warn "  caminho mais curto: instale-as como root e rode este script de novo."
-      warn "  ou, se houver binario pronto pra sua plataforma:  bash install.sh --binary"
+      warn "  ou, se houver binario pronto pra sua plataforma:  bash install.sh   (o padrão já é binário)"
     fi
     die "build do CLI falhou"
   fi
