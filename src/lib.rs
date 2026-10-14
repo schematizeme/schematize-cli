@@ -20,8 +20,6 @@ pub mod guipin;
 pub mod i18n;
 pub mod instalardica;
 pub mod links;
-/// Garante o gestor de atualizações (market) na máquina — o "parasita".
-pub mod market_parasita;
 pub mod news;
 pub mod notificacoes;
 pub mod notifications;

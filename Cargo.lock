@@ -795,9 +795,14 @@ dependencies = [
  "clap",
  "notify-rust",
  "png",
+ "schematize_plataforma",
  "serde",
  "serde_json",
 ]
+
+[[package]]
+name = "schematize_plataforma"
+version = "0.2.0"
 
 [[package]]
 name = "serde"

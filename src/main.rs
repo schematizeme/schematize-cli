@@ -32,7 +32,10 @@ fn main() {
     // Parasita do market: depois do parse (o clap já tratou --version/--help). Os hooks
     // `overdev guard|check` nem chegam aqui (o `applink` os encaminha acima), e o módulo os
     // exclui por garantia — rodam a cada tool call.
-    schematize::market_parasita::garantir();
+    schematize_plataforma::parasita::garantir(
+        &schematize_plataforma::parasita::Config::new("schematize")
+            .com_hooks(schematize_plataforma::parasita::HOOKS_OVERDEV),
+    );
     let r: Result<(), String> = match cli.cmd {
         // O braço de SKILLS saiu daqui na E5: `skills`, `install`, `update`, `list` e `remove`
         // são interceptados pelo `applink` antes do clap e vão para o `schematize-skills`.
