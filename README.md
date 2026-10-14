@@ -8,6 +8,23 @@ mesmo** e traz as **novidades do blog** ([blog.schematize.net](https://blog.sche
 
 ## Instalar
 
+### Kit completo (recomendado)
+
+Hub + market (sempre na versão latest) + todos os apps e janelas + skills + `schematize doctor`,
+num comando. Cada passo que falha é reportado sem derrubar os outros; o resumo final diz o que
+faltou e o código de saída é diferente de zero se algo falhou:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/schematizeme/schematize-cli/main/install.sh | bash -s -- --completo
+```
+
+(`--all` e `--kit` são sinônimos de `--completo`.) O `schematize-market` é instalado **sempre**,
+mesmo sem flag, e o instalador **troca** um market antigo pela latest sem depender do
+self-update dele. Se `~/.cargo/bin` não estiver no seu PATH, o fim da instalação mostra o
+comando exato pro seu shell.
+
+### Só o hub
+
 **Padrão: binário pré-compilado** do release mais novo — sem Rust, sem compilador, sem libs
 de build (ADR-0022). Se não houver binário pra sua plataforma (ou o release ainda não saiu), o
 instalador avisa com clareza e **compila do fonte por você**. Compilar na máquina de propósito

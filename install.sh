@@ -18,6 +18,8 @@
 #   curl -fsSL .../install.sh | bash -s -- --database  # instala TAMBÉM o database (schema/SQL)
 #   curl -fsSL .../install.sh | bash -s -- --git       # instala TAMBÉM o git (contas/repos)
 #   curl -fsSL .../install.sh | bash -s -- --skills    # instala TAMBÉM as skills (catálogo)
+#   curl -fsSL .../install.sh | bash -s -- --completo  # KIT COMPLETO: hub + market + todos os apps/janelas + skills + doctor
+#                                                      # (sinônimos: --all, --kit)
 #
 # As flags de app são CUMULATIVAS e opt-in. Um comando que funciona e não aparece em lugar
 # nenhum é pior que um comando removido: a pessoa conclui que a funcionalidade não existe. Por
@@ -37,12 +39,15 @@ for a in "$@"; do case "$a" in
   --database) DATABASE=1;;   # instala TAMBEM o schematize-database + a janela dele (idem)
   --git) GIT=1;;             # instala TAMBEM o schematize-git + a janela dele (idem)
   --skills) SKILLS=1;;       # instala TAMBEM o schematize-skills + a janela dele (idem)
+  --completo|--all|--kit) COMPLETO=1;;  # KIT COMPLETO: hub + market + todos os apps + skills + doctor
 esac; done
 : "${DEPLOYER:=0}"
 : "${OPTIMIZER:=0}"
 : "${DATABASE:=0}"
 : "${GIT:=0}"
 : "${SKILLS:=0}"
+: "${COMPLETO:=0}"
+MARKET_ATUALIZADO=0   # 1 depois que ESTA execucao trocou o market pela latest
 
 log() { printf '\033[1;36m▶ %s\033[0m\n' "$*"; }
 ok()  { printf '\033[1;32m✓ %s\033[0m\n' "$*"; }
@@ -538,10 +543,11 @@ purge_previous() {
 # o papel de gestor pro market; com ele vem a obrigacao. E o que faz este script
 # voltar a ser SO um bootstrap: ele instala o gestor, o gestor instala o resto.
 #
-# POR QUE NAO SOBRESCREVE O QUE JA EXISTE: o download vem do ultimo RELEASE, que pode
-# estar ATRAS do que a maquina tem — o market se reconstroi a cada `update`, e
-# sobrescrever aqui o REBAIXARIA, desfazendo correcoes dele mesmo. Foi assim que uma
-# correcao no proprio updater deixou de chegar. Aqui e bootstrap de quem nao tem.
+# POR QUE SOBRESCREVE O QUE JA EXISTE (inverteu em 2026-10-13, v0.66.3): o market e padrao
+# do kit e precisa chegar na LATEST mesmo quando o self-update dele esta quebrado (foi o
+# caso real: uma maquina com market antigo que nao se atualizava). Depender do market
+# velho pra se atualizar e o laco que o usuario nao consegue sair sozinho (§37.48). O
+# release e o mais novo publicado; o `mv` so acontece com o binario novo provado.
 #
 # POR QUE A FALHA FALA (piso R3): sem o market nao ha caminho de atualizacao nenhum
 # nem instalacao de linguagem. Um `>/dev/null 2>&1` aqui e como dois apps sumiram do
@@ -568,25 +574,17 @@ versao_menor() {
 }
 
 install_market() {
-  local bin="$TARGET_HOME/.cargo/bin" dst asset os arch url
+  local bin="$TARGET_HOME/.cargo/bin" dst asset os arch url novo atual
   dst="$bin/schematize-market"
   as_user mkdir -p "$bin"
 
-  if [ -x "$dst" ]; then
-    local atual
-    atual="$(market_versao "$dst")"
-    if ! versao_menor "$atual" "$MARKET_MIN"; then
-      ok "schematize-market ja instalado (schematize-market $atual)"
-      return 0
-    fi
-    # Abaixo do piso nao e "ja instalado": e o market que devolve a instalacao pra este
-    # script (ver a TRAVA DE REENTRADA, no topo). Substitui pelo FONTE, e nao pelo release:
-    # o release pode estar atras do que a main sabe instalar (o 0.3.0 nao conhece o
-    # `schematize-skills`), e o fonte nunca rebaixa.
-    log "schematize-market ${atual:-desconhecido} e anterior ao $MARKET_MIN — substituindo (ele nao sabe instalar sozinho)."
-    install_market_do_fonte
-    return
+  # Idempotente DENTRO da execucao: o `post_config` chama de novo e nao rebaixa de novo.
+  if [ "$MARKET_ATUALIZADO" = 1 ] && [ -x "$dst" ]; then
+    return 0
   fi
+
+  atual=""
+  [ -x "$dst" ] && atual="$(market_versao "$dst")"
 
   # Nomes de asset IDENTICOS aos que `nucleo::plataforma::market_asset_name()` monta
   # e aos que o `release.yml` do market publica — os tres sao travados por teste la.
@@ -600,24 +598,36 @@ install_market() {
 
   if [ -n "$asset" ]; then
     url="https://github.com/schematizeme/schematize_market_rs/releases/latest/download/$asset"
-    log "baixando o schematize-market pronto ($asset)"
-    if as_user sh -c "curl -fsSL -o '$dst' '$url'" 2>/dev/null && [ -s "$dst" ]; then
-      as_user chmod +x "$dst" 2>/dev/null || true
-      # O binario TEM de executar aqui. Um asset da glibc errada baixa com HTTP 200 e
-      # nao roda — instala-lo e chamar de sucesso seria o gestor mentindo na primeira
-      # frase que diz. Se nao executa, apaga e cai pro fonte, que sempre funciona.
-      if as_user "$dst" --version >/dev/null 2>&1; then
-        ok "schematize-market instalado ($dst)"
-        return 0
+    novo="$dst.novo"
+    log "baixando o schematize-market latest ($asset)${atual:+ — hoje a maquina tem $atual}"
+    as_user rm -f "$novo" 2>/dev/null || true
+    # Baixa pra um arquivo AO LADO e so troca o definitivo depois de provar que executa:
+    # um download pela metade (ou uma glibc errada, HTTP 200 e nao roda) nunca derruba o
+    # market que funciona. O `mv` e atomico e vale mesmo com o market velho em execucao.
+    if as_user curl -fsSL --retry 2 -o "$novo" "$url" 2>/dev/null && [ -s "$novo" ]; then
+      as_user chmod +x "$novo" 2>/dev/null || true
+      if as_user "$novo" --version >/dev/null 2>&1; then
+        if as_user mv -f "$novo" "$dst"; then
+          MARKET_ATUALIZADO=1
+          ok "schematize-market atualizado pra latest ($dst)"
+          return 0
+        fi
+        warn "nao consegui gravar $dst (permissao?)."
+      else
+        warn "o binario baixado nao executa nesta maquina (glibc/arquitetura?)."
       fi
-      warn "o binario baixado nao executa nesta maquina (glibc/arquitetura?) — compilando do fonte."
-      as_user rm -f "$dst" 2>/dev/null || true
     else
-      as_user rm -f "$dst" 2>/dev/null || true
-      warn "nao consegui baixar o schematize-market pronto (rede? release ainda nao cortado?)."
+      warn "nao consegui baixar o schematize-market latest (sem rede? release ainda nao cortado?)."
       warn "  tentei: $url"
-      warn "  seguindo pelo fonte — leva minutos a mais, o resultado e o mesmo."
     fi
+    as_user rm -f "$novo" 2>/dev/null || true
+    # Ja ha um market que serve (>= piso): nao o derruba por uma falha de download.
+    if [ -x "$dst" ] && ! versao_menor "$atual" "$MARKET_MIN"; then
+      MARKET_ATUALIZADO=1   # ja tentei nesta execucao; o post_config nao repete
+      warn "mantive o market que ja estava ai (schematize-market $atual). Pra tentar de novo: rode este install.sh outra vez."
+      return 0
+    fi
+    warn "seguindo pelo fonte — leva minutos a mais, o resultado e o mesmo."
   else
     log "sem binario pronto do market pra $os/$arch — compilando do fonte"
   fi
@@ -1236,6 +1246,94 @@ registrar_no_menu() {
 }
 
 # ---------------------------------------------------------------------------
+# kit_completo — `--completo` (sinonimos `--all`, `--kit`): a maquina inteira num comando.
+#
+# O QUE: depois de hub + market (ja instalados pelo caminho normal), roda
+#   1. `schematize-market install --all -y`  (todos os apps e TODAS as janelas)
+#   2. `schematize-skills install --all`     (o catalogo de skills)
+#   3. `schematize doctor`                   (confere o resultado)
+# Cada passo que falha e REPORTADO e NAO aborta os outros; o resumo final lista tudo e o
+# retorno e 1 se algo falhou (o script termina com esse codigo).
+#
+# ONDE: fim do script, apos `install_source`/`install_binary`. Sem `--completo` nao roda.
+#
+# PATH (§37.48): chama os binarios por CAMINHO ABSOLUTO — nao depende de ~/.cargo/bin estar
+# no PATH desta sessao — e, se nao estiver, termina dizendo o comando exato pro shell.
+# ---------------------------------------------------------------------------
+KIT_OK=(); KIT_FALHA=()
+
+# kit_passo <rotulo> <cmd...> — roda o passo como o usuario real e anota o resultado.
+kit_passo() {
+  local rotulo="$1"; shift
+  log "kit completo: $rotulo"
+  if as_user env SCHEMATIZE_DELEGADO_AO_MARKET=1 "$@"; then
+    KIT_OK+=("$rotulo")
+  else
+    warn "falhou: $rotulo — sigo com os proximos passos. Repita: $*"
+    KIT_FALHA+=("$rotulo")
+  fi
+}
+
+# kit_dica_path — se ~/.cargo/bin nao esta no PATH desta sessao, diz o comando exato.
+kit_dica_path() {
+  local bin="$TARGET_HOME/.cargo/bin" sh_nome
+  case ":$PATH:" in *":$bin:"*) return 0 ;; esac
+  sh_nome="$(basename "${SHELL:-bash}")"
+  warn "$bin ainda nao esta no PATH deste terminal. Rode agora:"
+  case "$sh_nome" in
+    fish) warn "  fish_add_path $bin" ;;
+    *)    warn "  export PATH=\"$bin:\$PATH\"" ;;
+  esac
+  warn "  (terminais novos ja pegam sozinhos)"
+}
+
+kit_completo() {
+  local bin="$TARGET_HOME/.cargo/bin" f
+  KIT_OK=(); KIT_FALHA=()
+  echo; log "KIT COMPLETO — hub + market + todos os apps/janelas + skills + doctor"
+
+  for f in schematize schematize-market; do
+    if [ -x "$bin/$f" ]; then KIT_OK+=("$f presente"); else
+      warn "$f nao esta em $bin — reveja as mensagens acima e rode o install.sh de novo."
+      KIT_FALHA+=("$f presente")
+    fi
+  done
+
+  if [ -x "$bin/schematize-market" ]; then
+    kit_passo "market install --all -y" "$bin/schematize-market" install --all -y
+  else
+    warn "pulei 'market install --all -y': sem o market. Instale-o e rode: schematize-market install --all -y"
+    KIT_FALHA+=("market install --all -y")
+  fi
+
+  # O market --all costuma trazer o schematize-skills; se nao trouxe, falha aqui com a
+  # mensagem do proprio shell + a dica de como repetir (kit_passo).
+  if [ -x "$bin/schematize-skills" ]; then
+    kit_passo "skills install --all" "$bin/schematize-skills" install --all
+  else
+    warn "schematize-skills nao esta em $bin. Instale: schematize-market install schematize-skills && schematize-skills install --all"
+    KIT_FALHA+=("skills install --all")
+  fi
+
+  if [ -x "$bin/schematize" ]; then
+    kit_passo "schematize doctor" "$bin/schematize" doctor
+  else
+    KIT_FALHA+=("schematize doctor")
+  fi
+
+  echo; log "RESUMO do kit completo"
+  for f in ${KIT_OK[@]+"${KIT_OK[@]}"}; do ok "$f"; done
+  for f in ${KIT_FALHA[@]+"${KIT_FALHA[@]}"}; do warn "FALHOU: $f"; done
+  kit_dica_path
+  if [ "${#KIT_FALHA[@]}" -gt 0 ]; then
+    warn "${#KIT_FALHA[@]} passo(s) falharam — os demais foram concluidos. Veja as mensagens acima."
+    return 1
+  fi
+  ok "kit completo instalado."
+  return 0
+}
+
+# ---------------------------------------------------------------------------
 # SCHEMATIZE_INSTALL_LIB=1 -> define as funcoes e PARA, sem instalar nada.
 #
 # Existe pra que `tests/install_path_rc.rs` exercite a `ensure_path_rc` DE VERDADE,
@@ -1270,3 +1368,8 @@ case "$MODE" in
     esac ;;
   *) install_source ;;
 esac
+
+# --completo: roda DEPOIS da instalacao normal; o codigo de saida reflete os passos do kit.
+if [ "$COMPLETO" = 1 ]; then
+  kit_completo || exit 1
+fi
