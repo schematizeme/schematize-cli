@@ -283,7 +283,13 @@ fn roda_install_binary(tag: &str) -> (String, std::path::PathBuf, i32) {
         .expect("setsid/bash roda");
     let tudo =
         format!("{}{}", String::from_utf8_lossy(&out.stdout), String::from_utf8_lossy(&out.stderr));
-    let rc = tudo.rsplit("RC=").next().and_then(|s| s.trim().parse().ok()).unwrap_or(-1);
+    // O `RC=` sai no STDOUT; os avisos do script saem no STDERR e, concatenados depois, vinham
+    // COLADOS ao número (`RC=0\n⚠ ...`) — o parse do "resto da saída" dava -1 sempre que a
+    // máquina não tinha as libs da GUI (runner do CI). Lê só a linha `RC=` do stdout.
+    let rc = String::from_utf8_lossy(&out.stdout)
+        .lines()
+        .find_map(|l| l.strip_prefix("RC=").and_then(|n| n.trim().parse().ok()))
+        .unwrap_or(-1);
     (tudo, home, rc)
 }
 
