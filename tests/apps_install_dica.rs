@@ -18,6 +18,7 @@ fn instalar(app: &str) -> (i32, String) {
         .env("XDG_CONFIG_HOME", home.join(".config"))
         .env("XDG_DATA_HOME", home.join(".local/share"))
         .env("PATH", "/usr/bin:/bin")
+        .env("SCHEMATIZE_SEM_MARKET", "1")
         .output()
         .expect("executa o binário");
     let _ = std::fs::remove_dir_all(&home);

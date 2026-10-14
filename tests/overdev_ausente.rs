@@ -46,6 +46,7 @@ fn roda(raiz: &Path, sub: &str, stdin: &str, path: &str) -> Saida {
         .env("XDG_CONFIG_HOME", raiz.join("home/.config"))
         .env("XDG_DATA_HOME", raiz.join("home/.local/share"))
         .env("PATH", path)
+        .env("SCHEMATIZE_SEM_MARKET", "1")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
