@@ -292,9 +292,44 @@ fn shadowed() -> Option<String> {
     }
 }
 
-/// GitHub acessível? (HEAD rápido na API, sem baixar corpo.)
+/// Endpoint de sonda de rede: arquivo estático do CDN, SEM rate-limit anônimo. A API
+/// (`api.github.com`) limita a 60 req/h por IP e dava FALHA falsa em rede boa.
+const GITHUB_PROBE_URL: &str =
+    "https://raw.githubusercontent.com/schematizeme/schematize-cli/main/install.sh";
+
+/// **O quê:** classifica a resposta HTTP da sonda: `true` = o GitHub está alcançável.
+/// **Onde:** [`github_reachable_with`]; separada pra ser testada com status injetado.
+/// 2xx/3xx = alcançável; 403/429 COM cabeçalho de rate-limit (`x-ratelimit-*` ou
+/// `retry-after`) = alcançável porém limitado (resposta do servidor prova a rede).
+fn github_status_reachable(status: u16, headers: &str) -> bool {
+    match status {
+        200..=399 => true,
+        403 | 429 => {
+            let h = headers.to_ascii_lowercase();
+            h.contains("x-ratelimit") || h.contains("retry-after")
+        }
+        _ => false,
+    }
+}
+
+/// **O quê:** extrai o código HTTP da primeira linha de cabeçalhos (`HTTP/2 200`).
+/// **Onde:** [`github_reachable_with`].
+fn parse_http_status(headers: &str) -> Option<u16> {
+    headers.lines().find(|l| l.starts_with("HTTP/"))?.split_whitespace().nth(1)?.parse().ok()
+}
+
+/// **O quê:** decide a alcançabilidade a partir dos cabeçalhos crus de um HEAD.
+/// **Onde:** [`github_reachable`] (com `curl`) e os testes (com texto injetado).
+fn github_reachable_with(headers: &str) -> bool {
+    parse_http_status(headers).is_some_and(|s| github_status_reachable(s, headers))
+}
+
+/// GitHub acessível? HEAD num endpoint sem rate-limit; 403/429 limitado conta como alcançável.
 fn github_reachable() -> bool {
-    util::run("curl", &["-sfI", "-m", "6", "https://api.github.com"]).is_ok()
+    // Sem `-f`: queremos o status mesmo em 4xx. `-I` = HEAD, cabeçalhos no stdout.
+    util::run("curl", &["-sI", "-m", "6", GITHUB_PROBE_URL])
+        .map(|h| github_reachable_with(&h))
+        .unwrap_or(false)
 }
 
 /// Localiza o binário `schematize-gui` no PATH. Prioriza o resolvido pelo shell
@@ -464,4 +499,34 @@ fn write_desktop(path: &Path, bin: &Path) -> Result<(), String> {
         .arg(util::home().join(".local/share/applications"))
         .status();
     Ok(())
+}
+
+#[cfg(test)]
+mod testes_rede {
+    use super::*;
+
+    #[test]
+    fn ok_200_e_redirect_sao_alcancaveis() {
+        assert!(github_reachable_with("HTTP/2 200\r\ncontent-type: text/plain\r\n"));
+        assert!(github_reachable_with("HTTP/1.1 301 Moved\r\nlocation: x\r\n"));
+    }
+
+    #[test]
+    fn rate_limit_403_429_com_cabecalho_e_alcancavel() {
+        assert!(github_reachable_with("HTTP/2 403\r\nx-ratelimit-remaining: 0\r\n"));
+        assert!(github_reachable_with("HTTP/2 429\r\nRetry-After: 60\r\n"));
+    }
+
+    #[test]
+    fn status_403_sem_cabecalho_de_limite_e_falha() {
+        assert!(!github_reachable_with("HTTP/2 403\r\nserver: proxy\r\n"));
+    }
+
+    #[test]
+    fn erro_de_servidor_e_lixo_sao_falha() {
+        assert!(!github_reachable_with("HTTP/2 503\r\n"));
+        assert!(!github_reachable_with(""));
+        assert!(!github_reachable_with("nao http"));
+        assert!(!github_status_reachable(404, ""));
+    }
 }
