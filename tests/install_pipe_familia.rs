@@ -31,6 +31,8 @@ fn install_sh() -> PathBuf {
 /// **O quê:** sandbox com `bin/` (PATH), `home/`, `log/` e `tmp/`. **Onde:** todo teste daqui.
 struct Box {
     raiz: PathBuf,
+    /// Código de saída da última execução de `pipe_bytes`.
+    codigo: std::cell::Cell<Option<i32>>,
 }
 
 impl Box {
@@ -41,7 +43,7 @@ impl Box {
         for d in ["bin", "home", "log", "tmp"] {
             fs::create_dir_all(raiz.join(d)).unwrap();
         }
-        let b = Box { raiz };
+        let b = Box { raiz, codigo: std::cell::Cell::new(None) };
         for t in REAIS {
             for dir in ["/usr/bin", "/bin"] {
                 let src = Path::new(dir).join(t);
@@ -112,6 +114,7 @@ esac"#
         let feeder = std::thread::spawn(move || stdin.write_all(&script));
         let o = filho.wait_with_output().unwrap();
         let w = feeder.join().unwrap();
+        self.codigo.set(o.status.code());
         let t =
             format!("{}{}", String::from_utf8_lossy(&o.stdout), String::from_utf8_lossy(&o.stderr));
         let tmp = fs::read_dir(self.raiz.join("tmp")).unwrap().count();
@@ -261,13 +264,14 @@ fn com_uname(nome: &str, sistema: &str) -> (Option<i32>, String, usize, String) 
     b.falso("uname", &format!("echo {sistema}"));
     let (t, _w, tmp) = b.pipe(&["--completo"], true);
     let home = fs::read_dir(b.raiz.join("home")).unwrap().count();
-    (None, t, tmp + home, b.log("fetch.log"))
+    (b.codigo.get(), t, tmp + home, b.log("fetch.log"))
 }
 
 #[test]
 fn windows_git_bash_aponta_o_instalador_ps1_e_nao_toca_em_nada() {
     for sis in ["MINGW64_NT-10.0-22631", "MSYS_NT-10.0", "CYGWIN_NT-10.0"] {
-        let (_, t, efeitos, fetch) = com_uname("win", sis);
+        let (rc, t, efeitos, fetch) = com_uname("win", sis);
+        assert_eq!(rc, Some(0), "{sis}: Windows deve sair 0\n{t}");
         assert!(t.contains("irm https://raw.githubusercontent.com/schematizeme/schematize_windows_rs/main/install.ps1 | iex"), "{sis}:\n{t}");
         assert!(!t.contains("só Linux") && !t.contains("SCRIPT_NOVO_RODOU"), "{sis}:\n{t}");
         assert_eq!(efeitos, 0, "{sis}: tocou no disco");
@@ -277,7 +281,8 @@ fn windows_git_bash_aponta_o_instalador_ps1_e_nao_toca_em_nada() {
 
 #[test]
 fn macos_da_mensagem_acionavel_sem_tocar_em_nada() {
-    let (_, t, efeitos, fetch) = com_uname("mac", "Darwin");
+    let (rc, t, efeitos, fetch) = com_uname("mac", "Darwin");
+    assert_eq!(rc, Some(1), "macOS deve sair 1\n{t}");
     assert!(t.contains("cargo install") && t.contains("nada foi alterado"), "{t}");
     assert_eq!(efeitos, 0);
     assert!(fetch.is_empty());
