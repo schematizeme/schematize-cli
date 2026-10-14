@@ -75,6 +75,14 @@ REPOS = {
     "schematize_overdev_rs": dict(
         what="App schematize Overdev (E6 do ADR-0018, ADR-0012 F5): o motor do overdev — checklist, execucao, caixa, hooks, grafo, monitor — e a janela propria. O hub so delega a ele.",
         stack="Rust/clap + Slint", runs="binário local"),
+    # Os repos de PLATAFORMA (ADR da lib compartilhada + familia Windows). Entram no mesmo
+    # commit em que passam a existir: servico fora da tabela e buraco no grafo.
+    "schematize_plataforma_rs": dict(
+        what="Lib de plataforma (features parasita/base/seams): market parasita, procedência e escrita atômica compartilhadas pelos apps da casa.",
+        stack="Rust/lib", runs="biblioteca"),
+    "schematize_windows_rs": dict(
+        what="Workspace Windows (plataforma_windows, market_windows, overdev_windows, bins): market e overdev para Windows, com GUI opcional.",
+        stack="Rust/workspace", runs="app desktop (Windows)"),
 }
 
 # ---------------------------------------------------------------- limpeza lexica
@@ -264,6 +272,9 @@ def module_of(relpath: str) -> str:
     parts = list(p.parts)
     if parts and parts[0] == 'src':
         parts = parts[1:]
+    elif len(parts) > 1 and parts[1] == 'src':
+        # Workspace multi-crate: `<crate>/src/x.rs` -> `<crate>::x`.
+        parts = [parts[0]] + parts[2:]
     if not parts:
         return p.stem
     parts[-1] = Path(parts[-1]).stem
@@ -320,6 +331,9 @@ def scan_repo(repo: str):
         if rel.startswith('target/') or '/target/' in rel:
             continue
         if rel.startswith('tests/') or rel.startswith('benches/') or rel.startswith('examples/'):
+            continue
+        # Crates de workspace: `<crate>/tests|benches|examples/` tambem sao andaime, nao superficie.
+        if any(f'/{d}/' in rel for d in ('tests', 'benches', 'examples')):
             continue
         files.append(rel)
         src = path.read_text(encoding='utf-8', errors='replace')
