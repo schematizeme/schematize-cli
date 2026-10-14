@@ -394,3 +394,40 @@ jobs:
             ASSETS+=(dist/schematize-gui-freebsd-x86_64)
           fi
           gh release upload "$TAG" "${ASSETS[@]}" --clobber
+
+  # 6) E2E FreeBSD — o one-liner REAL, numa VM limpa, DEPOIS de os assets subirem. NÃO bloqueia a
+  # publicação (nada depende deste job): se falhar, fica vermelho e visível, mas o asset já saiu.
+  # A VM não tem bash nem sudo; o usuário é comum, com `doas ... permit nopass`. O instalador é
+  # buscado no SHA da tag (SCHEMATIZE_INSTALL_REF), não na main — testa o que foi liberado.
+  e2e-freebsd:
+    needs: [freebsd]
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: one-liner --completo numa VM FreeBSD limpa
+        uses: vmactions/freebsd-vm@c46abacb49f09938ca4e1702d15d836285d694cc # v1.5.9
+        with:
+          release: "14.2"
+          usesh: true
+          copyback: false
+          envs: "GITHUB_SHA"
+          prepare: |
+            pkg install -y doas
+            echo 'permit nopass tester' > /usr/local/etc/doas.conf
+            pw useradd tester -m -s /bin/sh
+          run: |
+            set -eu
+            ! command -v bash >/dev/null 2>&1   # o ponto do teste: sem bash de partida
+            cat > /tmp/e2e.sh <<EOF
+            set -u
+            fetch -o - https://raw.githubusercontent.com/schematizeme/schematize-cli/$GITHUB_SHA/install.sh \
+              | env SCHEMATIZE_INSTALL_REF=$GITHUB_SHA sh -s -- --completo
+            echo "install rc=\$?"
+            PATH="\$HOME/.cargo/bin:\$PATH"; export PATH
+            h="\$(schematize --version)"; echo "\$h"
+            m="\$(schematize-market --version)"; echo "\$m"
+            case "\$h" in schematize\ *) ;; *) echo "hub: --version inesperado: \$h" >&2; exit 1 ;; esac
+            case "\$m" in schematize-market*) ;; *) echo "market: --version inesperado: \$m" >&2; exit 1 ;; esac
+            EOF
+            chmod 644 /tmp/e2e.sh
+            su tester -c 'sh /tmp/e2e.sh'
