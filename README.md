@@ -18,6 +18,14 @@ faltou e o código de saída é diferente de zero se algo falhou:
 curl -fsSL https://raw.githubusercontent.com/schematizeme/schematize-cli/main/install.sh | bash -s -- --completo
 ```
 
+**FreeBSD (amd64):** o `bash` não vem na base, então o one-liner usa o `sh` e o `fetch` da base.
+O instalador instala o bash por `pkg` (root, `sudo` ou `doas`), baixa o binário
+`schematize-freebsd-x86_64` e instala em `~/.cargo/bin` sem sudo:
+
+```sh
+fetch -o - https://raw.githubusercontent.com/schematizeme/schematize-cli/main/install.sh | sh -s -- --completo
+```
+
 (`--all` e `--kit` são sinônimos de `--completo`.) O `schematize-market` é instalado **sempre**,
 mesmo sem flag, e o instalador **troca** um market antigo pela latest sem depender do
 self-update dele. Se `~/.cargo/bin` não estiver no seu PATH, o fim da instalação mostra o
