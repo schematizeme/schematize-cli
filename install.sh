@@ -74,7 +74,7 @@ if [ -z "${BASH_VERSION:-}" ]; then
   if [ -f "$0" ] && grep -q 'schematize-cli' "$0" 2>/dev/null; then
     exec "$_s_bash" "$0" "$@"
   fi
-  _s_raw="https://raw.githubusercontent.com/schematizeme/schematize-cli/main/install.sh"
+  _s_raw="https://raw.githubusercontent.com/schematizeme/schematize-cli/${SCHEMATIZE_INSTALL_REF:-main}/install.sh"
   _s_tmp="$(mktemp "${TMPDIR:-/tmp}/schematize-install.XXXXXX")" || { _s_msg "x nao consegui criar arquivo temporario."; exit 1; }
   if command -v fetch >/dev/null 2>&1; then fetch -q -o "$_s_tmp" "$_s_raw" || true
   elif command -v curl >/dev/null 2>&1; then curl -fsSL -o "$_s_tmp" "$_s_raw" || true
@@ -169,7 +169,9 @@ dl_stdout() { # <url> [cabecalho-accept]
 dl_existe() { # <url>
   case "$DL_TOOL" in
     curl)  curl -fsSLI --max-time 20 -o /dev/null "$1" ;;
-    fetch) fetch -q -s -T 20 "$1" >/dev/null ;;
+    # Sem sonda no FreeBSD: nao ha fallback pro fonte la, entao um HEAD so adiaria o erro — e o
+    # `fetch -s` nao e garantido em toda versao. O download real falha com mensagem acionavel.
+    fetch) return 0 ;;
     *)     return 127 ;;
   esac
 }
@@ -216,7 +218,7 @@ fi
 # novo). Sem rede pro raw, segue com este mesmo script — degradar é melhor que
 # falhar, e quem está offline não ia clonar nada mesmo.
 # ---------------------------------------------------------------------------
-RAW_INSTALL="https://raw.githubusercontent.com/$REPO/main/install.sh"
+RAW_INSTALL="https://raw.githubusercontent.com/$REPO/${SCHEMATIZE_INSTALL_REF:-main}/install.sh"
 if [ -z "${SCHEMATIZE_INSTALL_SELF:-}" ] && [ -z "${SCHEMATIZE_INSTALL_NO_SELF:-}" ]; then
   _novo="$(mktemp "${TMPDIR:-/tmp}/schematize-install.XXXXXX")"
   if dl_to "$RAW_INSTALL" "$_novo" 2>/dev/null \
@@ -268,7 +270,7 @@ sudo_utilizavel() {
 if [ "$(id -u)" -ne 0 ]; then
   if sudo_utilizavel; then
     SUDO="sudo"
-  elif command -v doas >/dev/null 2>&1 && { [ -t 0 ] || { : </dev/tty; } 2>/dev/null; }; then
+  elif command -v doas >/dev/null 2>&1 && { doas -n true >/dev/null 2>&1 || [ -t 0 ] || { : </dev/tty; } 2>/dev/null; }; then
     SUDO="doas"   # FreeBSD/OpenBSD: sem sudo, o escalador da casa e o doas (precisa de terminal)
   else
     SEM_ELEVACAO=1
@@ -1098,6 +1100,17 @@ garantir_overdev() {
 # estar instalado (o `garantir_o_gestor` roda depois, e e best-effort). O PATH nao pode
 # depender de um passo que tem permissao de falhar.
 # ---------------------------------------------------------------------------
+# O quê: 0 se o shell de login do usuario alvo e csh/tcsh. Onde: ensure_path_rc.
+# SCHEMATIZE_LOGIN_SHELL sobrescreve (teste); senao le o 7o campo do passwd.
+login_shell_csh() {
+  local sh_login="${SCHEMATIZE_LOGIN_SHELL:-}"
+  if [ -z "$sh_login" ]; then
+    sh_login="$(getent passwd "${REAL_USER:-$(id -un 2>/dev/null)}" 2>/dev/null | cut -d: -f7)"
+  fi
+  case "$(basename "${sh_login:-sh}")" in csh|tcsh) return 0 ;; esac
+  return 1
+}
+
 ensure_path_rc() {
   local dir="$1" rc f escreveu=0 ja=0
   # Dirs que todo PATH ja tem: escrever export pra eles e ruido, nao correcao.
@@ -1134,6 +1147,25 @@ ensure_path_rc() {
       warn "  export PATH=\"$dir:\$PATH\""
     fi
   done
+
+  # csh/tcsh (shell de login padrao do root no FreeBSD, comum em usuarios): nao le .profile nem
+  # .bashrc e tem sintaxe propria (`setenv`). Escreve no .cshrc, idempotente (grep do dir).
+  # shellcheck disable=SC2016  # o `$PATH` tem de chegar literal no .cshrc (ver ensure_path_rc)
+  if login_shell_csh; then
+    f="$TARGET_HOME/.cshrc"
+    if [ -e "$f" ] && grep -qF -- "$dir" "$f" 2>/dev/null; then
+      ja=1
+    elif [ -e "$f" ] && [ ! -r "$f" ]; then
+      warn "$f existe mas nao consigo ler -- deixei intacto. Acrescente a mao:  setenv PATH \"$dir:\$PATH\""
+    elif as_user sh -c \
+      'printf "\n# schematize: dir de instalacao no PATH\nsetenv PATH \"%s:\$PATH\"\n" "$1" >> "$2"' \
+      _ "$dir" "$f" 2>/dev/null; then
+      escreveu=1; ja=0
+      ok "$dir acrescentado ao PATH do csh (.cshrc) -- vale no PROXIMO terminal."
+    else
+      warn "nao consegui escrever em $f. Acrescente a mao:  setenv PATH \"$dir:\$PATH\""
+    fi
+  fi
 
   # VERIFICA em vez de supor (o defeito de fundo era justamente nao verificar).
   # Veredito por leitura do arquivo, nao por "o comando nao deu erro".

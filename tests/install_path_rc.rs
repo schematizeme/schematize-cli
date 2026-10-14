@@ -445,3 +445,42 @@ fn a_purga_nao_leva_o_deployer_junto() {
         "o `deployer` entrou na purga — todo install sem --deployer passaria a apagá-lo: {lista}"
     );
 }
+
+/// **O quê:** como `chama`, mas com o shell de login declarado (`SCHEMATIZE_LOGIN_SHELL`).
+/// **Onde:** testes do `.cshrc`.
+fn chama_com_login(home: &Path, login: &str) -> (bool, String) {
+    let script = format!(". '{}' ; ensure_path_rc '{DIR}'", install_sh().display());
+    let out = Command::new("bash")
+        .arg("-c")
+        .arg(&script)
+        .env("HOME", home)
+        .env("SCHEMATIZE_LOGIN_SHELL", login)
+        .env("SCHEMATIZE_INSTALL_LIB", "1")
+        .env("SCHEMATIZE_INSTALL_NO_SELF", "1")
+        .output()
+        .expect("bash roda");
+    (out.status.success(), String::from_utf8_lossy(&out.stdout).into_owned())
+}
+
+/// Login csh/tcsh (padrão do root no FreeBSD): o `.cshrc` ganha `setenv PATH` uma única vez,
+/// preservando o que havia; login bash não cria `.cshrc`.
+#[test]
+fn cshrc_recebe_setenv_idempotente_so_com_login_csh() {
+    let d = sandbox("csh");
+    std::fs::write(d.join(".cshrc"), "# meu csh\nalias ll ls -l\n").unwrap();
+    for _ in 0..2 {
+        let (ok, s) = chama_com_login(&d, "/bin/tcsh");
+        assert!(ok, "{s}");
+    }
+    let c = String::from_utf8_lossy(&bytes(&d.join(".cshrc"))).into_owned();
+    assert!(c.starts_with("# meu csh\nalias ll ls -l\n"), "{c}");
+    assert!(c.contains(&format!("setenv PATH \"{DIR}:$PATH\"")), "{c}");
+    assert_eq!(c.matches(DIR).count(), 1, "não idempotente:\n{c}");
+    let _ = std::fs::remove_dir_all(&d);
+
+    let d = sandbox("csh-nao");
+    let (ok, s) = chama_com_login(&d, "/bin/bash");
+    assert!(ok, "{s}");
+    assert!(!d.join(".cshrc").exists(), "criou .cshrc sem login csh");
+    let _ = std::fs::remove_dir_all(&d);
+}

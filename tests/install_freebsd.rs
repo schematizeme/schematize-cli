@@ -233,7 +233,18 @@ fn preambulo_posix_instala_bash_por_pkg_via_escalador_e_reexecuta() {
     );
     let p = b.raiz.join("preambulo.sh");
     fs::write(&p, preambulo()).unwrap();
-    let o = Command::new("/bin/sh")
+    // Shell POSIX ESTRITO quando existir (dash/busybox/posh/mksh — a CI ubuntu tem dash): o
+    // /bin/sh de alguns hosts é bash e aceitaria bash-ismo no preâmbulo sem reclamar.
+    let estrito = ["/usr/bin/dash", "/bin/dash", "/usr/bin/posh", "/usr/bin/mksh"]
+        .iter()
+        .find(|c| Path::new(c).exists())
+        .copied()
+        .unwrap_or("/bin/sh");
+    eprintln!("preambulo testado sob: {estrito}");
+    if std::env::var_os("CI").is_some() {
+        assert_ne!(estrito, "/bin/sh", "CI sem shell POSIX estrito (dash) — instale-o no runner");
+    }
+    let o = Command::new(estrito)
         .arg("-c")
         .arg(format!(". '{}'", p.display()))
         .arg("sh") // $0 = "sh": o caso do `... | sh -s -- --completo`
