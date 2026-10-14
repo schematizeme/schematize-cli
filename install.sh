@@ -21,9 +21,73 @@
 #   curl -fsSL .../install.sh | bash -s -- --completo  # KIT COMPLETO: hub + market + todos os apps/janelas + skills + doctor
 #                                                      # (sinônimos: --all, --kit)
 #
+# FreeBSD (x86_64): o `bash` nao vem na base, entao o one-liner usa o `sh` e o `fetch` da base:
+#   fetch -o - https://raw.githubusercontent.com/schematizeme/schematize-cli/main/install.sh | sh -s -- --completo
+# O PREAMBULO POSIX logo abaixo (unico trecho que precisa rodar em `sh` puro) instala o bash por
+# `pkg` (root -> sudo -> doas) e re-executa este script sob ele. `curl ... | bash` tambem serve
+# se voce ja tem bash. Binario pre-compilado: schematize-freebsd-x86_64 (instala em ~/.cargo/bin).
+#
 # As flags de app são CUMULATIVAS e opt-in. Um comando que funciona e não aparece em lugar
 # nenhum é pior que um comando removido: a pessoa conclui que a funcionalidade não existe. Por
 # isso toda flag nova entra AQUI no mesmo commit em que nasce.
+# ---------------------------------------------------------------------------
+# PREAMBULO POSIX — roda em `sh` puro; so age se NAO estamos sob bash.
+#
+# O QUE: este script e bash (arrays, `local`, `mapfile`, `pipefail`; ~1400 linhas). No FreeBSD o
+# bash nao vem na base e o one-liner usa `| sh`. Em vez de converter tudo pra POSIX (risco alto,
+# zero ganho no Linux), este bloco — o unico que o `sh` precisa entender — garante um bash
+# (FreeBSD: `pkg install -y bash`, escalando root -> sudo -> doas) e RE-EXECUTA o script sob ele.
+# `sh` le o script por comando, entao o bash-ismo mais abaixo nunca e parseado por ele.
+#
+# ONDE: primeiro comando executavel do arquivo. Sob bash (Linux, `| bash`) e um no-op.
+# COMO re-executa: via arquivo (`sh install.sh` -> `$0`) ou, no `| sh` (stdin ja consumido),
+# baixando a main (`fetch`/`curl`) pra um temporario — o mesmo que o self-update faz.
+# ---------------------------------------------------------------------------
+if [ -z "${BASH_VERSION:-}" ]; then
+  _s_msg() { printf '%s\n' "$*" >&2; }
+  _s_bash="$(command -v bash 2>/dev/null || true)"
+  [ -n "$_s_bash" ] || { [ -x /usr/local/bin/bash ] && _s_bash=/usr/local/bin/bash; }
+  if [ -z "$_s_bash" ]; then
+    if [ "$(uname -s)" = "FreeBSD" ]; then
+      S_ESC=""
+      if [ "$(id -u)" -ne 0 ]; then
+        if command -v sudo >/dev/null 2>&1; then S_ESC="sudo"
+        elif command -v doas >/dev/null 2>&1; then S_ESC="doas"
+        else
+          _s_msg "x preciso do bash e nao sou root nem tenho sudo/doas. Como root, rode:  pkg install -y bash"
+          _s_msg "  e depois repita o comando de instalacao."
+          exit 1
+        fi
+      fi
+      _s_msg "> instalando o bash (pkg install -y bash)${S_ESC:+ via $S_ESC}"
+      # $S_ESC sem aspas de proposito: vazio some, "sudo"/"doas" vira o prefixo.
+      # shellcheck disable=SC2086
+      $S_ESC pkg install -y bash || { _s_msg "x nao consegui instalar o bash. Como root:  pkg install -y bash"; exit 1; }
+      _s_bash="$(command -v bash 2>/dev/null || true)"
+      [ -n "$_s_bash" ] || { [ -x /usr/local/bin/bash ] && _s_bash=/usr/local/bin/bash; }
+      [ -n "$_s_bash" ] || { _s_msg "x o bash foi instalado mas nao o encontro no PATH (/usr/local/bin/bash)."; exit 1; }
+    else
+      _s_msg "x este instalador precisa do bash. Instale-o e rode de novo:  curl -fsSL <url> | bash"
+      exit 1
+    fi
+  fi
+  if [ -f "$0" ] && grep -q 'schematize-cli' "$0" 2>/dev/null; then
+    exec "$_s_bash" "$0" "$@"
+  fi
+  _s_raw="https://raw.githubusercontent.com/schematizeme/schematize-cli/main/install.sh"
+  _s_tmp="$(mktemp "${TMPDIR:-/tmp}/schematize-install.XXXXXX")" || { _s_msg "x nao consegui criar arquivo temporario."; exit 1; }
+  if command -v fetch >/dev/null 2>&1; then fetch -q -o "$_s_tmp" "$_s_raw" || true
+  elif command -v curl >/dev/null 2>&1; then curl -fsSL -o "$_s_tmp" "$_s_raw" || true
+  fi
+  if [ -s "$_s_tmp" ] && head -n1 "$_s_tmp" | grep -q '^#!'; then
+    SCHEMATIZE_INSTALL_SELF=1
+    export SCHEMATIZE_INSTALL_SELF
+    exec "$_s_bash" "$_s_tmp" "$@"
+  fi
+  _s_msg "x nao consegui baixar o instalador ($_s_raw). Sem rede? Tente:  fetch -o install.sh $_s_raw && sh install.sh $*"
+  exit 1
+fi
+
 set -euo pipefail
 
 REPO="schematizeme/schematize-cli"
@@ -58,6 +122,57 @@ die() { printf '\033[1;31m✗ %s\033[0m\n' "$*" >&2; exit 1; }
 # deveria tranquilizar o usuário virava `install.sh: linha 285: warn: command not found`.
 # Avisar não pode ser mais perigoso que o problema que se está avisando.
 warn() { printf '\033[1;33m⚠ %s\033[0m\n' "$*" >&2; }
+
+# ---------------------------------------------------------------------------
+# DOWNLOAD: curl se houver, senao `fetch` (base do FreeBSD). OS/ARCH -> sufixo dos assets.
+# ---------------------------------------------------------------------------
+OS_NOME="$(uname -s)"
+# O quê: sufixo de asset do release pra esta plataforma (linux-x86_64 | freebsd-x86_64), vazio
+# se nao ha binario publicado. Onde: install_binary / binario_disponivel / install_market.
+plat_sufixo() {
+  case "$(uname -s)/$(uname -m)" in
+    Linux/x86_64)                  echo "linux-x86_64" ;;
+    FreeBSD/amd64|FreeBSD/x86_64)  echo "freebsd-x86_64" ;;
+    *) echo "" ;;
+  esac
+}
+DL_TOOL=""
+if command -v curl >/dev/null 2>&1; then DL_TOOL="curl"
+elif command -v fetch >/dev/null 2>&1; then DL_TOOL="fetch"
+fi
+# O quê: baixa <url> pra <arquivo> como o usuario REAL (as_user), com a ferramenta disponivel.
+# Onde: install_market, instala_janela, icones. Devolve !=0 se falhar ou nao ha ferramenta.
+dl_as_user() { # <url> <arquivo>
+  case "$DL_TOOL" in
+    curl)  as_user curl -fsSL --retry 2 -o "$2" "$1" ;;
+    fetch) as_user fetch -q -o "$2" "$1" ;;
+    *)     return 127 ;;
+  esac
+}
+# O quê: baixa <url> pra <arquivo> (usuario atual). Onde: self-update, install_binary.
+dl_to() { # <url> <arquivo>
+  case "$DL_TOOL" in
+    curl)  curl -fsSL -o "$2" "$1" ;;
+    fetch) fetch -q -o "$2" "$1" ;;
+    *)     return 127 ;;
+  esac
+}
+# O quê: imprime o corpo de <url> no stdout. Onde: resolve_dl (API do GitHub).
+dl_stdout() { # <url> [cabecalho-accept]
+  case "$DL_TOOL" in
+    curl)  curl -sfL -H 'Accept: application/vnd.github+json' -H 'User-Agent: schematize-install' "$1" ;;
+    fetch) fetch -q -o - "$1" ;;
+    *)     return 127 ;;
+  esac
+}
+# O quê: 0 se <url> existe (HEAD). Onde: binario_disponivel.
+dl_existe() { # <url>
+  case "$DL_TOOL" in
+    curl)  curl -fsSLI --max-time 20 -o /dev/null "$1" ;;
+    fetch) fetch -q -s -T 20 "$1" >/dev/null ;;
+    *)     return 127 ;;
+  esac
+}
 
 # ---------------------------------------------------------------------------
 # TRAVA DE REENTRADA — este script chamado DE DENTRO de uma delegacao ao market.
@@ -103,8 +218,8 @@ fi
 # ---------------------------------------------------------------------------
 RAW_INSTALL="https://raw.githubusercontent.com/$REPO/main/install.sh"
 if [ -z "${SCHEMATIZE_INSTALL_SELF:-}" ] && [ -z "${SCHEMATIZE_INSTALL_NO_SELF:-}" ]; then
-  _novo="$(mktemp)"
-  if curl -fsSL "$RAW_INSTALL" -o "$_novo" 2>/dev/null \
+  _novo="$(mktemp "${TMPDIR:-/tmp}/schematize-install.XXXXXX")"
+  if dl_to "$RAW_INSTALL" "$_novo" 2>/dev/null \
      && [ -s "$_novo" ] \
      && head -n1 "$_novo" | grep -q '^#!'; then
     export SCHEMATIZE_INSTALL_SELF=1
@@ -113,7 +228,10 @@ if [ -z "${SCHEMATIZE_INSTALL_SELF:-}" ] && [ -z "${SCHEMATIZE_INSTALL_NO_SELF:-
   rm -f "$_novo"
 fi
 
-[ "$(uname -s)" = "Linux" ] || die "só Linux por enquanto."
+case "$OS_NOME" in
+  Linux|FreeBSD) : ;;
+  *) die "sistema $OS_NOME ainda não tem instalador automático (suportados: Linux e FreeBSD). Veja https://github.com/$REPO#instalação" ;;
+esac
 # ---------------------------------------------------------------------------
 # ELEVACAO: como este script instala pacote de sistema.
 #
@@ -150,6 +268,8 @@ sudo_utilizavel() {
 if [ "$(id -u)" -ne 0 ]; then
   if sudo_utilizavel; then
     SUDO="sudo"
+  elif command -v doas >/dev/null 2>&1 && { [ -t 0 ] || { : </dev/tty; } 2>/dev/null; }; then
+    SUDO="doas"   # FreeBSD/OpenBSD: sem sudo, o escalador da casa e o doas (precisa de terminal)
   else
     SEM_ELEVACAO=1
     command -v sudo >/dev/null 2>&1 && SEM_ELEVACAO_MOTIVO="o \`sudo\` exige senha e nao ha terminal para digita-la"
@@ -163,8 +283,14 @@ REAL_USER=""
 if [ "$(id -u)" -eq 0 ]; then
   REAL_USER="${SUDO_USER:-}"
   [ -z "$REAL_USER" ] && REAL_USER="$(logname 2>/dev/null || true)"
-  [ -z "$REAL_USER" ] && REAL_USER="$(stat -c %U "$(tty 2>/dev/null)" 2>/dev/null || true)"
+  [ -z "$REAL_USER" ] && REAL_USER="$(stat -c %U "$(tty 2>/dev/null)" 2>/dev/null || stat -f %Su "$(tty 2>/dev/null)" 2>/dev/null || true)"
   [ "$REAL_USER" = "root" ] && REAL_USER=""
+fi
+# Root sem sudo/doas nao tem como "virar" o usuario real: instala pro proprio root (HOME dele)
+# em vez de morrer no `sudo: command not found` (§37.48).
+if [ -n "$REAL_USER" ] && ! command -v sudo >/dev/null 2>&1 && ! command -v doas >/dev/null 2>&1; then
+  warn "sou root e nao ha sudo/doas pra instalar como '$REAL_USER' — instalo em $HOME."
+  REAL_USER=""
 fi
 if [ -n "$REAL_USER" ]; then
   TARGET_HOME="$(getent passwd "$REAL_USER" | cut -d: -f6)"
@@ -177,7 +303,11 @@ fi
 # ~/.cargo/bin do usuário no PATH (rustup/cargo) e o HOME certo.
 as_user() {
   if [ -n "$REAL_USER" ]; then
-    sudo -u "$REAL_USER" -H env "HOME=$TARGET_HOME" "PATH=$TARGET_HOME/.cargo/bin:/usr/local/bin:/usr/bin:/bin" "$@"
+    if command -v sudo >/dev/null 2>&1; then
+      sudo -u "$REAL_USER" -H env "HOME=$TARGET_HOME" "PATH=$TARGET_HOME/.cargo/bin:/usr/local/bin:/usr/bin:/bin" "$@"
+    else
+      doas -u "$REAL_USER" env "HOME=$TARGET_HOME" "PATH=$TARGET_HOME/.cargo/bin:/usr/local/bin:/usr/bin:/bin" "$@"
+    fi
   else
     env "PATH=$TARGET_HOME/.cargo/bin:$PATH" "$@"
   fi
@@ -190,6 +320,7 @@ case " ${ID:-} ${ID_LIKE:-} " in
   *" debian "*|*" ubuntu "*|*" linuxmint "*) FAMILY="debian" ;;
   *" suse "*|*" opensuse "*|*" sles "*|*" fedora "*|*" rhel "*) FAMILY="rpm" ;;
 esac
+[ "$OS_NOME" = "FreeBSD" ] && { FAMILY="freebsd"; PRETTY_NAME="FreeBSD $(uname -r)"; }
 log "distro: ${PRETTY_NAME:-desconhecida} (família: $FAMILY) — modo: $MODE"
 
 pkg_install() {
@@ -202,6 +333,7 @@ pkg_install() {
     case "$FAMILY" in
       debian) warn "    apt-get update && apt-get install -y $*" ;;
       rpm)    warn "    zypper install -y $*   (ou: dnf install -y $*)" ;;
+      freebsd) warn "    pkg install -y $*   (como root)" ;;
       *)      warn "    use o gerenciador de pacotes da sua distro" ;;
     esac
     warn "  sigo em frente — o CLI funciona sem elas (so a janela/fontes podem precisar)."
@@ -210,18 +342,26 @@ pkg_install() {
   case "$FAMILY" in
     debian) $SUDO apt-get update -qq && $SUDO apt-get install -y "$@" ;;
     rpm)    if command -v zypper >/dev/null; then $SUDO zypper --non-interactive install -y "$@"; else $SUDO dnf install -y "$@"; fi ;;
+    freebsd) $SUDO pkg install -y "$@" ;;
     *) log "instale manualmente: $*" ;;
   esac
 }
 ensure_runtime_deps() {
-  local miss=(); for b in curl unzip git; do command -v "$b" >/dev/null || miss+=("$b"); done
+  local miss=() b
+  if [ "$FAMILY" = freebsd ]; then
+    # FreeBSD: o `fetch` da base baixa tudo; unzip/git so se compilar do fonte.
+    [ -n "$DL_TOOL" ] || miss+=(curl)
+    if [ "$MODE" = source ]; then command -v git >/dev/null || miss+=(git); fi
+  else
+    for b in curl unzip git; do command -v "$b" >/dev/null || miss+=("$b"); done
+  fi
   if [ ${#miss[@]} -gt 0 ]; then pkg_install "${miss[@]}" || true; fi
 }
 # URL base de download da ÚLTIMA versão, via tag real da API (imune ao cache do
 # CDN no asset de nome fixo em /latest/download/). Fallback: /latest/download.
 resolve_dl() {
   local tag
-  tag="$(curl -sfL -H 'Accept: application/vnd.github+json' -H 'User-Agent: schematize-install' "$API" 2>/dev/null \
+  tag="$(dl_stdout "$API" 2>/dev/null \
         | grep -m1 '"tag_name"' | sed -E 's/.*"tag_name": *"([^"]+)".*/\1/')"
   if [ -n "$tag" ]; then echo "https://github.com/$REPO/releases/download/$tag"; else echo "$BASE"; fi
 }
@@ -249,6 +389,7 @@ pkgs_faltantes() { # <pkg...> — imprime, um por linha, so os que NAO estao pre
     case "$FAMILY" in
       debian) dpkg -s "$p" >/dev/null 2>&1 || printf '%s\n' "$p" ;;
       rpm)    rpm -q --whatprovides "$p" >/dev/null 2>&1 || printf '%s\n' "$p" ;;
+      freebsd) pkg info -e "$p" >/dev/null 2>&1 || printf '%s\n' "$p" ;;
       # Familia desconhecida: nao da pra afirmar que esta instalado, entao trata como
       # faltante e deixa o pkg_install decidir. Nao inventa VERDE sobre o que nao checou.
       *)      printf '%s\n' "$p" ;;
@@ -283,6 +424,8 @@ gui_runtime_deps() {
               libxkbcommon0 libwayland-client0 libgl1 libfontconfig1 || true ;;
     rpm)    instala_faltantes "libs de runtime da GUI" libX11-6 libXcursor1 libXrandr2 libXi6 \
               libxkbcommon0 libwayland-client0 Mesa-libGL1 fontconfig || true ;;
+    freebsd) instala_faltantes "libs de runtime da GUI" libX11 libXcursor libXrandr libXi \
+              libxkbcommon mesa-libs libxcb fontconfig || true ;;
   esac
 }
 # libs de BUILD — só para --from-source.
@@ -296,6 +439,8 @@ gui_build_deps() {
     rpm)    instala_faltantes "libs de build da GUI" gcc gcc-c++ make pkg-config libX11-devel \
               libXcursor-devel libXrandr-devel \
               libXi-devel libxkbcommon-devel wayland-devel Mesa-libGL-devel libxcb-devel fontconfig-devel ;;
+    freebsd) instala_faltantes "libs de build da GUI" rust git pkgconf libX11 libXcursor libXrandr libXi \
+              libxkbcommon wayland mesa-libs libxcb fontconfig ;;
     *) die "GUI do fonte: instale manualmente as libs de X11/Wayland/GL/fontconfig da sua distro." ;;
   esac
 }
@@ -306,6 +451,7 @@ gui_build_deps() {
 ensure_fonts() {
   case "$FAMILY" in
     debian) instala_faltantes "fontes da GUI" fonts-noto-core fonts-noto-cjk fonts-dejavu-core || true ;;
+    freebsd) instala_faltantes "fontes da GUI" dejavu || true ;;
     rpm)    if [ "$SEM_ELEVACAO" = 1 ]; then
               pkg_install noto-sans-fonts noto-sans-cjk-fonts dejavu-fonts || true
             elif command -v zypper >/dev/null; then
@@ -395,10 +541,10 @@ install_app_icons() {
     local raw="https://raw.githubusercontent.com/$REPO/main/assets/icons"
     for n in $ICON_SIZES; do
       as_user mkdir -p "$ithome/${n}x${n}/apps"
-      as_user sh -c "curl -fsSL -o '$ithome/${n}x${n}/apps/schematize.png' '$raw/hicolor/${n}x${n}/apps/schematize.png'" 2>/dev/null || true
+      dl_as_user "$raw/hicolor/${n}x${n}/apps/schematize.png" "$ithome/${n}x${n}/apps/schematize.png" 2>/dev/null || true
     done
     as_user mkdir -p "$ithome/scalable/apps"
-    as_user sh -c "curl -fsSL -o '$ithome/scalable/apps/schematize.svg' '$raw/schematize.svg'" 2>/dev/null || true
+    dl_as_user "$raw/schematize.svg" "$ithome/scalable/apps/schematize.svg" 2>/dev/null || true
   fi
   # Atualiza os caches do tema de ícones / lançadores (best-effort — o DE pode não ter as ferramentas).
   as_user gtk-update-icon-cache -f -t "$ithome" 2>/dev/null || true
@@ -464,6 +610,16 @@ install_app_icons() {
 BINS="overflow overflow-gui overflow-updater overflow-updater-gui \
 schematize schematize-gui \
 schematize-market-gui schematize-optimizer-gui schematize-deployer-gui"
+
+# O quê: remove arquivos de SISTEMA (fora do HOME) que existam — e so entao chama o escalador.
+# Onde: purge_previous. Nunca pede privilegio pra nao fazer nada (maquina limpa = zero sudo/doas).
+rm_sistema() {
+  local f
+  for f in "$@"; do
+    [ -e "$f" ] || continue
+    $SUDO rm -f "$f" 2>/dev/null || true
+  done
+}
 
 purge_previous() {
   log "removendo instalações anteriores (binário, pacote, lançador) — dados e deps ficam"
@@ -538,11 +694,10 @@ purge_previous() {
 
   # 4) Lançadores, autostart e ícones — senão o menu do sistema segue abrindo o que
   #    não existe mais (ou pior: uma cópia antiga que sobrou).
-  $SUDO rm -f /usr/share/applications/schematize-gui.desktop \
-              /etc/xdg/autostart/schematize-agent.desktop 2>/dev/null || true
+  rm_sistema /usr/share/applications/schematize-gui.desktop /etc/xdg/autostart/schematize-agent.desktop
   as_user rm -f "$TARGET_HOME/.local/share/applications/schematize-gui.desktop" \
                 "$TARGET_HOME/.config/autostart/schematize-agent.desktop" 2>/dev/null || true
-  $SUDO rm -f /usr/share/icons/hicolor/*/apps/schematize.png 2>/dev/null || true
+  rm_sistema /usr/share/icons/hicolor/*/apps/schematize.png
   as_user rm -f "$TARGET_HOME"/.local/share/icons/hicolor/*/apps/schematize.png 2>/dev/null || true
 
   ok "instalação anterior removida — instalando do zero."
@@ -629,6 +784,7 @@ install_market() {
   os="$(uname -s)"; arch="$(uname -m)"
   case "$os/$arch" in
     Linux/x86_64)  asset="schematize-market-linux-x86_64" ;;
+    FreeBSD/amd64|FreeBSD/x86_64) asset="schematize-market-freebsd-x86_64" ;;
     Darwin/arm64)  asset="schematize-market-macos-arm64" ;;
     Darwin/x86_64) asset="schematize-market-macos-x86_64" ;;
     *) asset="" ;;
@@ -642,7 +798,7 @@ install_market() {
     # Baixa pra um arquivo AO LADO e so troca o definitivo depois de provar que executa:
     # um download pela metade (ou uma glibc errada, HTTP 200 e nao roda) nunca derruba o
     # market que funciona. O `mv` e atomico e vale mesmo com o market velho em execucao.
-    if as_user curl -fsSL --retry 2 -o "$novo" "$url" 2>/dev/null && [ -s "$novo" ]; then
+    if dl_as_user "$url" "$novo" 2>/dev/null && [ -s "$novo" ]; then
       as_user chmod +x "$novo" 2>/dev/null || true
       if as_user "$novo" --version >/dev/null 2>&1; then
         if as_user mv -f "$novo" "$dst"; then
@@ -746,6 +902,7 @@ instala_janela() {
   os="$(uname -s)"; arch="$(uname -m)"
   case "$os/$arch" in
     Linux/x86_64)  asset="schematize-$app-gui-linux-x86_64" ;;
+    FreeBSD/amd64|FreeBSD/x86_64) asset="schematize-$app-gui-freebsd-x86_64" ;;
     Darwin/arm64)  asset="schematize-$app-gui-macos-arm64" ;;
     Darwin/x86_64) asset="schematize-$app-gui-macos-x86_64" ;;
     *) log "sem janela do $app pronta pra $os/$arch — seguindo sem ela (o terminal faz tudo)."
@@ -754,7 +911,7 @@ instala_janela() {
 
   url="https://github.com/schematizeme/$repo/releases/latest/download/$asset"
   log "baixando a janela do $app ($asset)"
-  if as_user sh -c "curl -fsSL -o '$dst' '$url'" 2>/dev/null && [ -s "$dst" ]; then
+  if dl_as_user "$url" "$dst" 2>/dev/null && [ -s "$dst" ]; then
     as_user chmod +x "$dst" 2>/dev/null || true
     ok "janela do $app instalada ($dst)."
     return 0
@@ -1012,7 +1169,7 @@ post_config() {
     $SUDO rm -f /usr/share/applications/schematize-gui.desktop /etc/xdg/autostart/schematize-agent.desktop 2>/dev/null || true
   fi
   [ -x "$BIN" ] || { warn "o binário não apareceu em $BIN — rode o install de novo."; return; }
-  ok "schematize $(as_user "$BIN" --version 2>/dev/null | awk '{print $2}') em $BIN (usuário ${REAL_USER:-$USER})"
+  ok "schematize $(as_user "$BIN" --version 2>/dev/null | awk '{print $2}') em $BIN (usuário ${REAL_USER:-${USER:-$(id -un 2>/dev/null || echo ?)}})"
   # O PATH tem de ser garantido ANTES do "próximos passos" abaixo, senão o script
   # imprime comandos que o terminal do usuário não resolve — o bug do openSUSE.
   ensure_path_rc "$TARGET_HOME/.cargo/bin"
@@ -1039,11 +1196,19 @@ post_config() {
 # Onde: início de `install_binary`. Sem binário publicado (arch != x86_64, release não cortado,
 # sem rede ao GitHub) devolve 1 e o chamador cai pro fonte — o release só publica linux-x86_64.
 binario_disponivel() {
-  [ "$(uname -m)" = x86_64 ] || return 1
-  curl -fsSLI --max-time 20 -o /dev/null "$(resolve_dl)/schematize-linux-x86_64" 2>/dev/null
+  local suf; suf="$(plat_sufixo)"
+  [ -n "$suf" ] || return 1
+  dl_existe "$(resolve_dl)/schematize-$suf" 2>/dev/null
 }
 install_binary() {
   if ! binario_disponivel; then
+    if [ "$FAMILY" = freebsd ]; then
+      # FreeBSD sem binario (arch != amd64, release sem o asset, sem rede): compilar exige
+      # rust+libs via pkg e ~10 min — nao fazemos isso as escondidas. Diz o caminho e sai limpo.
+      warn "não há binário pré-compilado do schematize pra FreeBSD/$(uname -m) (só FreeBSD amd64) ou o release ainda não o publicou."
+      warn "  compilar aqui:  pkg install -y rust git pkgconf   e depois:  sh install.sh --from-source"
+      exit 2
+    fi
     warn "não há binário pré-compilado pra esta plataforma ($(uname -m)) ou o release ainda não está publicado."
     warn "sem problema: vou compilar do fonte pra você (instalo o Rust e as libs de build; pede sudo; leva alguns minutos)."
     warn "para escolher isso de propósito da próxima vez:  bash install.sh --from-source"
@@ -1056,10 +1221,20 @@ install_binary() {
   # do usuário, SEM sudo. Antes ia pra /usr/local/bin via `sudo mv` e morria sem sudo.
   local dst="$TARGET_HOME/.cargo/bin"
   as_user mkdir -p "$dst" || die "nao consegui criar $dst — confira as permissoes do seu HOME ($TARGET_HOME)."
-  for pair in "schematize-linux-x86_64:schematize" "schematize-gui-linux-x86_64:schematize-gui"; do
+  local suf; suf="$(plat_sufixo)"
+  for pair in "schematize-$suf:schematize" "schematize-gui-$suf:schematize-gui"; do
     local src="${pair%%:*}" name="${pair##*:}" t
-    log "baixando $name → $dst/$name"; t="$(mktemp)"
-    curl -fSL -o "$t" "$DL/$src"; chmod 755 "$t"
+    log "baixando $name → $dst/$name"; t="$(mktemp "${TMPDIR:-/tmp}/schematize-bin.XXXXXX")"
+    if ! dl_to "$DL/$src" "$t"; then
+      rm -f "$t"
+      # A janela e opcional no FreeBSD (build best-effort no release); o CLI nao.
+      if [ "$FAMILY" = freebsd ] && [ "$name" = schematize-gui ]; then
+        warn "sem a janela (schematize-gui) pra FreeBSD neste release — o terminal faz tudo."
+        continue
+      fi
+      die "nao consegui baixar $DL/$src — confira a rede e rode de novo."
+    fi
+    chmod 755 "$t"
     as_user install -m755 "$t" "$dst/$name"; rm -f "$t"
   done
   install_gui_launcher
@@ -1323,6 +1498,7 @@ kit_dica_path() {
   warn "$bin ainda nao esta no PATH deste terminal. Rode agora:"
   case "$sh_nome" in
     fish) warn "  fish_add_path $bin" ;;
+    csh|tcsh) warn "  setenv PATH $bin:\$PATH" ;;
     *)    warn "  export PATH=\"$bin:\$PATH\"" ;;
   esac
   warn "  (terminais novos ja pegam sozinhos)"

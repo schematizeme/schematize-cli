@@ -61,7 +61,7 @@ pub fn o_que_falta(pasta: &Path) -> Vec<&'static str> {
 }
 
 /// **O quê:** a URL do asset de `nome` para `os`/`arch` (como em `std::env::consts`), ou `None`
-/// quando a plataforma não tem asset publicado. Alvos: linux/macos x86_64, macos arm64 e
+/// quando a plataforma não tem asset publicado. Alvos: linux/freebsd/macos x86_64, macos arm64 e
 /// windows x86_64.
 ///
 /// **Onde:** [`garantir_em`].
@@ -72,7 +72,9 @@ pub fn url_do_asset(nome: &str, os: &str, arch: &str) -> Option<String> {
         _ => return None,
     };
     let sufixo = match (os, arch) {
-        ("linux", "x86_64") | ("macos", "x86_64") | ("macos", "arm64") => "",
+        ("linux", "x86_64") | ("freebsd", "x86_64") | ("macos", "x86_64") | ("macos", "arm64") => {
+            ""
+        }
         ("windows", "x86_64") => ".exe",
         _ => return None,
     };
@@ -401,7 +403,15 @@ mod tests {
             Some(format!("{base}schematize-market-gui-windows-x86_64.exe"))
         );
         assert_eq!(u("schematize-market", "linux", "aarch64"), None);
-        assert_eq!(u("schematize-market", "freebsd", "x86_64"), None);
+        assert_eq!(
+            u("schematize-market", "freebsd", "x86_64"),
+            Some(format!("{base}schematize-market-freebsd-x86_64"))
+        );
+        assert_eq!(
+            u("schematize-market-gui", "freebsd", "x86_64"),
+            Some(format!("{base}schematize-market-gui-freebsd-x86_64"))
+        );
+        assert_eq!(u("schematize-market", "freebsd", "aarch64"), None);
     }
 
     #[cfg(unix)]

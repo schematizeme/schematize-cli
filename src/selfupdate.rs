@@ -87,6 +87,7 @@ fn gestor_filename() -> &'static str {
 fn gestor_asset() -> Option<&'static str> {
     match (std::env::consts::OS, std::env::consts::ARCH) {
         ("linux", "x86_64") => Some("schematize-market-linux-x86_64"),
+        ("freebsd", "x86_64") => Some("schematize-market-freebsd-x86_64"),
         ("macos", "aarch64") => Some("schematize-market-macos-arm64"),
         ("macos", "x86_64") => Some("schematize-market-macos-x86_64"),
         ("windows", "x86_64") => Some("schematize-market-windows-x86_64.exe"),
