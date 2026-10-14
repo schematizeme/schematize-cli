@@ -137,6 +137,20 @@ warn() { printf '\033[1;33m⚠ %s\033[0m\n' "$*" >&2; }
 # DOWNLOAD: curl se houver, senao `fetch` (base do FreeBSD). OS/ARCH -> sufixo dos assets.
 # ---------------------------------------------------------------------------
 OS_NOME="$(uname -s)"
+# Windows (Git Bash/MSYS/Cygwin) e macOS: este instalador e Linux/FreeBSD. Sai ANTES de baixar,
+# criar temporario ou escrever qualquer coisa, com mensagem acionavel (§37.48: sem culpar ninguem).
+case "$OS_NOME" in
+  MINGW*|MSYS*|CYGWIN*)
+    printf '%s\n' "Isto e Windows: o instalador certo e outro. No PowerShell, rode:" \
+      "  irm https://raw.githubusercontent.com/schematizeme/schematize_windows_rs/main/install.ps1 | iex" \
+      "(nada foi alterado nesta maquina.)"
+    exit 0 ;;
+  Darwin)
+    printf '%s\n' "macOS ainda nao tem instalador automatico (suportados: Linux, FreeBSD e Windows)." \
+      "Compile do fonte:  git clone https://github.com/$REPO && cd schematize-cli && cargo install --path ." \
+      "Detalhes: https://github.com/$REPO#instalação  (nada foi alterado nesta maquina.)" >&2
+    exit 1 ;;
+esac
 # O quê: sufixo de asset do release pra esta plataforma (linux-x86_64 | freebsd-x86_64), vazio
 # se nao ha binario publicado. Onde: install_binary / binario_disponivel / install_market.
 plat_sufixo() {

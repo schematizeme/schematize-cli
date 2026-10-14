@@ -18,6 +18,16 @@ faltou e o código de saída é diferente de zero se algo falhou:
 curl -fsSL https://raw.githubusercontent.com/schematizeme/schematize-cli/main/install.sh | bash -s -- --completo
 ```
 
+### Windows
+
+No PowerShell (repositório `schematize_windows_rs`, ADR-0026):
+
+```powershell
+irm https://raw.githubusercontent.com/schematizeme/schematize_windows_rs/main/install.ps1 | iex
+```
+
+Rodar o `install.sh` no Git Bash apenas mostra este comando e sai sem alterar nada.
+
 **FreeBSD (amd64):** o `bash` não vem na base, então o one-liner usa o `sh` e o `fetch` da base.
 O instalador instala o bash por `pkg` (root, `sudo` ou `doas`), baixa o binário
 `schematize-freebsd-x86_64` e instala em `~/.cargo/bin` sem sudo:

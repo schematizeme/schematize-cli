@@ -253,3 +253,32 @@ fn download_truncado_nao_executa_nada() {
         assert!(!t.contains("SCRIPT_NOVO_RODOU") && !t.contains("▶"), "{pct}%: executou:\n{t}");
     }
 }
+
+/// Roda o script com `uname -s` falso; devolve (código, saída, entradas em HOME/tmp/log de fetch).
+fn com_uname(nome: &str, sistema: &str) -> (Option<i32>, String, usize, String) {
+    let b = Box::novo(nome);
+    b.curl("#!/bin/bash\necho SCRIPT_NOVO_RODOU");
+    b.falso("uname", &format!("echo {sistema}"));
+    let (t, _w, tmp) = b.pipe(&["--completo"], true);
+    let home = fs::read_dir(b.raiz.join("home")).unwrap().count();
+    (None, t, tmp + home, b.log("fetch.log"))
+}
+
+#[test]
+fn windows_git_bash_aponta_o_instalador_ps1_e_nao_toca_em_nada() {
+    for sis in ["MINGW64_NT-10.0-22631", "MSYS_NT-10.0", "CYGWIN_NT-10.0"] {
+        let (_, t, efeitos, fetch) = com_uname("win", sis);
+        assert!(t.contains("irm https://raw.githubusercontent.com/schematizeme/schematize_windows_rs/main/install.ps1 | iex"), "{sis}:\n{t}");
+        assert!(!t.contains("só Linux") && !t.contains("SCRIPT_NOVO_RODOU"), "{sis}:\n{t}");
+        assert_eq!(efeitos, 0, "{sis}: tocou no disco");
+        assert!(fetch.is_empty(), "{sis}: baixou algo");
+    }
+}
+
+#[test]
+fn macos_da_mensagem_acionavel_sem_tocar_em_nada() {
+    let (_, t, efeitos, fetch) = com_uname("mac", "Darwin");
+    assert!(t.contains("cargo install") && t.contains("nada foi alterado"), "{t}");
+    assert_eq!(efeitos, 0);
+    assert!(fetch.is_empty());
+}
