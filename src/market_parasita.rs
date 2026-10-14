@@ -132,6 +132,28 @@ pub fn baixar_com_curl(url: &str, dst: &Path) -> Result<(), String> {
     }
 }
 
+/// **O quê:** repete uma execução enquanto o kernel responde `ETXTBSY` ("Text file busy", errno 26).
+///
+/// **Onde:** a validação `--version` do binário recém-gravado (`<dst>.novo`), em [`validar`].
+///
+/// **Por quê:** com outra thread fazendo `fork` em paralelo, o filho herda por instantes o
+/// descritor de escrita do arquivo que acabou de ser gravado e o `exec` falha com 26. É transitório:
+/// só em unix e só nesse errno repete (até 40 vezes, backoff de 5 a 25 ms); qualquer outro erro
+/// sai na hora, com a causa.
+fn repetir_em_etxtbsy<T>(mut f: impl FnMut() -> std::io::Result<T>) -> std::io::Result<T> {
+    const ETXTBSY: i32 = 26;
+    let mut tentativa: u64 = 0;
+    loop {
+        match f() {
+            Err(e) if cfg!(unix) && e.raw_os_error() == Some(ETXTBSY) && tentativa < 40 => {
+                tentativa += 1;
+                std::thread::sleep(std::time::Duration::from_millis(5 * tentativa.min(5)));
+            }
+            r => return r,
+        }
+    }
+}
+
 /// **O quê:** marca `chmod +x` (unix) e exige que `<bin> --version` saia 0.
 ///
 /// **Onde:** [`instalar_um`], antes do `rename`. Repete se o kernel responder `ETXTBSY` (26):
@@ -143,19 +165,13 @@ fn validar(bin: &Path) -> Result<(), String> {
         fs::set_permissions(bin, fs::Permissions::from_mode(0o755))
             .map_err(|e| format!("chmod: {e}"))?;
     }
-    let mut ultimo = String::new();
-    for _ in 0..5 {
-        match Command::new(bin).arg("--version").stdin(Stdio::null()).output() {
-            Ok(o) if o.status.success() => return Ok(()),
-            Ok(o) => return Err(format!("`--version` saiu com {}", o.status)),
-            Err(e) if e.raw_os_error() == Some(26) => {
-                ultimo = e.to_string();
-                std::thread::sleep(Duration::from_millis(50));
-            }
-            Err(e) => return Err(format!("não executa: {e}")),
-        }
+    let o = repetir_em_etxtbsy(|| Command::new(bin).arg("--version").stdin(Stdio::null()).output())
+        .map_err(|e| format!("não executa: {e}"))?;
+    if o.status.success() {
+        Ok(())
+    } else {
+        Err(format!("`--version` saiu com {}", o.status))
     }
-    Err(format!("não executa: {ultimo}"))
 }
 
 /// **O quê:** baixa, valida e move UM binário; qualquer falha remove o `.novo`.
