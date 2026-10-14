@@ -82,6 +82,8 @@ if [ -z "${BASH_VERSION:-}" ]; then
   if [ -s "$_s_tmp" ] && head -n1 "$_s_tmp" | grep -q '^#!'; then
     SCHEMATIZE_INSTALL_SELF=1
     export SCHEMATIZE_INSTALL_SELF
+    # Pipe (`| sh`): o resto do script ainda esta no stdin; consome pra o curl/fetch nao tomar EPIPE.
+    if [ ! -t 0 ]; then cat >/dev/null 2>&1 || true; fi
     exec "$_s_bash" "$_s_tmp" "$@"
   fi
   _s_msg "x nao consegui baixar o instalador ($_s_raw). Sem rede? Tente:  fetch -o install.sh $_s_raw && sh install.sh $*"
@@ -218,6 +220,15 @@ fi
 # novo). Sem rede pro raw, segue com este mesmo script — degradar é melhor que
 # falhar, e quem está offline não ia clonar nada mesmo.
 # ---------------------------------------------------------------------------
+# O quê: consome o que sobrou do stdin quando o script CHEGOU por pipe (`curl | bash -s`).
+# Onde: logo antes do `exec` da auto-atualização. POR QUÊ: o `exec` troca o bash que lia o
+# pipe; sem leitor, o `curl` de fora tomava EPIPE e imprimia "curl: (23) Failure writing
+# output" no meio da instalação. Só age se o script veio do stdin (BASH_SOURCE vazio — `$0` não serve: `/bin/bash -s` o deixa apontando pro bash) e o stdin não é tty.
+VEIO_DO_STDIN=0
+[ -z "${BASH_SOURCE[0]:-}" ] && VEIO_DO_STDIN=1   # top-level: dentro de função o BASH_SOURCE mente
+drena_stdin_do_script() {
+  if [ "$VEIO_DO_STDIN" = 1 ] && [ ! -t 0 ]; then cat >/dev/null 2>&1 || true; fi
+}
 RAW_INSTALL="https://raw.githubusercontent.com/$REPO/${SCHEMATIZE_INSTALL_REF:-main}/install.sh"
 if [ -z "${SCHEMATIZE_INSTALL_SELF:-}" ] && [ -z "${SCHEMATIZE_INSTALL_NO_SELF:-}" ]; then
   _novo="$(mktemp "${TMPDIR:-/tmp}/schematize-install.XXXXXX")"
@@ -225,6 +236,7 @@ if [ -z "${SCHEMATIZE_INSTALL_SELF:-}" ] && [ -z "${SCHEMATIZE_INSTALL_NO_SELF:-
      && [ -s "$_novo" ] \
      && head -n1 "$_novo" | grep -q '^#!'; then
     export SCHEMATIZE_INSTALL_SELF=1
+    drena_stdin_do_script
     exec bash "$_novo" "$@"
   fi
   rm -f "$_novo"
@@ -315,12 +327,13 @@ as_user() {
   fi
 }
 
-# shellcheck disable=SC1091  # /etc/os-release e do sistema, nao esta neste repo pra seguir.
-. /etc/os-release 2>/dev/null || true
+# shellcheck disable=SC1091,SC1090  # os-release e do sistema (e o caminho pode ser sobrescrito em teste).
+. "${SCHEMATIZE_OS_RELEASE:-/etc/os-release}" 2>/dev/null || true
 FAMILY="unknown"
 case " ${ID:-} ${ID_LIKE:-} " in
-  *" debian "*|*" ubuntu "*|*" linuxmint "*) FAMILY="debian" ;;
-  *" suse "*|*" opensuse "*|*" sles "*|*" fedora "*|*" rhel "*) FAMILY="rpm" ;;
+  *" arch "*|*" archlinux "*|*" manjaro "*|*" endeavouros "*|*" cachyos "*|*" garuda "*|*" artix "*) FAMILY="arch" ;;
+  *" debian "*|*" ubuntu "*|*" linuxmint "*|*" pop "*|*" elementary "*|*" raspbian "*|*" kali "*) FAMILY="debian" ;;
+  *" suse "*|*" opensuse "*|*" opensuse-leap "*|*" opensuse-tumbleweed "*|*" sles "*|*" fedora "*|*" rhel "*|*" centos "*) FAMILY="rpm" ;;
 esac
 [ "$OS_NOME" = "FreeBSD" ] && { FAMILY="freebsd"; PRETTY_NAME="FreeBSD $(uname -r)"; }
 log "distro: ${PRETTY_NAME:-desconhecida} (família: $FAMILY) — modo: $MODE"
@@ -336,6 +349,7 @@ pkg_install() {
       debian) warn "    apt-get update && apt-get install -y $*" ;;
       rpm)    warn "    zypper install -y $*   (ou: dnf install -y $*)" ;;
       freebsd) warn "    pkg install -y $*   (como root)" ;;
+      arch)   warn "    pacman -S --needed $*" ;;
       *)      warn "    use o gerenciador de pacotes da sua distro" ;;
     esac
     warn "  sigo em frente — o CLI funciona sem elas (so a janela/fontes podem precisar)."
@@ -345,6 +359,7 @@ pkg_install() {
     debian) $SUDO apt-get update -qq && $SUDO apt-get install -y "$@" ;;
     rpm)    if command -v zypper >/dev/null; then $SUDO zypper --non-interactive install -y "$@"; else $SUDO dnf install -y "$@"; fi ;;
     freebsd) $SUDO pkg install -y "$@" ;;
+    arch)   $SUDO pacman -S --needed --noconfirm "$@" ;;
     *) log "instale manualmente: $*" ;;
   esac
 }
@@ -392,6 +407,7 @@ pkgs_faltantes() { # <pkg...> — imprime, um por linha, so os que NAO estao pre
       debian) dpkg -s "$p" >/dev/null 2>&1 || printf '%s\n' "$p" ;;
       rpm)    rpm -q --whatprovides "$p" >/dev/null 2>&1 || printf '%s\n' "$p" ;;
       freebsd) pkg info -e "$p" >/dev/null 2>&1 || printf '%s\n' "$p" ;;
+      arch)   pacman -Qi "$p" >/dev/null 2>&1 || printf '%s\n' "$p" ;;
       # Familia desconhecida: nao da pra afirmar que esta instalado, entao trata como
       # faltante e deixa o pkg_install decidir. Nao inventa VERDE sobre o que nao checou.
       *)      printf '%s\n' "$p" ;;
@@ -426,6 +442,8 @@ gui_runtime_deps() {
               libxkbcommon0 libwayland-client0 libgl1 libfontconfig1 || true ;;
     rpm)    instala_faltantes "libs de runtime da GUI" libX11-6 libXcursor1 libXrandr2 libXi6 \
               libxkbcommon0 libwayland-client0 Mesa-libGL1 fontconfig || true ;;
+    arch)   instala_faltantes "libs de runtime da GUI" libx11 libxcursor libxrandr libxi \
+              libxkbcommon wayland mesa fontconfig || true ;;
     freebsd) instala_faltantes "libs de runtime da GUI" libX11 libXcursor libXrandr libXi \
               libxkbcommon mesa-libs libxcb fontconfig || true ;;
   esac
@@ -441,6 +459,8 @@ gui_build_deps() {
     rpm)    instala_faltantes "libs de build da GUI" gcc gcc-c++ make pkg-config libX11-devel \
               libXcursor-devel libXrandr-devel \
               libXi-devel libxkbcommon-devel wayland-devel Mesa-libGL-devel libxcb-devel fontconfig-devel ;;
+    arch)   instala_faltantes "libs de build da GUI" base-devel pkgconf libx11 libxcursor libxrandr \
+              libxi libxkbcommon wayland mesa libxcb fontconfig ;;
     freebsd) instala_faltantes "libs de build da GUI" rust git pkgconf libX11 libXcursor libXrandr libXi \
               libxkbcommon wayland mesa-libs libxcb fontconfig ;;
     *) die "GUI do fonte: instale manualmente as libs de X11/Wayland/GL/fontconfig da sua distro." ;;
@@ -454,6 +474,7 @@ ensure_fonts() {
   case "$FAMILY" in
     debian) instala_faltantes "fontes da GUI" fonts-noto-core fonts-noto-cjk fonts-dejavu-core || true ;;
     freebsd) instala_faltantes "fontes da GUI" dejavu || true ;;
+    arch)   instala_faltantes "fontes da GUI" noto-fonts noto-fonts-cjk ttf-dejavu || true ;;
     rpm)    if [ "$SEM_ELEVACAO" = 1 ]; then
               pkg_install noto-sans-fonts noto-sans-cjk-fonts dejavu-fonts || true
             elif command -v zypper >/dev/null; then
@@ -1301,6 +1322,37 @@ _sync_repo() { # <url> <dir>  — git como o usuário real (checkout no HOME del
   fi
   as_user git clone --depth 1 "$url" "$dir"
 }
+# -----------------------------------------------------------------------------
+# registrar_no_menu <caminho-do-binario> <nome>
+#
+# Cada app do ecossistema registra a PRÓPRIA entrada no menu de aplicativos — é o que o
+# torna abrível sem o schematize (ADR-0010/0011).
+#
+# POR QUE ISTO VIROU FUNÇÃO, E POR QUE ELA FALA QUANDO FALHA
+#
+# Antes, os dois blocos chamavam `desktop --instalar >/dev/null 2>&1` inline. Quando a CLI
+# dos apps foi traduzida para inglês, a flag virou `--install` — e as duas chamadas passaram
+# a falhar **em silêncio**, porque o `>/dev/null` engolia o erro e o ramo `else` só dizia
+# "instalado", sem mencionar o ícone. O resultado foi um app instalado que não aparecia em
+# lista de software nenhuma, sem uma linha de saída que apontasse a causa.
+#
+# Best-effort continua certo: sem ícone é chato, derrubar a instalação por causa dele é
+# pior. Mas best-effort **não é mudo**. Se o passo falhar, isto diz qual comando falhar e
+# como consertar à mão — o §37.48 cobra mensagem acionável, não um sucesso que mente.
+# -----------------------------------------------------------------------------
+registrar_no_menu() {
+  local exe="$1" nome="$2" saida
+  if saida="$(as_user "$exe" desktop --install 2>&1)"; then
+    ok "$nome já aparece no menu de aplicativos."
+    return 0
+  fi
+  warn "$nome foi instalado, mas não consegui pôr o ícone no menu."
+  warn "  o que falhou: $exe desktop --install"
+  [ -n "$saida" ] && warn "  disse: $(printf '%s' "$saida" | head -n 2 | tr '\n' ' ')"
+  warn "  rode o comando acima para tentar de novo; o app funciona pelo terminal do mesmo jeito."
+  return 0
+}
+
 install_source() {
   # Deps do apt como root ($SUDO); build/instalação como o USUÁRIO REAL (as_user + TARGET_HOME) —
   # o app mora no HOME do usuário, nunca em /root, mesmo que tenham rodado via su/sudo.
@@ -1374,36 +1426,6 @@ install_source() {
 
   instala_as_janelas
 
-# -----------------------------------------------------------------------------
-# registrar_no_menu <caminho-do-binario> <nome>
-#
-# Cada app do ecossistema registra a PRÓPRIA entrada no menu de aplicativos — é o que o
-# torna abrível sem o schematize (ADR-0010/0011).
-#
-# POR QUE ISTO VIROU FUNÇÃO, E POR QUE ELA FALA QUANDO FALHA
-#
-# Antes, os dois blocos chamavam `desktop --instalar >/dev/null 2>&1` inline. Quando a CLI
-# dos apps foi traduzida para inglês, a flag virou `--install` — e as duas chamadas passaram
-# a falhar **em silêncio**, porque o `>/dev/null` engolia o erro e o ramo `else` só dizia
-# "instalado", sem mencionar o ícone. O resultado foi um app instalado que não aparecia em
-# lista de software nenhuma, sem uma linha de saída que apontasse a causa.
-#
-# Best-effort continua certo: sem ícone é chato, derrubar a instalação por causa dele é
-# pior. Mas best-effort **não é mudo**. Se o passo falhar, isto diz qual comando falhar e
-# como consertar à mão — o §37.48 cobra mensagem acionável, não um sucesso que mente.
-# -----------------------------------------------------------------------------
-registrar_no_menu() {
-  local exe="$1" nome="$2" saida
-  if saida="$(as_user "$exe" desktop --install 2>&1)"; then
-    ok "$nome já aparece no menu de aplicativos."
-    return 0
-  fi
-  warn "$nome foi instalado, mas não consegui pôr o ícone no menu."
-  warn "  o que falhou: $exe desktop --install"
-  [ -n "$saida" ] && warn "  disse: $(printf '%s' "$saida" | head -n 2 | tr '\n' ' ')"
-  warn "  rode o comando acima para tentar de novo; o app funciona pelo terminal do mesmo jeito."
-  return 0
-}
 
   # ---------------------------------------------------------------------------
   # MARKET — o GESTOR (ADR-0012 + ADR-0013). Vai SEMPRE, sem flag.
