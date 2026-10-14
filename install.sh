@@ -134,11 +134,25 @@ fi
 # ---------------------------------------------------------------------------
 SUDO=""
 SEM_ELEVACAO=0
+SEM_ELEVACAO_MOTIVO="nao ha \`sudo\` aqui"
+
+# O quê: diz se o `sudo` desta máquina PODE rodar agora sem travar o leigo.
+# Onde: logo abaixo, decide se `SUDO` fica `sudo` ou vazio (SEM_ELEVACAO=1).
+# Utilizável = `sudo -n true` passa (NOPASSWD/credencial em cache) OU há terminal
+# (/dev/tty) onde ele pode pedir a senha. Sem nenhum dos dois (script disparado sem TTY,
+# sudo pedindo senha) o `sudo` só falharia no meio — §37.48: degradar com aviso, não morrer.
+sudo_utilizavel() {
+  command -v sudo >/dev/null 2>&1 || return 1
+  sudo -n true >/dev/null 2>&1 && return 0
+  { [ -t 0 ] || { : </dev/tty; } 2>/dev/null; } && return 0
+  return 1
+}
 if [ "$(id -u)" -ne 0 ]; then
-  if command -v sudo >/dev/null 2>&1; then
+  if sudo_utilizavel; then
     SUDO="sudo"
   else
     SEM_ELEVACAO=1
+    command -v sudo >/dev/null 2>&1 && SEM_ELEVACAO_MOTIVO="o \`sudo\` exige senha e nao ha terminal para digita-la"
   fi
 fi
 
@@ -182,15 +196,15 @@ pkg_install() {
   # Sem root e sem sudo nao ha como instalar pacote de sistema. Dizer isso -- com a lista
   # e o comando -- e util; deixar o shell responder `sudo: command not found` nao e.
   if [ "$SEM_ELEVACAO" = 1 ]; then
-    warn "nao consigo instalar pacote do sistema: voce nao e root e nao ha \`sudo\` aqui."
+    warn "nao consigo instalar pacote do sistema: voce nao e root e $SEM_ELEVACAO_MOTIVO."
     warn "  faltam: $*"
-    warn "  instale como root e rode este script de novo, por exemplo:"
+    warn "  instale como root (ou num terminal com sudo) e rode este script de novo, por exemplo:"
     case "$FAMILY" in
       debian) warn "    apt-get update && apt-get install -y $*" ;;
       rpm)    warn "    zypper install -y $*   (ou: dnf install -y $*)" ;;
       *)      warn "    use o gerenciador de pacotes da sua distro" ;;
     esac
-    warn "  sigo em frente — se as bibliotecas ja estiverem na maquina, nada se perde."
+    warn "  sigo em frente — o CLI funciona sem elas (so a janela/fontes podem precisar)."
     return 1
   fi
   case "$FAMILY" in
@@ -291,9 +305,10 @@ gui_build_deps() {
 # fonts-noto (amplo) entra como reforço. Coreano vem do CJK; persa usa a escrita árabe.
 ensure_fonts() {
   case "$FAMILY" in
-    debian) pkg_install fonts-noto-core fonts-noto-cjk fonts-dejavu-core >/dev/null 2>&1 || true
-            pkg_install fonts-noto >/dev/null 2>&1 || true ;;
-    rpm)    if command -v zypper >/dev/null; then
+    debian) instala_faltantes "fontes da GUI" fonts-noto-core fonts-noto-cjk fonts-dejavu-core || true ;;
+    rpm)    if [ "$SEM_ELEVACAO" = 1 ]; then
+              pkg_install noto-sans-fonts noto-sans-cjk-fonts dejavu-fonts || true
+            elif command -v zypper >/dev/null; then
               $SUDO zypper --non-interactive install -y noto-sans-fonts noto-sans-cjk-fonts dejavu-fonts >/dev/null 2>&1 || true
               $SUDO zypper --non-interactive install -y google-noto-sans-thai-fonts google-noto-sans-bengali-fonts >/dev/null 2>&1 || true
             else
@@ -458,12 +473,18 @@ purge_previous() {
 
   # 2) Pacotes da distro. Enquanto o pacote existir, ele repõe /usr/bin no próximo
   #    `apt/zypper upgrade` — remover só o arquivo não bastaria.
-  if command -v dpkg >/dev/null && dpkg -l schematize 2>/dev/null | grep -q '^ii'; then
+  if [ "$SEM_ELEVACAO" = 1 ]; then
+    if { command -v dpkg >/dev/null && dpkg -l schematize 2>/dev/null | grep -q '^ii'; } \
+       || { command -v rpm >/dev/null && rpm -q schematize >/dev/null 2>&1; }; then
+      warn "ha o PACOTE antigo do schematize e nao tenho sudo utilizavel pra remove-lo. Quando puder, rode:"
+      warn "  sudo apt remove schematize   (ou: sudo zypper rm schematize / sudo dnf remove schematize)"
+    fi
+  elif command -v dpkg >/dev/null && dpkg -l schematize 2>/dev/null | grep -q '^ii'; then
     log "removendo o pacote .deb do schematize"
     $SUDO apt-get remove -y schematize >/dev/null 2>&1 || $SUDO dpkg -r schematize >/dev/null 2>&1 || \
       warn "não removi o .deb — rode: sudo apt remove schematize"
   fi
-  if command -v rpm >/dev/null && rpm -q schematize >/dev/null 2>&1; then
+  if [ "$SEM_ELEVACAO" != 1 ] && command -v rpm >/dev/null && rpm -q schematize >/dev/null 2>&1; then
     log "removendo o pacote .rpm do schematize"
     { command -v zypper >/dev/null && $SUDO zypper -n rm schematize; } >/dev/null 2>&1 \
       || $SUDO dnf -y remove schematize >/dev/null 2>&1 \
@@ -525,6 +546,23 @@ purge_previous() {
   as_user rm -f "$TARGET_HOME"/.local/share/icons/hicolor/*/apps/schematize.png 2>/dev/null || true
 
   ok "instalação anterior removida — instalando do zero."
+}
+
+# O quê: avisa (sem culpa) de cópia antiga do schematize em /usr/local/bin ou /usr/bin que a
+# purga não conseguiu remover (precisa de sudo), com o comando exato, e como garantir que
+# ~/.cargo/bin vence no PATH. Nunca falha.
+# Onde: fim de `post_config` (modos binary/source).
+avisa_instalacao_antiga() {
+  local d b velhos=()
+  for d in /usr/local/bin /usr/bin; do
+    for b in $BINS; do [ -e "$d/$b" ] && velhos+=("$d/$b"); done
+  done
+  [ ${#velhos[@]} -gt 0 ] || return 0
+  warn "sobrou instalacao antiga do schematize fora do seu HOME: ${velhos[*]}"
+  warn "  a nova esta em $TARGET_HOME/.cargo/bin. Quando puder, remova a antiga (precisa de sudo):"
+  warn "    sudo rm -f ${velhos[*]}"
+  warn "  ate la, garanta que ~/.cargo/bin vem ANTES no PATH:  export PATH=\"$TARGET_HOME/.cargo/bin:\$PATH\""
+  return 0
 }
 
 # ---------------------------------------------------------------------------
@@ -878,7 +916,7 @@ garantir_overdev() {
 # export aos rc do usuario. Idempotente, e SEMPRE em modo append.
 #
 # ONDE: `post_config` (dir = ~/.cargo/bin, o caminho do modo `source`, que e o
-# padrao) e `install_binary` (dir = /usr/local/bin ou ~/.local/bin).
+# padrao) e `install_binary` (dir = ~/.cargo/bin, tambem).
 #
 # POR QUE EXISTE: ate 2026-09-06 este script NAO escrevia rc nenhum -- `grep -c
 # 'bashrc\|profile\|zshrc' install.sh` dava 0. Ele dependia de um EFEITO COLATERAL
@@ -994,6 +1032,7 @@ post_config() {
   echo "    schematize overdev enable         # liga o modo overdev"
   echo "    schematize gui                    # abre a janela (ou use o menu de apps)"
   echo "    schematize skills list            # versões instaladas vs latest"
+  avisa_instalacao_antiga
 }
 
 # O quê: confirma que o release latest tem o asset do CLI pra esta plataforma.
@@ -1013,13 +1052,15 @@ install_binary() {
   purge_previous "$TARGET_HOME/.cargo/bin"
   ensure_runtime_deps; gui_runtime_deps; ensure_fonts
   local DL; DL="$(resolve_dl)"
-  local dst; if [ -n "$SUDO" ] || [ -w /usr/local/bin ]; then dst="/usr/local/bin"; else dst="$HOME/.local/bin"; fi
-  mkdir -p "$dst" 2>/dev/null || $SUDO mkdir -p "$dst"
-  local mv_="mv"; [ -w "$dst" ] || mv_="$SUDO mv"
+  # Destino CANÔNICO do ecossistema (o market e o market_parasita também usam): ~/.cargo/bin,
+  # do usuário, SEM sudo. Antes ia pra /usr/local/bin via `sudo mv` e morria sem sudo.
+  local dst="$TARGET_HOME/.cargo/bin"
+  as_user mkdir -p "$dst" || die "nao consegui criar $dst — confira as permissoes do seu HOME ($TARGET_HOME)."
   for pair in "schematize-linux-x86_64:schematize" "schematize-gui-linux-x86_64:schematize-gui"; do
     local src="${pair%%:*}" name="${pair##*:}" t
     log "baixando $name → $dst/$name"; t="$(mktemp)"
-    curl -fSL -o "$t" "$DL/$src"; chmod 755 "$t"; $mv_ "$t" "$dst/$name"
+    curl -fSL -o "$t" "$DL/$src"; chmod 755 "$t"
+    as_user install -m755 "$t" "$dst/$name"; rm -f "$t"
   done
   install_gui_launcher
   # Antes isto era só um aviso ("⚠ adicione ao PATH") — pedir pro usuário fazer o que

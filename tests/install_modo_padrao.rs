@@ -241,3 +241,89 @@ fn kit_completo_passo_que_falha_nao_aborta_os_outros_e_sai_nao_zero() {
     assert!(chamadas.contains("schematize doctor"), "{saida}");
     assert!(saida.contains("FALHOU: market install --all -y"), "{saida}");
 }
+
+/// **O quê:** roda `install_binary` do install.sh real num HOME descartável, com `curl` e
+/// `sudo` falsos (o `sudo` SEMPRE falha), sem TTY (`setsid`), e os passos de pós-instalação
+/// stubados. Devolve (saída combinada, HOME, rc).
+/// **Onde:** testes "destino binary = ~/.cargo/bin" e "sem sudo utilizável não morre".
+fn roda_install_binary(tag: &str) -> (String, std::path::PathBuf, i32) {
+    use std::os::unix::fs::PermissionsExt;
+    let raiz = Path::new(env!("CARGO_TARGET_TMPDIR")).join(format!("binary-{tag}"));
+    let _ = std::fs::remove_dir_all(&raiz);
+    let home = raiz.join("home");
+    let stubs = raiz.join("stubs");
+    std::fs::create_dir_all(&home).unwrap();
+    std::fs::create_dir_all(&stubs).unwrap();
+    let escreve = |nome: &str, corpo: &str| {
+        let p = stubs.join(nome);
+        std::fs::write(&p, corpo).unwrap();
+        std::fs::set_permissions(&p, std::fs::Permissions::from_mode(0o755)).unwrap();
+    };
+    escreve(
+        "curl",
+        "#!/bin/sh\nwhile [ $# -gt 0 ]; do [ \"$1\" = -o ] && { printf '#!/bin/sh\\necho bin\\n' > \"$2\"; exit 0; }; shift; done\nexit 0\n",
+    );
+    escreve("sudo", "#!/bin/sh\necho \"FAKE-SUDO: $*\" >&2\nexit 1\n");
+    let sh = Path::new(env!("CARGO_MANIFEST_DIR")).join("install.sh");
+    let script = format!(
+        ". '{}'; post_config(){{ :; }}; install_gui_launcher(){{ :; }}; ensure_path_rc(){{ :; }}; \
+         binario_disponivel(){{ return 0; }}; install_binary; echo RC=$?",
+        sh.display()
+    );
+    let path = format!("{}:/usr/bin:/bin", stubs.display());
+    let out = Command::new("setsid")
+        .args(["-w", "bash", "-c", &script])
+        .env_clear()
+        .env("SCHEMATIZE_INSTALL_LIB", "1")
+        .env("SCHEMATIZE_INSTALL_NO_SELF", "1")
+        .env("HOME", &home)
+        .env("PATH", path)
+        .stdin(std::process::Stdio::null())
+        .output()
+        .expect("setsid/bash roda");
+    let tudo =
+        format!("{}{}", String::from_utf8_lossy(&out.stdout), String::from_utf8_lossy(&out.stderr));
+    let rc = tudo.rsplit("RC=").next().and_then(|s| s.trim().parse().ok()).unwrap_or(-1);
+    (tudo, home, rc)
+}
+
+#[test]
+fn binary_instala_em_cargo_bin_sem_sudo() {
+    let (tudo, home, rc) = roda_install_binary("destino");
+    assert_eq!(rc, 0, "install_binary deve terminar 0 sem sudo utilizável:\n{tudo}");
+    for b in ["schematize", "schematize-gui"] {
+        assert!(
+            home.join(".cargo/bin").join(b).is_file(),
+            "{b} deve estar em ~/.cargo/bin:\n{tudo}"
+        );
+    }
+    assert!(!tudo.contains("FAKE-SUDO: mv"), "não pode usar `sudo mv`:\n{tudo}");
+    assert!(!home.join(".local/bin/schematize").exists(), "não usa mais ~/.local/bin");
+}
+
+#[test]
+fn sem_sudo_utilizavel_vira_aviso_nao_morte() {
+    let sh = Path::new(env!("CARGO_MANIFEST_DIR")).join("install.sh");
+    let (_, home, _) = roda_install_binary("aviso");
+    let script =
+        format!(". '{}'; printf \"SEM=%s SUDO=[%s]\" \"$SEM_ELEVACAO\" \"$SUDO\"", sh.display());
+    let path = format!("{}:/usr/bin:/bin", home.parent().unwrap().join("stubs").display());
+    let out = Command::new("setsid")
+        .args(["-w", "bash", "-c", &script])
+        .env_clear()
+        .env("SCHEMATIZE_INSTALL_LIB", "1")
+        .env("SCHEMATIZE_INSTALL_NO_SELF", "1")
+        .env("HOME", &home)
+        .env("PATH", path)
+        .stdin(std::process::Stdio::null())
+        .output()
+        .unwrap();
+    let so = String::from_utf8_lossy(&out.stdout);
+    if Command::new("id").arg("-u").output().map(|o| o.stdout == b"0\n").unwrap_or(false) {
+        return; // root: não há elevação a decidir
+    }
+    assert!(
+        so.contains("SEM=1 SUDO=[]"),
+        "sudo que falha e sem TTY => sem elevação, não crash: {so}"
+    );
+}
