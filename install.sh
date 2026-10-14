@@ -90,6 +90,14 @@ if [ -z "${BASH_VERSION:-}" ]; then
   exit 1
 fi
 
+# ---------------------------------------------------------------------------
+# main-no-fim: TODO o resto do script (definições + execução) vive em `main() { ... }` e só
+# roda na ÚLTIMA linha (`main "$@"`). Um download truncado (curl | bash cortado no meio) não
+# fecha o `}` -> erro de sintaxe no EOF -> NADA executa. Só o preâmbulo POSIX acima roda antes.
+# ---------------------------------------------------------------------------
+VEIO_DO_STDIN=0
+[ -z "${BASH_SOURCE[0]:-}" ] && VEIO_DO_STDIN=1   # top-level: dentro de função o BASH_SOURCE mente
+main() {
 set -euo pipefail
 
 REPO="schematizeme/schematize-cli"
@@ -224,8 +232,6 @@ fi
 # Onde: logo antes do `exec` da auto-atualização. POR QUÊ: o `exec` troca o bash que lia o
 # pipe; sem leitor, o `curl` de fora tomava EPIPE e imprimia "curl: (23) Failure writing
 # output" no meio da instalação. Só age se o script veio do stdin (BASH_SOURCE vazio — `$0` não serve: `/bin/bash -s` o deixa apontando pro bash) e o stdin não é tty.
-VEIO_DO_STDIN=0
-[ -z "${BASH_SOURCE[0]:-}" ] && VEIO_DO_STDIN=1   # top-level: dentro de função o BASH_SOURCE mente
 drena_stdin_do_script() {
   if [ "$VEIO_DO_STDIN" = 1 ] && [ ! -t 0 ]; then cat >/dev/null 2>&1 || true; fi
 }
@@ -1644,3 +1650,6 @@ esac
 if [ "$COMPLETO" = 1 ]; then
   kit_completo || exit 1
 fi
+}
+
+main "$@"

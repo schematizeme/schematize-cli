@@ -77,10 +77,21 @@ esac"#
         );
         self.falso("curl", &corpo);
     }
+    fn log(&self, nome: &str) -> String {
+        fs::read_to_string(self.raiz.join("log").join(nome)).unwrap_or_default()
+    }
     /// Roda o `install.sh` ALIMENTADO POR PIPE (`bash -s -- args`), como o `curl | bash`.
     /// Devolve (saída combinada, resultado do `write_all` no pipe, arquivos em tmp/).
     fn pipe(&self, args: &[&str], com_self_update: bool) -> (String, std::io::Result<()>, usize) {
-        let script = fs::read(install_sh()).unwrap();
+        self.pipe_bytes(fs::read(install_sh()).unwrap(), args, com_self_update)
+    }
+    /// Igual a [`Box::pipe`], mas com o conteúdo do script dado (ex.: truncado).
+    fn pipe_bytes(
+        &self,
+        script: Vec<u8>,
+        args: &[&str],
+        com_self_update: bool,
+    ) -> (String, std::io::Result<()>, usize) {
         let mut c = Command::new("/bin/bash");
         c.args(["-s", "--"])
             .args(args)
@@ -218,4 +229,27 @@ fn sem_funcao_aninhada_nem_chamada_antes_da_definicao() {
         def < install_source && def < kit,
         "registrar_no_menu deve ser definida antes dos usos"
     );
+}
+
+#[test]
+fn download_truncado_nao_executa_nada() {
+    let completo = fs::read(install_sh()).unwrap();
+    assert!(
+        String::from_utf8_lossy(&completo).trim_end().ends_with("main \"$@\""),
+        "main deve ser a última linha"
+    );
+    for (nome, pct) in [("t50", 50usize), ("t90", 90)] {
+        let b = Box::novo(nome);
+        b.curl("#!/bin/bash\necho SCRIPT_NOVO_RODOU");
+        b.falso("sudo", "echo sudo >> \"$LOGDIR/sudo.log\"; exit 0");
+        let corte = completo.len() * pct / 100;
+        let (t, _w, tmp) =
+            b.pipe_bytes(completo[..corte].to_vec(), &["--binary", "--completo"], true);
+        let home = fs::read_dir(b.raiz.join("home")).unwrap().count();
+        assert_eq!(home, 0, "{pct}%: escreveu no HOME:\n{t}");
+        assert_eq!(tmp, 0, "{pct}%: criou temporário:\n{t}");
+        assert!(b.log("fetch.log").is_empty(), "{pct}%: baixou algo:\n{t}");
+        assert!(b.log("sudo.log").is_empty(), "{pct}%: chamou sudo");
+        assert!(!t.contains("SCRIPT_NOVO_RODOU") && !t.contains("▶"), "{pct}%: executou:\n{t}");
+    }
 }
