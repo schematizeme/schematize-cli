@@ -1500,6 +1500,13 @@ install_source() {
   fi
   if [ "$SKILLS" = 1 ]; then
     delega_ao_market schematize-skills || true
+    # A engineering e skill PADRAO: instalada sempre, e o `install` ja aplica o nucleo
+    # sempre-on (CLAUDE.md global + hook SessionStart). No kit completo quem faz isso e o
+    # `skills install --all`, mais abaixo. Nunca aborta o script.
+    if [ "$COMPLETO" != 1 ] && [ -x "$TARGET_HOME/.cargo/bin/schematize-skills" ]; then
+      as_user "$TARGET_HOME/.cargo/bin/schematize-skills" install engineering \
+        || warn "nao consegui instalar a skill padrao (engineering). Repita: schematize-skills install engineering"
+    fi
   fi
   # O overdev vai SEMPRE (o hub delega os hooks a ele) e nunca aborta o script.
   if ! garantir_overdev; then
