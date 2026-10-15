@@ -23,6 +23,14 @@ CMD schematize blog
 CMD schematize check
   SOBRE Check for updates once (with --notify, fire a desktop notification)
   ARG notify               --notify
+CMD schematize core
+  SOBRE Always-on core: install/inspect the engineering rules the agent loads in EVERY session
+CMD schematize core install
+  SOBRE Write the core block into ~/.claude/CLAUDE.md and register the SessionStart hook
+CMD schematize core print
+  SOBRE Print the installed CORE.md (what the SessionStart hook runs; silent if absent)
+CMD schematize core status
+  SOBRE Show whether the core is present, outdated or absent (exit 1 unless up to date)
 CMD schematize debug
   SOBRE Debug the update manager/versioning; or --collect a shareable, secret-safe debug report
   ARG collect              --collect

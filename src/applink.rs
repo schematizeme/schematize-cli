@@ -280,6 +280,15 @@ fn delegado(argv: &[String]) -> Option<(&'static Delegado, Vec<String>)> {
     Some((d, args))
 }
 
+/// **O quê:** o `argv` é um `install`/`update` de skills (direto ou via `skills <sub>`)? PURA.
+///
+/// **Onde:** [`interceptar`], para decidir se aplica o núcleo sempre-on ao fim.
+pub fn instala_ou_atualiza_skills(argv: &[String]) -> bool {
+    let a = |i: usize| argv.get(i).map(String::as_str);
+    matches!(a(0), Some("install" | "update"))
+        || (a(0) == Some("skills") && matches!(a(1), Some("install" | "update")))
+}
+
 /// **O quê:** se o comando é de um app da casa, executa lá e devolve o código de saída.
 /// `None` = não é delegado, o `clap` do hub segue normalmente.
 ///
@@ -316,7 +325,15 @@ pub fn interceptar(argv: &[String]) -> Option<i32> {
     match std::process::Command::new(&caminho).args(&args).status() {
         // 128+sinal é a convenção do shell para "morreu de sinal"; sem isto um Ctrl-C no app
         // delegado faria o hub sair 0, e um script encadeado seguiria como se tivesse dado certo.
-        Ok(st) => Some(st.code().unwrap_or(130)),
+        Ok(st) => {
+            let code = st.code().unwrap_or(130);
+            // Núcleo sempre-on: ao fim de um install/update de skills bem-sucedido, aplica o
+            // CLAUDE.md global + hook SessionStart (best-effort; só age se a engineering está lá).
+            if code == 0 && instala_ou_atualiza_skills(argv) {
+                crate::nucleo::garantir_apos_install();
+            }
+            Some(code)
+        }
         Err(e) => {
             eprintln!("erro: não consegui executar `{}`: {e}", caminho.display());
             Some(1)
@@ -434,6 +451,20 @@ mod tests {
             assert_eq!(bin, crate::deployerlink::OPTIMIZER);
             assert_eq!(args, v(saida), "{entrada:?}");
         }
+    }
+
+    /// `install`/`update` de skills disparam o núcleo; o resto não.
+    #[test]
+    fn so_install_e_update_de_skills_aplicam_o_nucleo() {
+        let v = |a: &[&str]| a.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        assert!(instala_ou_atualiza_skills(&v(&["install", "--all"])));
+        assert!(instala_ou_atualiza_skills(&v(&["update"])));
+        assert!(instala_ou_atualiza_skills(&v(&["skills", "install", "rust"])));
+        assert!(instala_ou_atualiza_skills(&v(&["skills", "update"])));
+        assert!(!instala_ou_atualiza_skills(&v(&["skills", "list"])));
+        assert!(!instala_ou_atualiza_skills(&v(&["remove", "x"])));
+        assert!(!instala_ou_atualiza_skills(&v(&["ssh", "install"])));
+        assert!(!instala_ou_atualiza_skills(&[]));
     }
 
     /// Prefixo PARCIAL não conta: `sshfoo` não é `ssh`. Sem a igualdade exata, um comando

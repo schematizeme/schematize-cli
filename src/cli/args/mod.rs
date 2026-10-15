@@ -33,6 +33,17 @@ pub(crate) mod maquina;
 
 pub(crate) use graph::{Auto, ProjectsCmd};
 
+/// `schematize core …` — o núcleo sempre-on (CLAUDE.md global + hook SessionStart).
+#[derive(Subcommand)]
+pub(crate) enum CoreCmd {
+    /// Write the core block into ~/.claude/CLAUDE.md and register the SessionStart hook.
+    Install,
+    /// Show whether the core is present, outdated or absent (exit 1 unless up to date).
+    Status,
+    /// Print the installed CORE.md (what the SessionStart hook runs; silent if absent).
+    Print,
+}
+
 use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
@@ -97,6 +108,11 @@ pub(crate) enum Cmd {
         /// Pula a confirmação (envia direto).
         #[arg(long)]
         yes: bool,
+    },
+    /// Always-on core: install/inspect the engineering rules the agent loads in EVERY session.
+    Core {
+        #[command(subcommand)]
+        sub: CoreCmd,
     },
     /// Diagnose the environment (add --fix to repair what's safe).
     Doctor {

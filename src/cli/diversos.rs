@@ -131,3 +131,45 @@ pub(crate) fn projects_cmd(sub: ProjectsCmd) -> Result<(), String> {
         }
     }
 }
+
+/// `schematize core install|status|print` — o núcleo sempre-on. Lógica em `schematize::nucleo`.
+pub(crate) fn core_cmd(sub: CoreCmd) -> Result<(), String> {
+    use schematize::nucleo;
+    match sub {
+        CoreCmd::Install => {
+            let r = nucleo::instalar()?;
+            if r.bloco_alterado || r.hook_alterado {
+                println!("núcleo sempre-on aplicado:");
+                if r.bloco_alterado {
+                    println!("  - bloco gravado em ~/.claude/CLAUDE.md");
+                }
+                if r.backup_criado {
+                    println!("  - backup do original em ~/.claude/CLAUDE.md.bak");
+                }
+                if r.hook_alterado {
+                    println!("  - hook SessionStart registrado em ~/.claude/settings.json");
+                }
+            } else {
+                println!("núcleo sempre-on já está em dia.");
+            }
+            Ok(())
+        }
+        CoreCmd::Status => {
+            let s = nucleo::estado();
+            println!("{}", nucleo::descrever(&s));
+            if s.em_dia() {
+                Ok(())
+            } else {
+                // Saída 1 sem mensagem de erro extra: o estado já foi impresso acima.
+                std::process::exit(1)
+            }
+        }
+        CoreCmd::Print => {
+            // Silêncio total e exit 0 se ausente: é um hook de SessionStart.
+            if let Some(t) = nucleo::texto_core() {
+                print!("{t}");
+            }
+            Ok(())
+        }
+    }
+}

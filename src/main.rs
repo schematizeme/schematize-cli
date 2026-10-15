@@ -19,6 +19,11 @@ use schematize::{agent, autostart, doctor, links, news, status, upgrade, util};
 // resolve item humano é o `schematize-overdev`. Lá ele ganhou teste — aqui vivia no meio do
 // despacho, sem nenhum.
 
+/// Hooks do Claude Code que NÃO podem ganhar rede nem latência: os do overdev e o `core print`
+/// (SessionStart do núcleo sempre-on — roda em toda abertura de sessão).
+const HOOKS: &[&[&str]] =
+    &[&["overdev", "guard|check"], &["guard|check|hooks"], &["core", "print"]];
+
 fn main() {
     // ANTES do clap: `ssh`, `vps`, `mcp` e `env` são dos apps da casa, e os argumentos vão
     // CRUS para eles. Se o hub parseasse, precisaria conhecer cada flag dos apps — e foi
@@ -33,8 +38,7 @@ fn main() {
     // `overdev guard|check` nem chegam aqui (o `applink` os encaminha acima), e o módulo os
     // exclui por garantia — rodam a cada tool call.
     schematize_plataforma::parasita::garantir(
-        &schematize_plataforma::parasita::Config::new("schematize")
-            .com_hooks(schematize_plataforma::parasita::HOOKS_OVERDEV),
+        &schematize_plataforma::parasita::Config::new("schematize").com_hooks(HOOKS),
     );
     let r: Result<(), String> = match cli.cmd {
         // O braço de SKILLS saiu daqui na E5: `skills`, `install`, `update`, `list` e `remove`
@@ -60,6 +64,7 @@ fn main() {
             }
             r
         }
+        Cmd::Core { sub } => core_cmd(sub),
         Cmd::Doctor { fix } => {
             doctor::run(fix);
             Ok(())

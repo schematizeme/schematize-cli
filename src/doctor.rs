@@ -103,6 +103,10 @@ pub fn run(fix: bool) {
         }
     }
 
+    // Núcleo sempre-on (CLAUDE.md global + hook SessionStart). Só cobra quando a engineering
+    // está instalada: sem ela não há CORE.md para aplicar, e isso é assunto das skills.
+    issues += nucleo_check(fix);
+
     // rede (GitHub)
     if github_reachable() {
         line(&Lv::Ok, &t("doctor.check_network"), "");
@@ -499,6 +503,50 @@ fn write_desktop(path: &Path, bin: &Path) -> Result<(), String> {
         .arg(util::home().join(".local/share/applications"))
         .status();
     Ok(())
+}
+
+/// **O quê:** confere o núcleo sempre-on; com `fix` aplica. Devolve quantos problemas restaram.
+///
+/// **Onde:** [`run`]. Acusa ausente/desatualizado (bloco ou hook) e o `--fix` chama
+/// `nucleo::instalar`.
+fn nucleo_check(fix: bool) -> usize {
+    const L: &str = "núcleo sempre-on (CLAUDE.md global + hook SessionStart)";
+    if !crate::nucleo::engineering_instalada() {
+        line(
+            &Lv::Warn,
+            L,
+            "skill schematize-engineering não instalada — `schematize install engineering`",
+        );
+        return 1;
+    }
+    let s = crate::nucleo::estado();
+    if s.em_dia() {
+        line(&Lv::Ok, L, "");
+        return 0;
+    }
+    if !s.core_instalado {
+        line(
+            &Lv::Warn,
+            L,
+            "CORE.md ausente — atualize a engineering (≥ 0.29.0): `schematize update`",
+        );
+        return 1;
+    }
+    let detalhe = crate::nucleo::descrever(&s).replace('\n', "; ");
+    if fix {
+        return match crate::nucleo::instalar() {
+            Ok(_) => {
+                line(&Lv::Ok, L, &t("doctor.fixed"));
+                0
+            }
+            Err(e) => {
+                line(&Lv::Fail, L, &e);
+                1
+            }
+        };
+    }
+    line(&Lv::Warn, L, &format!("{detalhe} — rode `schematize doctor --fix`"));
+    1
 }
 
 #[cfg(test)]
