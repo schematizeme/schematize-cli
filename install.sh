@@ -20,6 +20,14 @@
 #   curl -fsSL .../install.sh | bash -s -- --skills    # instala TAMBÉM as skills (catálogo)
 #   curl -fsSL .../install.sh | bash -s -- --completo  # KIT COMPLETO: hub + market + todos os apps/janelas + skills + doctor
 #                                                      # (sinônimos: --all, --kit)
+#   curl -fsSL .../install.sh | bash -s -- --sem-nucleo # opt-out: SO o app, sem a skill engineering nem o núcleo
+#
+# NÚCLEO SEMPRE-ON (padrão, sem flag): além do app, o instalador instala a skill `engineering`
+# e roda `schematize core install` (bloco no ~/.claude/CLAUDE.md global + hook SessionStart),
+# pra máquina recém-formatada já sair com a regra de orquestração ativa. Sob sudo age no HOME
+# do usuário real. Sem ~/.claude (Claude Code ausente) ele cria a pasta e avisa; sem rede, o app
+# fica instalado e o script diz o comando pra completar: schematize skills install engineering.
+# `--skills`/`--completo` são superconjuntos (já trazem a engineering). `--sem-nucleo` desliga.
 #
 # FreeBSD (x86_64): o `bash` nao vem na base, entao o one-liner usa o `sh` e o `fetch` da base:
 #   fetch -o - https://raw.githubusercontent.com/schematizeme/schematize-cli/main/install.sh | sh -s -- --completo
@@ -114,13 +122,19 @@ for a in "$@"; do case "$a" in
   --git) GIT=1;;             # instala TAMBEM o schematize-git + a janela dele (idem)
   --skills) SKILLS=1;;       # instala TAMBEM o schematize-skills + a janela dele (idem)
   --completo|--all|--kit) COMPLETO=1;;  # KIT COMPLETO: hub + market + todos os apps + skills + doctor
+  --sem-nucleo|--no-core) NUCLEO=0;;     # opt-out: so o app, sem a engineering nem o nucleo sempre-on
 esac; done
+: "${NUCLEO:=1}"   # padrao: instala a engineering e aplica o nucleo sempre-on (CLAUDE.md global + hook)
 : "${DEPLOYER:=0}"
 : "${OPTIMIZER:=0}"
 : "${DATABASE:=0}"
 : "${GIT:=0}"
 : "${SKILLS:=0}"
 : "${COMPLETO:=0}"
+# Diretorios de sistema onde uma copia antiga do schematize pode estar. Sobrescrevivel por
+# SCHEMATIZE_SYS_BIN_DIRS (lista separada por espaco) -- existe pra que o teste do instalador
+# seja HERMETICO: sem isso ele consulta (e manda `sudo rm`) o /usr/local/bin REAL da maquina.
+SYS_BIN_DIRS="${SCHEMATIZE_SYS_BIN_DIRS:-/usr/local/bin /usr/bin}"
 MARKET_ATUALIZADO=0   # 1 depois que ESTA execucao trocou o market pela latest
 
 log() { printf '\033[1;36m▶ %s\033[0m\n' "$*"; }
@@ -715,7 +729,7 @@ purge_previous() {
   #
   # Note a diferença para a nota do BINS: ali o nome está VIVO e apagá-lo desinstalaria o
   # app de alguém. Aqui o nome está MORTO, e não apagá-lo é que quebra.
-  for d in "$TARGET_HOME/.cargo/bin" "$TARGET_HOME/.local/bin" /usr/local/bin /usr/bin; do
+  for d in "$TARGET_HOME/.cargo/bin" "$TARGET_HOME/.local/bin" $SYS_BIN_DIRS; do
     for b in overflow overflow-gui overflow-updater overflow-updater-gui \
              deployer optimizer schematize-updater schematize-updater-gui; do
       [ -e "$d/$b" ] && { rm -f "$d/$b" 2>/dev/null || $SUDO rm -f "$d/$b" 2>/dev/null; } && \
@@ -729,7 +743,7 @@ purge_previous() {
       [ "$d" = "$destino" ] && continue
       as_user rm -f "$d/$b" "$d/$b.novo" "$d/$b.old" 2>/dev/null || true
     done
-    for d in /usr/local/bin /usr/bin; do
+    for d in $SYS_BIN_DIRS; do
       [ "$d" = "$destino" ] && continue
       [ -e "$d/$b" ] && { $SUDO rm -f "$d/$b" 2>/dev/null || true; }
     done
@@ -752,7 +766,7 @@ purge_previous() {
 # Onde: fim de `post_config` (modos binary/source).
 avisa_instalacao_antiga() {
   local d b velhos=()
-  for d in /usr/local/bin /usr/bin; do
+  for d in $SYS_BIN_DIRS; do
     for b in $BINS; do [ -e "$d/$b" ] && velhos+=("$d/$b"); done
   done
   [ ${#velhos[@]} -gt 0 ] || return 0
@@ -1543,6 +1557,55 @@ install_source() {
 }
 
 # ---------------------------------------------------------------------------
+# aplica_nucleo — o instalador PADRAO sai com a regra de orquestracao ativa.
+#
+# O QUE: instala a skill `engineering` (se ainda nao esta) e roda `schematize core install`
+# (bloco no ~/.claude/CLAUDE.md global + hook SessionStart). Roda por padrao, em TODO modo;
+# `--sem-nucleo` desliga. `--skills`/`--completo` sao superconjuntos: ja instalam a
+# engineering, e aqui so repetimos o `core install`, que e idempotente.
+#
+# POR QUE: maquina recem-formatada saia so com o app, e o agente ignorava a orquestracao
+# porque nada a punha no contexto antes de a skill disparar.
+#
+# PREVER MACACOS: tudo como o usuario real (as_user, HOME certo sob sudo). Sem ~/.claude
+# (Claude Code ainda nao instalado) a gente CRIA a pasta: o nucleo fica pronto e passa a valer
+# quando o Claude Code for instalado — nada a pedir ao usuario. Falha de rede NUNCA derruba a
+# instalacao do app: avisa e diz o comando exato pra completar depois.
+# ---------------------------------------------------------------------------
+aplica_nucleo() {
+  [ "$NUCLEO" = 1 ] || { log "--sem-nucleo: pulei a skill engineering e o nucleo sempre-on."; return 0; }
+  local hub="$TARGET_HOME/.cargo/bin/schematize" sk="$TARGET_HOME/.cargo/bin/schematize-skills"
+  local core="$TARGET_HOME/.claude/skills/schematize-engineering/assets/CORE.md"
+  local depois="schematize skills install engineering && schematize core install"
+  if [ ! -x "$hub" ]; then
+    warn "sem o schematize em $hub — nao apliquei o nucleo. Depois de instalar, rode: $depois"
+    return 0
+  fi
+  log "nucleo sempre-on: skill engineering + CLAUDE.md global + hook SessionStart"
+  if [ ! -d "$TARGET_HOME/.claude" ]; then
+    as_user mkdir -p "$TARGET_HOME/.claude" 2>/dev/null || true
+    if ! as_user sh -c 'command -v claude >/dev/null 2>&1'; then
+      warn "o Claude Code ainda nao esta instalado — deixei ~/.claude pronto: a regra passa a valer assim que ele for instalado."
+    fi
+  fi
+  if [ ! -f "$core" ]; then
+    if [ ! -x "$sk" ]; then delega_ao_market schematize-skills || true; fi
+    if [ -x "$sk" ]; then
+      as_user "$sk" install engineering \
+        || warn "nao consegui baixar a skill engineering (rede?). A instalacao do app esta completa; para terminar: $depois"
+    else
+      warn "o schematize-skills nao esta instalado — nao baixei a engineering. Para terminar: schematize-market install schematize-skills && $depois"
+    fi
+  fi
+  if as_user "$hub" core install; then
+    ok "nucleo sempre-on aplicado."
+  else
+    warn "nao apliquei o nucleo sempre-on. Para completar: $depois"
+  fi
+  return 0
+}
+
+# ---------------------------------------------------------------------------
 # kit_completo — `--completo` (sinonimos `--all`, `--kit`): a maquina inteira num comando.
 #
 # O QUE: depois de hub + market (ja instalados pelo caminho normal), roda
@@ -1666,6 +1729,10 @@ case "$MODE" in
     esac ;;
   *) install_source ;;
 esac
+
+# Nucleo sempre-on: por padrao em todo modo. ANTES do kit, pra que uma falha dele (que sai
+# com `exit 1`) nao pule o nucleo; a engineering ja instalada aqui o kit so reaproveita.
+aplica_nucleo
 
 # --completo: roda DEPOIS da instalacao normal; o codigo de saida reflete os passos do kit.
 if [ "$COMPLETO" = 1 ]; then

@@ -53,6 +53,12 @@ impl Box {
     fn bin(&self) -> PathBuf {
         self.raiz.join("bin")
     }
+    /// Diretório que faz as vezes de `/usr/local/bin` (vazio por padrão).
+    fn sys(&self) -> PathBuf {
+        let d = self.raiz.join("sys");
+        fs::create_dir_all(&d).unwrap();
+        d
+    }
     fn log(&self, nome: &str) -> String {
         fs::read_to_string(self.raiz.join("log").join(nome)).unwrap_or_default()
     }
@@ -105,6 +111,9 @@ chmod +x "$out""#;
             .env("PATH", self.bin())
             .env("HOME", self.raiz.join("home"))
             .env("LOGDIR", self.raiz.join("log"))
+            // HERMÉTICO: o script consulta (e manda `sudo rm`) cópias antigas em /usr/local/bin e
+            // /usr/bin. Aponta pra um dir do sandbox, senão o teste depende do que a máquina tem.
+            .env("SCHEMATIZE_SYS_BIN_DIRS", self.sys())
             .env("SCHEMATIZE_INSTALL_NO_SELF", "1")
             .output()
             .expect("bash roda")
@@ -150,6 +159,24 @@ fn freebsd_amd64_sem_curl_baixa_assets_freebsd_com_fetch_e_sem_sudo() {
     );
     assert!(usos_de_escalador(&b).is_empty(), "sudo chamado à toa: {:?}", usos_de_escalador(&b));
     assert!(!t.contains("só Linux"), "morreu como não-Linux:\n{t}");
+}
+
+/// Contraparte do hermético: o teste acima só prova "sem sudo à toa" se, COM uma cópia antiga no
+/// diretório de sistema, o script de fato escala. Sem este, esvaziar o dir esconderia a regressão.
+#[test]
+fn copia_antiga_no_dir_de_sistema_ainda_escala_para_remover() {
+    let b = Box::novo("copia-antiga");
+    b.uname("FreeBSD", "amd64");
+    b.baixador("fetch");
+    b.escalador("sudo");
+    b.falso("pkg", "exit 0");
+    fs::write(b.sys().join("schematize"), "velho").unwrap();
+    let _ = b.instala(&["--binary"]);
+    let usos = usos_de_escalador(&b);
+    assert!(
+        usos.iter().any(|l| l.contains("rm -f") && l.contains("sys/schematize")),
+        "devia remover a cópia antiga com sudo: {usos:?}"
+    );
 }
 
 #[test]

@@ -41,6 +41,21 @@ mesmo sem flag, e o instalador **troca** um market antigo pela latest sem depend
 self-update dele. Se `~/.cargo/bin` não estiver no seu PATH, o fim da instalação mostra o
 comando exato pro seu shell.
 
+### Núcleo sempre-on (padrão)
+
+O instalador **sem flags** também instala a skill `engineering` e roda `schematize core install`
+(bloco no `~/.claude/CLAUDE.md` global + hook `SessionStart`), pra máquina recém-formatada já
+sair com a regra de orquestração ativa. Sob `sudo`, age no HOME do usuário real. Se o Claude Code
+ainda não está instalado, o instalador cria `~/.claude` e avisa: a regra passa a valer quando ele
+chegar. Sem rede, o app fica instalado e o script mostra o comando pra completar
+(`schematize skills install engineering`). `--skills` e `--completo` já incluem tudo isso.
+
+Opt-out explícito: **`--sem-nucleo`** instala só o app.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/schematizeme/schematize-cli/main/install.sh | bash -s -- --sem-nucleo
+```
+
 ### Só o hub
 
 **Padrão: binário pré-compilado** do release mais novo — sem Rust, sem compilador, sem libs
