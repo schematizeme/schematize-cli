@@ -174,6 +174,24 @@ Para atualizar o PRÓPRIO app (o binário), é outra coisa: `schematize upgrade`
 Instala em `~/.claude/skills/<skill>/` e achata os comandos em `~/.claude/commands/`.
 O estado de versões fica em `~/.claude/schematize/state.json`.
 
+## Custos (tokens + US$) por projeto
+
+`schematize cost` lê os transcripts do Claude Code e mantém, no archive do projeto
+(`<projeto>_archive/custos/`), um ledger append-only e os relatórios derivados.
+
+```
+schematize cost sync   [--projeto P]          # transcripts -> ledger.jsonl (incremental, idempotente)
+schematize cost report [--projeto P] [--json|--md]   # regenera custos.json e custos.md
+schematize cost show   [--por modelo|dia|semana|task|sessao|agente]
+schematize cost tag <task-id> [--nome ..]     # atribui o uso daqui pra frente a uma task
+schematize cost untag
+schematize cost pricing [--check]             # tabela de preços efetiva (embutida + overrides)
+```
+
+Preços: `src/cost/pricing.toml` (embutido), sobrescrevível em `~/.config/schematize/pricing.toml`
+e por projeto em `<archive>/custos/pricing.toml`. Todo valor é **estimativa API-equivalente**;
+assinatura/plano pode cobrar diferente — confira o `/usage`.
+
 ## Overdev — dev contínuo até o checklist fechar
 
 A ideia: **põe pra rodar e sai** (comer/dormir/viver). O agente **não para** até o
