@@ -145,6 +145,7 @@ fn main() {
         },
         Cmd::Deployer { sub } => crate::cli::deployer::deployer_cmd(sub),
         Cmd::Projects { sub } => projects_cmd(sub),
+        Cmd::Cost { sub } => crate::cli::custo::cost_cmd(sub),
         Cmd::Login => login_cmd(),
         Cmd::Logout => {
             logout_cmd();

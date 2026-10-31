@@ -28,10 +28,13 @@
 //! `superficie_da_cli_nao_mudou` compara a cada `cargo test`. O corte é provado, não
 //! confiado.
 
+pub(crate) mod custo;
 pub(crate) mod graph;
 pub(crate) mod maquina;
 
 pub(crate) use graph::{Auto, ProjectsCmd};
+
+pub(crate) use custo::CostCmd;
 
 /// `schematize core …` — o núcleo sempre-on (CLAUDE.md global + hook SessionStart).
 #[derive(Subcommand)]
@@ -198,6 +201,11 @@ pub(crate) enum Cmd {
     Deployer {
         #[command(subcommand)]
         sub: DeployerCmd,
+    },
+    /// Cost accounting (tokens + US$) per project, from the Claude Code transcripts.
+    Cost {
+        #[command(subcommand)]
+        sub: CostCmd,
     },
     /// Log in to the schematize platform via the browser (OAuth device flow).
     Login,

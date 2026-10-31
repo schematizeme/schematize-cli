@@ -7,6 +7,7 @@
 
 pub(crate) mod args;
 pub(crate) mod conta;
+pub(crate) mod custo;
 pub(crate) mod deployer;
 pub(crate) mod diversos;
 pub(crate) mod prompt;

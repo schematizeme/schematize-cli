@@ -9,6 +9,7 @@ pub mod applink;
 pub mod autostart;
 pub mod binlink;
 pub mod config;
+pub mod cost;
 pub mod debug;
 pub mod debugreport;
 pub mod deployerlink;

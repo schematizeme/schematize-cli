@@ -23,6 +23,9 @@ schematize_plataforma = { git = "https://github.com/schematizeme/schematize_plat
 clap = { version = "4", features = ["derive"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+# `cost`: datas em fuso LOCAL (dia/semana ISO) e pricing.toml. Sem `chrono` o fuso local não sai da std.
+chrono = { version = "0.4", default-features = false, features = ["std", "clock"] }
+toml = "0.9"
 notify-rust = "4"
 # Encoder PNG — gera o ícone (appicon) em PNG A PARTIR DO CÓDIGO, pros hicolor/.desktop, sem depender
 # de rasterizador externo (ImageMagick/rsvg) que falha em SVG. Já está no dep tree (transitivo).
@@ -36,6 +39,9 @@ png = "0.18"
 # Nada disso sumiu — mudou de casa, para o `schematize_overdev_rs`, que é quem usa o DB. O que
 # sai daqui é o custo: o hub e a janela dele deixam de compilar um banco de dados inteiro para
 # oferecer um recurso que nem todo mundo usa.
+
+[dev-dependencies]
+tempfile = "3"
 
 # Perfil de release COMPARTILHADO pelos repos do app (CLI, GUI Slint, market, deployer,
 # optimizer, updater-GUI). Cargo so reaproveita artefato quando o perfil bate EXATAMENTE.

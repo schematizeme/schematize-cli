@@ -31,6 +31,32 @@ CMD schematize core print
   SOBRE Print the installed CORE.md (what the SessionStart hook runs; silent if absent)
 CMD schematize core status
   SOBRE Show whether the core is present, outdated or absent (exit 1 unless up to date)
+CMD schematize cost
+  SOBRE Cost accounting (tokens + US$) per project, from the Claude Code transcripts
+CMD schematize cost pricing
+  SOBRE List the effective price table; with --check, validate it (exit 1 on problems)
+  ARG check                --check
+  ARG projeto              --projeto
+CMD schematize cost report
+  SOBRE Regenerate custos.json and custos.md from the ledger
+  ARG json                 --json
+  ARG md                   --md
+  ARG projeto              --projeto
+CMD schematize cost show
+  SOBRE Show a table straight from the ledger (default: by model)
+  ARG por                  --por
+  ARG projeto              --projeto
+CMD schematize cost sync
+  SOBRE Read the Claude Code transcripts and append the new responses to the ledger (idempotent)
+  ARG projeto              --projeto
+CMD schematize cost tag
+  SOBRE Attribute the usage from now on to a task, until the next tag or `untag`
+  ARG nome                 --nome
+  ARG projeto              --projeto
+  ARG task_id               OBRIGATORIO
+CMD schematize cost untag
+  SOBRE Close the active task tag
+  ARG projeto              --projeto
 CMD schematize debug
   SOBRE Debug the update manager/versioning; or --collect a shareable, secret-safe debug report
   ARG collect              --collect
