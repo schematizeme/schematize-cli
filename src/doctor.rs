@@ -3,6 +3,7 @@
 //! Onde: chamado por main. Não toca em nada sem --fix (além de criar diretórios base).
 
 use crate::i18n::{t, tf};
+use crate::varredura;
 use crate::versoes;
 use crate::{autostart, gestorboot, util};
 use std::fs;
@@ -236,17 +237,16 @@ pub fn report_text() -> String {
 
     // GUI flavor (só leitura).
     match find_gui_bin() {
-        Some(path) => match fs::read(&path) {
-            Ok(bytes) => {
-                let has = |needle: &[u8]| bytes.windows(needle.len()).any(|w| w == needle);
-                if has(b"slint") {
+        Some(path) => match varredura::contem_agulhas(&path, &[b"slint", b"eframe", b"egui"]) {
+            Ok(r) => {
+                if r[0] {
                     ln(
                         "OK",
                         "GUI (schematize-gui)",
                         &format!("Slint — {}", path.display()),
                         &mut o,
                     );
-                } else if has(b"eframe") || has(b"egui") {
+                } else if r[1] || r[2] {
                     ln(
                         "WARN",
                         "GUI (schematize-gui)",
@@ -366,11 +366,10 @@ fn gui_checks(fix: bool) -> usize {
     // 1) Flavor: lê os bytes do binário e procura "slint" (novo) vs "eframe"/"egui" (antigo).
     let gui_bin = find_gui_bin();
     match &gui_bin {
-        Some(path) => match fs::read(path) {
-            Ok(bytes) => {
-                let has = |needle: &[u8]| bytes.windows(needle.len()).any(|w| w == needle);
-                let is_slint = has(b"slint");
-                let is_egui = has(b"eframe") || has(b"egui");
+        Some(path) => match varredura::contem_agulhas(path, &[b"slint", b"eframe", b"egui"]) {
+            Ok(r) => {
+                let is_slint = r[0];
+                let is_egui = r[1] || r[2];
                 if is_slint {
                     line(&Lv::Ok, "GUI (schematize-gui)", &format!("Slint — {}", path.display()));
                 } else if is_egui {

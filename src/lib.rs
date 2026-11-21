@@ -34,4 +34,5 @@ pub mod skillslink;
 pub mod status;
 pub mod upgrade;
 pub mod util;
+pub mod varredura;
 pub mod versoes;
