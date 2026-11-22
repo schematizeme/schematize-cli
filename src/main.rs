@@ -144,6 +144,8 @@ fn main() {
             }
         },
         Cmd::Deployer { sub } => crate::cli::deployer::deployer_cmd(sub),
+        // Delegado à lib `schematize-connectors` (ADR-0028): o exit code é o dela (0..6).
+        Cmd::Conectores { args } => std::process::exit(schematize::conectores::executar(&args)),
         Cmd::Projects { sub } => projects_cmd(sub),
         Cmd::Login => login_cmd(),
         Cmd::Logout => {

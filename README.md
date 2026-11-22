@@ -142,6 +142,32 @@ schematize blog                # abre o blog no navegador
 schematize open site|blog|github
 ```
 
+## Conectores MCP (`schematize conectores`)
+
+Catálogo de conectores MCP da casa com **prévia somente leitura** antes de conectar (ADR-0028).
+Alias: `schematize connectors`. A lógica é da lib `schematize-connectors` (tag `v0.1.0`); o hub só delega.
+
+```bash
+schematize conectores list                       # catálogo (principal primeiro) e status
+schematize conectores preview asender            # ferramentas, offline (lista embutida)
+schematize conectores preview asender --ao-vivo  # pergunta ao servidor (tools/list; exige a chave no env)
+schematize conectores enable asender             # SÓ imprime o comando; nada é alterado
+schematize conectores enable asender --cliente cursor   # claude-code | cursor | vscode
+schematize conectores enable asender --aplicar   # roda `claude mcp add` (só claude-code)
+schematize conectores disable asender [--aplicar]
+schematize conectores anuncios [--slot banner-cli]      # audita por que um anúncio aparece (ou não)
+schematize conectores diag
+# globais: --lang pt|en, --json (chaves estáveis), --sem-anuncios
+```
+
+- **Segredo nunca em argv:** a chave vem da env var do conector (`ASENDER_API_KEY`), só o NOME é citado.
+  Única exceção, já avisada na saída: o `--aplicar` entrega a chave ao `claude mcp add`.
+- **Anúncio da casa** (discreto, rotulado): só em terminal humano. Nunca em `--json`, sem tty, com
+  `--sem-anuncios`/`SCHEMATIZE_SEM_ANUNCIOS=1`, nem sob agente de IA (`CLAUDECODE`, `CLAUDE_CODE_ENTRYPOINT`,
+  `CURSOR_AGENT`, `GEMINI_CLI`, `CODEX_SANDBOX`).
+- **Idioma:** `--lang` vence; senão vale o idioma do hub (`schematize lang`). O catálogo fala pt/en.
+- **Exit codes:** 0 ok, 1 uso/recusa, 2 argumento inválido, 3 sem endpoint/MCP, 4 exige a chave, 5 rede/protocolo, 6 timeout.
+
 ## Idiomas (i18n)
 
 A interface (CLI + GUI) é multi-idioma. Por padrão detecta o idioma do sistema

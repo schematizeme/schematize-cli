@@ -110,3 +110,16 @@ fn version_dentro_do_orcamento() {
     }
     confere("--version", pico, 16);
 }
+
+/// `conectores list`: catálogo `&'static`, sem rede; teto de 16 MiB (BUDGET.md). O pico medido
+/// é impresso (`--nocapture`) para registrar no BUDGET. Pico 0 = saiu antes da 1a leitura.
+#[test]
+fn conectores_list_dentro_do_orcamento() {
+    let h = home("conectores", 0);
+    let pico = pico_rss(&h, &["conectores", "list"]);
+    eprintln!("conectores list: pico {:.2} MiB", pico as f64 / MIB as f64);
+    if pico == 0 {
+        return;
+    }
+    confere("conectores list", pico, 16);
+}

@@ -23,6 +23,9 @@ CMD schematize blog
 CMD schematize check
   SOBRE Check for updates once (with --notify, fire a desktop notification)
   ARG notify               --notify
+CMD schematize conectores aliases=[connectors]
+  SOBRE MCP connectors catalog: list, read-only preview, enable/disable, ads audit, diag. Run `schematize conectores --help` for the full list (args go raw to the connectors lib)
+  ARG args                  <valor>
 CMD schematize core
   SOBRE Always-on core: install/inspect the engineering rules the agent loads in EVERY session
 CMD schematize core install

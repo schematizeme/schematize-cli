@@ -199,6 +199,14 @@ pub(crate) enum Cmd {
         #[command(subcommand)]
         sub: DeployerCmd,
     },
+    /// MCP connectors catalog: list, read-only preview, enable/disable, ads audit, diag.
+    /// Run `schematize conectores --help` for the full list (args go raw to the connectors lib).
+    #[command(visible_alias = "connectors", disable_help_flag = true)]
+    Conectores {
+        /// Subcommand and flags, forwarded as typed (list, preview <id>, enable <id>, ...).
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        args: Vec<String>,
+    },
     /// Log in to the schematize platform via the browser (OAuth device flow).
     Login,
     /// Log out (delete the local session).
